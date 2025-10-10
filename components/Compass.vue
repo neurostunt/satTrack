@@ -17,12 +17,15 @@ const compassCanvas = ref(null)
 const canvasSize = 280
 let animationId = null
 
-// Device orientation data
+// Device orientation data (for tilt only)
 const orientation = ref({
-  alpha: 0, // compass direction
+  alpha: 0, // not used for compass (GPS heading used instead)
   beta: 0,  // front-to-back tilt
   gamma: 0  // left-to-right tilt
 })
+
+// GPS heading for compass
+const gpsHeading = ref(0)
 
 // Draw compass
 const drawCompass = () => {
@@ -58,12 +61,12 @@ const drawCompass = () => {
     ctx.fillText(dir, x, y)
   })
   
-  // Draw compass needle (arrow)
+  // Draw compass needle (arrow) using GPS heading
   ctx.strokeStyle = '#0ea5e9'
   ctx.fillStyle = '#0ea5e9'
   ctx.lineWidth = 3
   
-  const needleAngle = (orientation.value.alpha * Math.PI / 180) - Math.PI / 2
+  const needleAngle = (gpsHeading.value * Math.PI / 180) - Math.PI / 2
   const needleLength = 80
   
   ctx.beginPath()
@@ -128,6 +131,17 @@ onMounted(() => {
   
   // Start animation
   animate()
+})
+
+// Update GPS heading from parent component
+const updateGPSHeading = (heading) => {
+  gpsHeading.value = heading
+  drawCompass()
+}
+
+// Expose function to parent
+defineExpose({
+  updateGPSHeading
 })
 
 onUnmounted(() => {

@@ -40,7 +40,7 @@
 
     <!-- Compass - Larger -->
     <div class="max-w-sm mx-auto mb-6">
-      <Compass />
+      <Compass ref="compassRef" />
     </div>
 
     <!-- Satellite Information - Compact -->
@@ -90,20 +90,35 @@
       </div>
     </div>
 
-    <!-- Status - Smaller -->
-    <div class="max-w-lg mx-auto mt-6">
-      <div class="text-center text-xs text-space-400">
-        <div v-if="!locationPermission" class="text-orange-400 mb-1">
-          ⚠️ Location permission required
-        </div>
-        <div v-if="!orientationPermission" class="text-orange-400 mb-1">
-          ⚠️ Device orientation permission required
-        </div>
-        <div v-if="locationPermission && orientationPermission" class="text-green-400">
-          ✅ Ready for tracking!
+    <!-- Status - Enhanced -->
+    <ClientOnly>
+      <div class="max-w-lg mx-auto mt-6">
+        <div class="text-center text-xs text-space-400 space-y-1">
+          <div v-if="!locationPermission" class="text-orange-400 mb-1">
+            ⚠️ Location permission required
+          </div>
+          <div v-if="!orientationPermission" class="text-orange-400 mb-1">
+            ⚠️ Device orientation permission required
+          </div>
+          <div v-if="locationPermission && userLocation.accuracy > 0" class="text-blue-400">
+            📍 Location accuracy: ±{{ Math.round(userLocation.accuracy) }}m
+          </div>
+          <div v-if="locationPermission && userLocation.altitudeAccuracy > 0" class="text-blue-400">
+            🏔️ Altitude accuracy: ±{{ Math.round(userLocation.altitudeAccuracy) }}m
+          </div>
+          <div v-if="locationPermission && orientationPermission" class="text-green-400">
+            ✅ Ready for tracking!
+          </div>
         </div>
       </div>
-    </div>
+      <template #fallback>
+        <div class="max-w-lg mx-auto mt-6">
+          <div class="text-center text-xs text-space-400">
+            <div class="text-blue-400">🔄 Loading sensors...</div>
+          </div>
+        </div>
+      </template>
+    </ClientOnly>
   </div>
 </template>
 
@@ -130,25 +145,32 @@ const settings = ref({
   updateInterval: 5000
 })
 
-// Permissions
-const locationPermission = ref(false)
-const orientationPermission = ref(false)
+// User location with precision
+const userLocation = ref({
+  latitude: 0,
+  longitude: 0,
+  altitude: 0,
+  accuracy: 0,
+  altitudeAccuracy: 0,
+  heading: 0,
+  speed: 0
+})
+
+// Compass reference
+const compassRef = ref(null)
 
 // Device orientation data
 const deviceOrientation = ref({
-  alpha: 0, // compass direction
+  alpha: 0, // not used for compass (GPS heading used instead)
   beta: 0,  // front-to-back tilt
   gamma: 0  // left-to-right tilt
 })
 
-// User location
-const userLocation = ref({
-  latitude: 0,
-  longitude: 0,
-  altitude: 0
-})
+// Permissions
+const locationPermission = ref(false)
+const orientationPermission = ref(false)
 
-// Handle device orientation
+// Handle device orientation (for tilt only, not compass)
 const handleOrientation = (event) => {
   deviceOrientation.value = {
     alpha: event.alpha || 0,
@@ -156,20 +178,32 @@ const handleOrientation = (event) => {
     gamma: event.gamma || 0
   }
   
-  // Calculate deltas
-  azimuthDelta.value = Math.round(satelliteAzimuth.value - deviceOrientation.value.alpha)
+  // Use GPS heading for azimuth, device tilt for elevation
+  const currentHeading = userLocation.value.heading || 0
+  azimuthDelta.value = Math.round(satelliteAzimuth.value - currentHeading)
   elevationDelta.value = Math.round(satelliteElevation.value - deviceOrientation.value.beta)
 }
 
-// Handle geolocation
+// Handle geolocation with enhanced data
 const handleLocation = (position) => {
   userLocation.value = {
     latitude: position.coords.latitude,
     longitude: position.coords.longitude,
-    altitude: position.coords.altitude || 0
+    altitude: position.coords.altitude || 0,
+    accuracy: position.coords.accuracy || 0,
+    altitudeAccuracy: position.coords.altitudeAccuracy || 0,
+    heading: position.coords.heading || 0,
+    speed: position.coords.speed || 0
   }
   
-  // Calculate satellite position
+  console.log('Location updated:', userLocation.value)
+  
+  // Update compass with GPS heading
+  if (compassRef.value && userLocation.value.heading !== null) {
+    compassRef.value.updateGPSHeading(userLocation.value.heading)
+  }
+  
+  // Calculate satellite position with real location
   calculateSatellitePosition()
 }
 
@@ -183,8 +217,9 @@ const calculateSatellitePosition = () => {
   satelliteElevation.value = Math.round(Math.random() * 90)
   satelliteRange.value = Math.round(400 + Math.random() * 500)
   
-  // Calculate deltas
-  azimuthDelta.value = Math.round(satelliteAzimuth.value - deviceOrientation.value.alpha)
+  // Calculate deltas using GPS heading for azimuth
+  const currentHeading = userLocation.value.heading || 0
+  azimuthDelta.value = Math.round(satelliteAzimuth.value - currentHeading)
   elevationDelta.value = Math.round(satelliteElevation.value - deviceOrientation.value.beta)
   
   // Mock next pass time
@@ -193,37 +228,70 @@ const calculateSatellitePosition = () => {
   nextPassTime.value = nextPass.toUTCString().substring(17, 22) + ' UTC'
 }
 
-// Request permissions
+// Request permissions with enhanced options
 const requestPermissions = async () => {
-  // Request geolocation
+  // Request geolocation with high accuracy
   if (navigator.geolocation) {
+    const options = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 30000
+    }
+    
     navigator.geolocation.getCurrentPosition(
       (position) => {
         locationPermission.value = true
         handleLocation(position)
+        
+        // Start watching position for continuous updates
+        navigator.geolocation.watchPosition(
+          handleLocation,
+          (error) => console.error('Watch position error:', error),
+          options
+        )
       },
       (error) => {
         console.error('Geolocation error:', error)
         locationPermission.value = false
-      }
+        
+        // Show specific error messages
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            console.error('Location access denied by user')
+            break
+          case error.POSITION_UNAVAILABLE:
+            console.error('Location information unavailable')
+            break
+          case error.TIMEOUT:
+            console.error('Location request timed out')
+            break
+        }
+      },
+      options
     )
   }
   
-  // Request device orientation
+  // Request device orientation with enhanced permissions
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     try {
       const response = await DeviceOrientationEvent.requestPermission()
       if (response === 'granted') {
         orientationPermission.value = true
         window.addEventListener('deviceorientation', handleOrientation)
+        console.log('Device orientation permission granted')
+      } else {
+        console.error('Device orientation permission denied')
+        orientationPermission.value = false
       }
     } catch (error) {
       console.error('Orientation permission error:', error)
+      orientationPermission.value = false
     }
   } else {
     // For browsers that don't require permission
     orientationPermission.value = true
     window.addEventListener('deviceorientation', handleOrientation)
+    console.log('Device orientation available without permission')
   }
 }
 

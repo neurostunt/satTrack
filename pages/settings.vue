@@ -151,9 +151,11 @@
               v-model="settings.compassType"
               class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
             >
-              <option value="magnetic">Magnetic North</option>
-              <option value="true">True North</option>
+              <option value="true">True North (GPS) - Recommended</option>
             </select>
+            <div class="text-xs text-space-500 mt-1">
+              Uses GPS heading for maximum accuracy
+            </div>
           </div>
 
           <!-- Auto-update TLE -->
@@ -171,6 +173,26 @@
             <label class="text-sm text-space-300">Sound alerts</label>
             <input 
               v-model="settings.soundAlerts"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
+            />
+          </div>
+
+          <!-- High accuracy mode -->
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-space-300">High accuracy GPS</label>
+            <input 
+              v-model="settings.highAccuracyGPS"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
+            />
+          </div>
+
+          <!-- Magnetometer calibration -->
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-space-300">Auto-calibrate compass</label>
+            <input 
+              v-model="settings.autoCalibrateCompass"
               type="checkbox"
               class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
             />
@@ -210,9 +232,11 @@ const settings = ref({
   ],
   updateInterval: 5000,
   distanceUnits: 'km',
-  compassType: 'magnetic',
+  compassType: 'true',
   autoUpdateTLE: true,
-  soundAlerts: false
+  soundAlerts: false,
+  highAccuracyGPS: true,
+  autoCalibrateCompass: true
 })
 
 const newSatellite = ref({

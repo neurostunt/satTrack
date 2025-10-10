@@ -109,14 +109,20 @@
               <div v-if="tleLoading" class="text-blue-400">
                 📡 Fetching TLE data...
               </div>
+              <div v-if="isOffline" class="text-yellow-400">
+                📶 Using cached data (offline mode)
+              </div>
               <div v-if="!hasTLEData(settings.trackedSatellites.find(s => s.name === selectedSatellite)?.noradId)" class="text-orange-400">
                 ⚠️ No TLE data for {{ selectedSatellite }}
               </div>
               <div v-if="locationPermission && orientationPermission && hasTLEData(settings.trackedSatellites.find(s => s.name === selectedSatellite)?.noradId)" class="text-green-400">
-                ✅ Ready for tracking with real TLE data!
+                ✅ Ready for tracking with {{ cacheStatus === 'fresh' ? 'fresh' : 'cached' }} TLE data!
               </div>
-              <div v-if="!settings.spaceTrackUsername || !settings.spaceTrackPassword" class="text-yellow-400">
+              <div v-if="!credentials.username || !credentials.password" class="text-yellow-400">
                 ⚠️ Please configure Space-Track.org credentials in settings
+              </div>
+              <div v-if="credentials.username && credentials.password && getDataFreshness().age !== null" class="text-blue-400">
+                📊 TLE data: {{ getDataFreshness().age }} min old ({{ cacheStatus }})
               </div>
             </div>
           </div>
@@ -134,6 +140,7 @@
 <script setup>
 import { useTLEData } from '~/composables/useTLEData.js'
 import { useSatelliteCalculations } from '~/composables/useSatelliteCalculations.js'
+import secureStorage from '~/utils/secureStorage.js'
 
 // Composables
 const { 
@@ -142,7 +149,11 @@ const {
   fetchTLEData, 
   getTLEData, 
   hasTLEData,
-  getDataFreshness 
+  getDataFreshness,
+  initializeTLEData,
+  refreshTLEData,
+  isOffline,
+  cacheStatus
 } = useTLEData()
 
 const { 
@@ -160,7 +171,7 @@ const elevationDelta = ref(0)
 const satelliteRange = ref(0)
 const nextPassTime = ref('Calculating...')
 
-// Settings - Load from localStorage
+// Settings - Load from secure storage
 const settings = ref({
   trackedSatellites: [
     { noradId: 25544, name: 'ISS' },
@@ -174,9 +185,13 @@ const settings = ref({
     { noradId: 61781, name: 'NOAA-24' }
   ],
   updateInterval: 5000,
-  distanceUnits: 'km',
-  spaceTrackUsername: '',
-  spaceTrackPassword: ''
+  distanceUnits: 'km'
+})
+
+// Credentials loaded from secure storage
+const credentials = ref({
+  username: '',
+  password: ''
 })
 
 // User location with precision
@@ -260,9 +275,9 @@ const calculateCurrentSatellitePosition = async () => {
     console.warn(`No TLE data available for ${selectedSat.name} (${selectedSat.noradId})`)
     
     // Try to fetch TLE data if credentials are available
-    if (settings.value.spaceTrackUsername && settings.value.spaceTrackPassword) {
+    if (credentials.value.username && credentials.value.password) {
       try {
-        await fetchTLEData([selectedSat], settings.value.spaceTrackUsername, settings.value.spaceTrackPassword)
+        await fetchTLEData([selectedSat], credentials.value.username, credentials.value.password)
       } catch (error) {
         console.error('Failed to fetch TLE data:', error)
       }
@@ -376,12 +391,23 @@ const requestPermissions = async () => {
   }
 }
 
-// Load settings from localStorage
-const loadSettings = () => {
-  const savedSettings = localStorage.getItem('sattrack-settings')
-  if (savedSettings) {
-    const parsed = JSON.parse(savedSettings)
-    settings.value = { ...settings.value, ...parsed }
+// Load settings from secure storage
+const loadSettings = async () => {
+  try {
+    // Load general settings
+    const savedSettings = secureStorage.getSettings()
+    if (savedSettings) {
+      settings.value = { ...settings.value, ...savedSettings }
+    }
+
+    // Load encrypted credentials
+    const storedCredentials = await secureStorage.getCredentials()
+    if (storedCredentials) {
+      credentials.value = storedCredentials
+      console.log('Credentials loaded securely')
+    }
+  } catch (error) {
+    console.error('Failed to load settings:', error)
   }
 }
 
@@ -396,22 +422,37 @@ watch(selectedSatellite, () => {
 })
 
 onMounted(async () => {
-  loadSettings()
+  await loadSettings()
   requestPermissions()
   
-      // Load TLE data (requires credentials)
-      if (settings.value.spaceTrackUsername && settings.value.spaceTrackPassword) {
-        try {
-          await fetchTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword)
-        } catch (error) {
-          console.error('TLE data load failed:', error.message)
-        }
-      } else {
-        console.log('No Space-Track.org credentials provided. Please configure in settings.')
-      }
+  // Initialize TLE data (loads from cache or fetches fresh)
+  if (credentials.value.username && credentials.value.password) {
+    try {
+      await initializeTLEData(settings.value.trackedSatellites, credentials.value.username, credentials.value.password)
+    } catch (error) {
+      console.error('TLE data initialization failed:', error.message)
+    }
+  } else {
+    console.log('No Space-Track.org credentials provided. Please configure in settings.')
+  }
   
   // Update satellite position every 5 seconds
   setInterval(calculateCurrentSatellitePosition, 5000)
+  
+  // Auto-refresh TLE data every 2 hours if credentials are available
+  if (credentials.value.username && credentials.value.password) {
+    setInterval(async () => {
+      const freshness = getDataFreshness()
+      if (freshness.needsRefresh) {
+        console.log('Auto-refreshing TLE data...')
+        try {
+          await refreshTLEData(settings.value.trackedSatellites, credentials.value.username, credentials.value.password)
+        } catch (error) {
+          console.error('Auto-refresh failed:', error)
+        }
+      }
+    }, 2 * 60 * 60 * 1000) // 2 hours
+  }
 })
 
 onUnmounted(() => {

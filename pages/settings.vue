@@ -58,6 +58,29 @@
               </button>
             </div>
           </div>
+          
+          <!-- TLE Data Status -->
+          <div v-if="credentialsLoaded" class="mt-3 p-2 bg-space-800 border border-space-700 rounded text-xs">
+            <div class="flex items-center justify-between">
+              <span class="text-space-300">TLE Data Status:</span>
+              <span :class="{
+                'text-green-400': tleDataStatus.includes('Fresh'),
+                'text-yellow-400': tleDataStatus.includes('Stale'),
+                'text-red-400': tleDataStatus === 'No data'
+              }">
+                {{ tleDataStatus }}
+              </span>
+            </div>
+            <div class="flex gap-2 mt-2">
+              <button 
+                @click="forceRefreshTLEData"
+                class="btn-secondary text-xs px-2 py-1"
+                :disabled="tleLoading"
+              >
+                Force Refresh
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -119,6 +142,62 @@
           
           <div v-if="settings.trackedSatellites.length === 0" class="text-center text-space-400 text-sm py-4">
             No satellites added yet
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Storage Management -->
+    <div class="max-w-lg mx-auto mb-6">
+      <div class="card p-4">
+        <h3 class="text-lg font-semibold mb-4 text-primary-400">Storage Management</h3>
+        
+        <div class="space-y-4">
+          <!-- Storage Usage -->
+          <div v-if="!isLoadingStorage && storageInfo.indexedDB" class="p-3 bg-space-800 border border-space-700 rounded text-xs">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-space-300">Browser Storage:</span>
+              <span class="text-primary-400">{{ storageInfo.indexedDB.used }} / {{ storageInfo.indexedDB.available }}</span>
+            </div>
+            <div class="w-full bg-space-700 rounded-full h-2">
+              <div 
+                class="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                :style="{ width: storageInfo.indexedDB.percentage }"
+              ></div>
+            </div>
+            <div class="text-space-400 mt-1">
+              <div>IndexedDB: {{ storageInfo.indexedDB.used }} | 
+              localStorage: {{ Math.round(storageInfo.localStorage?.total / 1024) || 0 }} KB</div>
+              <div v-if="storageInfo.indexedDB.ourData" class="text-space-500 mt-1">
+                Our Data: {{ storageInfo.indexedDB.ourData.total }} 
+                (TLE: {{ storageInfo.indexedDB.ourData.tle }}, 
+                Settings: {{ storageInfo.indexedDB.ourData.settings }}, 
+                Credentials: {{ storageInfo.indexedDB.ourData.credentials }})
+              </div>
+            </div>
+          </div>
+          
+          <!-- Storage Actions -->
+          <div class="flex gap-2 flex-wrap">
+            <button 
+              @click="loadStorageInfo"
+              class="btn-secondary text-xs px-3 py-1"
+              :disabled="isLoadingStorage"
+            >
+              {{ isLoadingStorage ? 'Loading...' : 'Refresh Storage Info' }}
+            </button>
+            <button 
+              @click="debugStorage"
+              class="text-blue-300 hover:text-blue-200 text-xs px-3 py-1 bg-space-700 hover:bg-space-600 rounded transition-colors"
+            >
+              Debug Storage
+            </button>
+            <button 
+              @click="clearAllData"
+              class="text-red-300 hover:text-red-200 text-xs px-3 py-1 bg-space-700 hover:bg-space-600 rounded transition-colors"
+            >
+              Clear All Data
+            </button>
           </div>
         </div>
       </div>
@@ -235,9 +314,11 @@
 <script setup>
 import spaceTrackAPI from '~/utils/spaceTrackApi.js'
 import { useTLEData } from '~/composables/useTLEData.js'
+import secureStorage from '~/utils/secureStorage.js'
+import indexedDBStorage from '~/utils/indexedDBStorage.js'
 
 // Composables
-const { fetchTLEData, isLoading: tleLoading, error: tleError } = useTLEData()
+const { fetchTLEData, isLoading: tleLoading, error: tleError, refreshTLEData, getDataFreshness } = useTLEData()
 
 // Settings data
 const settings = ref({
@@ -271,21 +352,143 @@ const newSatellite = ref({
 const spaceTrackStatus = ref(false)
 const isTestingConnection = ref(false)
 const connectionMessage = ref('')
+const credentialsLoaded = ref(false)
+const tleDataStatus = ref('')
+const storageInfo = ref({})
+const isLoadingStorage = ref(false)
 
-// Load settings from localStorage
-const loadSettings = () => {
-  const savedSettings = localStorage.getItem('sattrack-settings')
-  if (savedSettings) {
-    const parsed = JSON.parse(savedSettings)
-    settings.value = { ...settings.value, ...parsed }
+// Load settings from secure storage
+const loadSettings = async () => {
+  try {
+    // Load general settings
+    const savedSettings = secureStorage.getSettings()
+    if (savedSettings) {
+      settings.value = { ...settings.value, ...savedSettings }
+    }
+
+    // Load encrypted credentials
+    const credentials = await secureStorage.getCredentials()
+    if (credentials) {
+      settings.value.spaceTrackUsername = credentials.username
+      settings.value.spaceTrackPassword = credentials.password
+      credentialsLoaded.value = true
+      console.log('Credentials loaded securely')
+    }
+
+    // Check TLE data status
+    updateTLEStatus()
+    
+    // Load storage info
+    await loadStorageInfo()
+  } catch (error) {
+    console.error('Failed to load settings:', error)
   }
 }
 
-// Save settings to localStorage
-const saveSettings = () => {
-  localStorage.setItem('sattrack-settings', JSON.stringify(settings.value))
-  // Show success message
-  alert('Settings saved successfully!')
+// Save settings to secure storage
+const saveSettings = async () => {
+  try {
+    // Save credentials securely
+    if (settings.value.spaceTrackUsername && settings.value.spaceTrackPassword) {
+      await secureStorage.storeCredentials({
+        username: settings.value.spaceTrackUsername,
+        password: settings.value.spaceTrackPassword
+      })
+    }
+
+    // Save general settings (without credentials)
+    secureStorage.storeSettings(settings.value)
+    
+    console.log('Settings saved securely')
+    alert('Settings saved successfully!')
+  } catch (error) {
+    console.error('Failed to save settings:', error)
+    alert('Failed to save settings. Please try again.')
+  }
+}
+
+// Update TLE data status display
+const updateTLEStatus = () => {
+  const freshness = getDataFreshness()
+  if (freshness.isFresh) {
+    tleDataStatus.value = `Fresh (${freshness.age} min ago)`
+  } else if (freshness.age !== null) {
+    tleDataStatus.value = `Stale (${freshness.age} min ago)`
+  } else {
+    tleDataStatus.value = 'No data'
+  }
+}
+
+// Load storage information
+const loadStorageInfo = async () => {
+  isLoadingStorage.value = true
+  try {
+    // Force refresh by clearing any cached data
+    storageInfo.value = {}
+    
+    // Get fresh storage info
+    const freshInfo = await secureStorage.getStorageInfo()
+    storageInfo.value = freshInfo
+    
+    console.log('Storage info loaded:', storageInfo.value)
+    console.log('Our data breakdown:', storageInfo.value.indexedDB?.ourData)
+    
+    // Log the formatted sizes
+    if (storageInfo.value.indexedDB?.ourData) {
+      console.log('Formatted sizes:', {
+        total: storageInfo.value.indexedDB.ourData.total,
+        tle: storageInfo.value.indexedDB.ourData.tle,
+        settings: storageInfo.value.indexedDB.ourData.settings,
+        credentials: storageInfo.value.indexedDB.ourData.credentials
+      })
+    }
+  } catch (error) {
+    console.error('Failed to load storage info:', error)
+    storageInfo.value = { error: 'Failed to load storage info' }
+  } finally {
+    isLoadingStorage.value = false
+  }
+}
+
+// Debug storage information
+const debugStorage = async () => {
+  try {
+    console.log('=== Storage Debug Info ===')
+    
+    // Check IndexedDB directly
+    const indexedDBInfo = await indexedDBStorage.getStorageInfo()
+    console.log('IndexedDB Info:', indexedDBInfo)
+    
+    // Check if we have TLE data
+    const tleData = await indexedDBStorage.getTLEData()
+    console.log('TLE Data exists:', !!tleData)
+    if (tleData) {
+      console.log('TLE Data count:', Object.keys(tleData.data || {}).length)
+      console.log('TLE Data sample:', Object.keys(tleData.data || {}).slice(0, 3))
+    }
+    
+    // Check credentials
+    const credentials = await indexedDBStorage.getCredentials()
+    console.log('Credentials exist:', !!credentials)
+    
+    // Check settings
+    const settings = await indexedDBStorage.getSettings()
+    console.log('Settings exist:', Object.keys(settings).length > 0)
+    console.log('Settings keys:', Object.keys(settings))
+    
+    // Check localStorage fallback
+    console.log('localStorage keys:', Object.keys(localStorage).filter(key => key.startsWith('sattrack')))
+    
+    // Manual size calculation
+    if (tleData) {
+      const tleSize = new Blob([JSON.stringify(tleData)]).size
+      console.log('Manual TLE size calculation:', tleSize, 'bytes')
+    }
+    
+    console.log('=== End Debug Info ===')
+  } catch (error) {
+    console.error('Debug storage failed:', error)
+  }
 }
 
 // Test Space-Track.org connection
@@ -336,6 +539,13 @@ const testSpaceTrackConnection = async () => {
           settings.value.spaceTrackPassword
         )
         
+        updateTLEStatus()
+        
+        // Wait a moment for IndexedDB write to complete, then refresh storage info
+        setTimeout(async () => {
+          await loadStorageInfo()
+        }, 500)
+        
         if (tleError.value) {
           alert(`TLE data fetch failed: ${tleError.value}`)
         } else {
@@ -343,6 +553,45 @@ const testSpaceTrackConnection = async () => {
         }
       } catch (error) {
         alert(`TLE data fetch error: ${error.message}`)
+      }
+    }
+
+    // Force refresh TLE data
+    const forceRefreshTLEData = async () => {
+      try {
+        if (!settings.value.spaceTrackUsername || !settings.value.spaceTrackPassword) {
+          alert('Please enter Space-Track.org credentials first')
+          return
+        }
+
+        await refreshTLEData(
+          settings.value.trackedSatellites,
+          settings.value.spaceTrackUsername,
+          settings.value.spaceTrackPassword
+        )
+        
+        updateTLEStatus()
+        alert('TLE data refreshed successfully!')
+      } catch (error) {
+        alert(`TLE data refresh error: ${error.message}`)
+      }
+    }
+
+    // Clear all stored data
+    const clearAllData = async () => {
+      if (confirm('This will clear all stored credentials and TLE data. Are you sure?')) {
+        try {
+          secureStorage.clearCredentials()
+          secureStorage.clearTLECache()
+          settings.value.spaceTrackUsername = ''
+          settings.value.spaceTrackPassword = ''
+          credentialsLoaded.value = false
+          tleDataStatus.value = 'No data'
+          alert('All data cleared successfully!')
+        } catch (error) {
+          console.error('Failed to clear data:', error)
+          alert('Failed to clear data. Please try again.')
+        }
       }
     }
 
@@ -369,8 +618,8 @@ const goBack = () => {
   navigateTo('/')
 }
 
-onMounted(() => {
-  loadSettings()
+onMounted(async () => {
+  await loadSettings()
 })
 
 // SEO

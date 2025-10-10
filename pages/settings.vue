@@ -37,14 +37,26 @@
               <span :class="spaceTrackStatus ? 'text-green-400' : 'text-orange-400'">
                 {{ spaceTrackStatus ? 'Connected' : 'Not connected' }}
               </span>
+              <div v-if="connectionMessage" class="text-xs text-space-500 mt-1">
+                {{ connectionMessage }}
+              </div>
             </div>
-            <button 
-              @click="testSpaceTrackConnection"
-              class="btn-primary text-xs px-3 py-1"
-              :disabled="!settings.spaceTrackUsername || !settings.spaceTrackPassword"
-            >
-              Test Connection
-            </button>
+            <div class="flex gap-2">
+              <button 
+                @click="testSpaceTrackConnection"
+                class="btn-primary text-xs px-3 py-1"
+                :disabled="!settings.spaceTrackUsername || !settings.spaceTrackPassword || isTestingConnection"
+              >
+                {{ isTestingConnection ? 'Testing...' : 'Test Connection' }}
+              </button>
+              <button 
+                @click="fetchAllTLEData"
+                class="btn-secondary text-xs px-3 py-1"
+                :disabled="!spaceTrackStatus || tleLoading"
+              >
+                {{ tleLoading ? 'Fetching...' : 'Fetch TLE' }}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -221,14 +233,26 @@
 </template>
 
 <script setup>
+import spaceTrackAPI from '~/utils/spaceTrackApi.js'
+import { useTLEData } from '~/composables/useTLEData.js'
+
+// Composables
+const { fetchTLEData, isLoading: tleLoading, error: tleError } = useTLEData()
+
 // Settings data
 const settings = ref({
   spaceTrackUsername: '',
   spaceTrackPassword: '',
   trackedSatellites: [
     { noradId: 25544, name: 'ISS' },
-    { noradId: 28654, name: 'NOAA-18' },
-    { noradId: 33591, name: 'NOAA-19' }
+    { noradId: 43017, name: 'NOAA-15' },
+    { noradId: 43770, name: 'NOAA-18' },
+    { noradId: 43803, name: 'NOAA-19' },
+    { noradId: 39444, name: 'NOAA-20' },
+    { noradId: 40967, name: 'NOAA-21' },
+    { noradId: 27607, name: 'NOAA-22' },
+    { noradId: 24278, name: 'NOAA-23' },
+    { noradId: 61781, name: 'NOAA-24' }
   ],
   updateInterval: 5000,
   distanceUnits: 'km',
@@ -245,6 +269,8 @@ const newSatellite = ref({
 })
 
 const spaceTrackStatus = ref(false)
+const isTestingConnection = ref(false)
+const connectionMessage = ref('')
 
 // Load settings from localStorage
 const loadSettings = () => {
@@ -264,28 +290,61 @@ const saveSettings = () => {
 
 // Test Space-Track.org connection
 const testSpaceTrackConnection = async () => {
+  if (!settings.value.spaceTrackUsername || !settings.value.spaceTrackPassword) {
+    alert('Please enter both username and password')
+    return
+  }
+
+  isTestingConnection.value = true
+  connectionMessage.value = 'Testing connection...'
+
   try {
-    // This would be a real API call in production
-    const response = await fetch('https://www.space-track.org/ajaxauth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `identity=${settings.value.spaceTrackUsername}&password=${settings.value.spaceTrackPassword}`
-    })
+    const success = await spaceTrackAPI.testConnection(
+      settings.value.spaceTrackUsername,
+      settings.value.spaceTrackPassword
+    )
     
-    if (response.ok) {
-      spaceTrackStatus.value = true
-      alert('Space-Track.org connection successful!')
-    } else {
-      spaceTrackStatus.value = false
-      alert('Space-Track.org connection failed. Check credentials.')
-    }
+        if (success) {
+          spaceTrackStatus.value = true
+          connectionMessage.value = 'Connection successful!'
+          alert('Space-Track.org connection successful!')
+        } else {
+          spaceTrackStatus.value = false
+          connectionMessage.value = 'Connection failed'
+          alert('Space-Track.org connection failed. Please check your credentials.')
+        }
   } catch (error) {
     spaceTrackStatus.value = false
-    alert('Connection test failed. Check your internet connection.')
+    connectionMessage.value = 'Connection error'
+    alert(`Connection test failed: ${error.message}. Please check your credentials.`)
+  } finally {
+    isTestingConnection.value = false
   }
 }
+
+    // Fetch TLE data for all tracked satellites
+    const fetchAllTLEData = async () => {
+      try {
+        if (!settings.value.spaceTrackUsername || !settings.value.spaceTrackPassword) {
+          alert('Please enter Space-Track.org credentials first')
+          return
+        }
+
+        await fetchTLEData(
+          settings.value.trackedSatellites,
+          settings.value.spaceTrackUsername,
+          settings.value.spaceTrackPassword
+        )
+        
+        if (tleError.value) {
+          alert(`TLE data fetch failed: ${tleError.value}`)
+        } else {
+          alert('TLE data updated successfully!')
+        }
+      } catch (error) {
+        alert(`TLE data fetch error: ${error.message}`)
+      }
+    }
 
 // Add satellite
 const addSatellite = () => {

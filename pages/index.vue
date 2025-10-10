@@ -90,41 +90,66 @@
       </div>
     </div>
 
-    <!-- Status - Enhanced -->
-    <ClientOnly>
-      <div class="max-w-lg mx-auto mt-6">
-        <div class="text-center text-xs text-space-400 space-y-1">
-          <div v-if="!locationPermission" class="text-orange-400 mb-1">
-            ⚠️ Location permission required
+        <!-- Status - Enhanced -->
+        <ClientOnly>
+          <div class="max-w-lg mx-auto mt-6">
+            <div class="text-center text-xs text-space-400 space-y-1">
+              <div v-if="!locationPermission" class="text-orange-400 mb-1">
+                ⚠️ Location permission required
+              </div>
+              <div v-if="!orientationPermission" class="text-orange-400 mb-1">
+                ⚠️ Device orientation permission required
+              </div>
+              <div v-if="locationPermission && userLocation.accuracy > 0" class="text-blue-400">
+                📍 Location accuracy: ±{{ Math.round(userLocation.accuracy) }}m
+              </div>
+              <div v-if="locationPermission && userLocation.altitudeAccuracy > 0" class="text-blue-400">
+                🏔️ Altitude accuracy: ±{{ Math.round(userLocation.altitudeAccuracy) }}m
+              </div>
+              <div v-if="tleLoading" class="text-blue-400">
+                📡 Fetching TLE data...
+              </div>
+              <div v-if="!hasTLEData(settings.trackedSatellites.find(s => s.name === selectedSatellite)?.noradId)" class="text-orange-400">
+                ⚠️ No TLE data for {{ selectedSatellite }}
+              </div>
+              <div v-if="locationPermission && orientationPermission && hasTLEData(settings.trackedSatellites.find(s => s.name === selectedSatellite)?.noradId)" class="text-green-400">
+                ✅ Ready for tracking with real TLE data!
+              </div>
+              <div v-if="!settings.spaceTrackUsername || !settings.spaceTrackPassword" class="text-yellow-400">
+                ⚠️ Please configure Space-Track.org credentials in settings
+              </div>
+            </div>
           </div>
-          <div v-if="!orientationPermission" class="text-orange-400 mb-1">
-            ⚠️ Device orientation permission required
-          </div>
-          <div v-if="locationPermission && userLocation.accuracy > 0" class="text-blue-400">
-            📍 Location accuracy: ±{{ Math.round(userLocation.accuracy) }}m
-          </div>
-          <div v-if="locationPermission && userLocation.altitudeAccuracy > 0" class="text-blue-400">
-            🏔️ Altitude accuracy: ±{{ Math.round(userLocation.altitudeAccuracy) }}m
-          </div>
-          <div v-if="locationPermission && orientationPermission" class="text-green-400">
-            ✅ Ready for tracking!
-          </div>
-        </div>
-      </div>
-      <template #fallback>
-        <div class="max-w-lg mx-auto mt-6">
-          <div class="text-center text-xs text-space-400">
-            <div class="text-blue-400">🔄 Loading sensors...</div>
-          </div>
-        </div>
-      </template>
-    </ClientOnly>
+          <template #fallback>
+            <div class="max-w-lg mx-auto mt-6">
+              <div class="text-center text-xs text-space-400">
+                <div class="text-blue-400">🔄 Loading sensors...</div>
+              </div>
+            </div>
+          </template>
+        </ClientOnly>
   </div>
 </template>
 
 <script setup>
-// Remove satellite.js import for now - we'll use mock data
-// import { satellite } from 'satellite.js'
+import { useTLEData } from '~/composables/useTLEData.js'
+import { useSatelliteCalculations } from '~/composables/useSatelliteCalculations.js'
+
+// Composables
+const { 
+  tleData, 
+  isLoading: tleLoading, 
+  fetchTLEData, 
+  getTLEData, 
+  hasTLEData,
+  getDataFreshness 
+} = useTLEData()
+
+const { 
+  calculateSatellitePosition, 
+  calculateNextPass,
+  getVisibilityStatus 
+} = useSatelliteCalculations()
 
 // Reactive data
 const selectedSatellite = ref('ISS')
@@ -139,10 +164,19 @@ const nextPassTime = ref('Calculating...')
 const settings = ref({
   trackedSatellites: [
     { noradId: 25544, name: 'ISS' },
-    { noradId: 28654, name: 'NOAA-18' },
-    { noradId: 33591, name: 'NOAA-19' }
+    { noradId: 43017, name: 'NOAA-15' },
+    { noradId: 43770, name: 'NOAA-18' },
+    { noradId: 43803, name: 'NOAA-19' },
+    { noradId: 39444, name: 'NOAA-20' },
+    { noradId: 40967, name: 'NOAA-21' },
+    { noradId: 27607, name: 'NOAA-22' },
+    { noradId: 24278, name: 'NOAA-23' },
+    { noradId: 61781, name: 'NOAA-24' }
   ],
-  updateInterval: 5000
+  updateInterval: 5000,
+  distanceUnits: 'km',
+  spaceTrackUsername: '',
+  spaceTrackPassword: ''
 })
 
 // User location with precision
@@ -204,28 +238,75 @@ const handleLocation = (position) => {
   }
   
   // Calculate satellite position with real location
-  calculateSatellitePosition()
+  calculateCurrentSatellitePosition()
 }
 
-// Calculate satellite position (simplified for demo)
-const calculateSatellitePosition = () => {
-  // This is a simplified calculation - in real implementation,
-  // you would use TLE data and satellite.js for accurate calculations
-  
-  // Mock data for demonstration
-  satelliteAzimuth.value = Math.round(Math.random() * 360)
-  satelliteElevation.value = Math.round(Math.random() * 90)
-  satelliteRange.value = Math.round(400 + Math.random() * 500)
-  
-  // Calculate deltas using GPS heading for azimuth
-  const currentHeading = userLocation.value.heading || 0
-  azimuthDelta.value = Math.round(satelliteAzimuth.value - currentHeading)
-  elevationDelta.value = Math.round(satelliteElevation.value - deviceOrientation.value.beta)
-  
-  // Mock next pass time
-  const now = new Date()
-  const nextPass = new Date(now.getTime() + Math.random() * 3600000) // Random time within next hour
-  nextPassTime.value = nextPass.toUTCString().substring(17, 22) + ' UTC'
+// Calculate satellite position using real TLE data
+const calculateCurrentSatellitePosition = async () => {
+  if (!userLocation.value.latitude || !userLocation.value.longitude) {
+    console.warn('No user location available for satellite calculation')
+    return
+  }
+
+  // Find selected satellite
+  const selectedSat = settings.value.trackedSatellites.find(sat => sat.name === selectedSatellite.value)
+  if (!selectedSat) {
+    console.warn('Selected satellite not found')
+    return
+  }
+
+  // Check if we have TLE data for this satellite
+  if (!hasTLEData(selectedSat.noradId)) {
+    console.warn(`No TLE data available for ${selectedSat.name} (${selectedSat.noradId})`)
+    
+    // Try to fetch TLE data if credentials are available
+    if (settings.value.spaceTrackUsername && settings.value.spaceTrackPassword) {
+      try {
+        await fetchTLEData([selectedSat], settings.value.spaceTrackUsername, settings.value.spaceTrackPassword)
+      } catch (error) {
+        console.error('Failed to fetch TLE data:', error)
+      }
+    }
+    return
+  }
+
+  try {
+    const tleData = getTLEData(selectedSat.noradId)
+    const observerLocation = {
+      latitude: userLocation.value.latitude,
+      longitude: userLocation.value.longitude,
+      altitude: userLocation.value.altitude
+    }
+
+    // Calculate satellite position
+    const position = calculateSatellitePosition(tleData, observerLocation)
+    
+    if (position) {
+      satelliteAzimuth.value = position.azimuth
+      satelliteElevation.value = position.elevation
+      satelliteRange.value = settings.value.distanceUnits === 'miles' ? position.rangeMiles : position.rangeKm
+      
+      // Calculate deltas using GPS heading for azimuth
+      const currentHeading = userLocation.value.heading || 0
+      azimuthDelta.value = Math.round(satelliteAzimuth.value - currentHeading)
+      elevationDelta.value = Math.round(satelliteElevation.value - deviceOrientation.value.beta)
+      
+      // Calculate next pass
+      const nextPass = calculateNextPass(tleData, observerLocation)
+      if (nextPass) {
+        const passTime = new Date(nextPass.startTime)
+        nextPassTime.value = passTime.toUTCString().substring(17, 22) + ' UTC'
+      } else {
+        nextPassTime.value = 'No pass found'
+      }
+      
+      console.log('Satellite position calculated:', position)
+    } else {
+      console.warn('Failed to calculate satellite position')
+    }
+  } catch (error) {
+    console.error('Satellite calculation error:', error)
+  }
 }
 
 // Request permissions with enhanced options
@@ -311,15 +392,26 @@ const goToSettings = () => {
 
 // Watch for satellite changes
 watch(selectedSatellite, () => {
-  calculateSatellitePosition()
+  calculateCurrentSatellitePosition()
 })
 
-onMounted(() => {
+onMounted(async () => {
   loadSettings()
   requestPermissions()
   
+      // Load TLE data (requires credentials)
+      if (settings.value.spaceTrackUsername && settings.value.spaceTrackPassword) {
+        try {
+          await fetchTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword)
+        } catch (error) {
+          console.error('TLE data load failed:', error.message)
+        }
+      } else {
+        console.log('No Space-Track.org credentials provided. Please configure in settings.')
+      }
+  
   // Update satellite position every 5 seconds
-  setInterval(calculateSatellitePosition, 5000)
+  setInterval(calculateCurrentSatellitePosition, 5000)
 })
 
 onUnmounted(() => {

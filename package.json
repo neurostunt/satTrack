@@ -1,0 +1,21 @@
+{
+  "name": "sattrack",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "devDependencies": {
+    "@nuxt/devtools": "latest",
+    "@unocss/nuxt": "^66.5.3",
+    "@vite-pwa/nuxt": "^1.0.4",
+    "nuxt": "^4.1.3",
+    "unocss": "^66.5.3"
+  },
+  "dependencies": {
+    "satellite.js": "^6.0.1"
+  }
+}

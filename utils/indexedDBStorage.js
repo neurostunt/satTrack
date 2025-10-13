@@ -379,6 +379,31 @@ class IndexedDBStorage {
   }
 
   /**
+   * Clear TLE data for specific satellite
+   * @param {number} noradId - NORAD catalog number
+   * @returns {Promise<void>}
+   */
+  async clearTLEDataForSatellite(noradId) {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.tleStoreName], 'readwrite')
+      const store = transaction.objectStore(this.tleStoreName)
+      const request = store.delete(noradId)
+
+      request.onsuccess = () => {
+        console.log(`TLE data cleared for satellite ${noradId}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to clear TLE data for satellite ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
    * Clear all credentials
    * @returns {Promise<void>}
    */
@@ -749,6 +774,31 @@ class IndexedDBStorage {
 
       request.onerror = () => {
         console.error('Failed to clear transponder data:', request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Clear transponder data for specific satellite
+   * @param {number} noradId - NORAD catalog number
+   * @returns {Promise<void>}
+   */
+  async clearTransponderDataForSatellite(noradId) {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const store = transaction.objectStore(this.transponderStoreName)
+      const request = store.delete(noradId)
+
+      request.onsuccess = () => {
+        console.log(`Transponder data cleared for satellite ${noradId}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to clear transponder data for satellite ${noradId}:`, request.error)
         reject(request.error)
       }
     })

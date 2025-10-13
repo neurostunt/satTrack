@@ -8,175 +8,172 @@
       <p class="text-space-300 text-sm">Configure SatTrack</p>
     </header>
 
-    <!-- Space-Track.org Login -->
+    <!-- API Credentials -->
     <div class="max-w-lg mx-auto mb-6">
       <div class="card p-4">
-        <h3 class="text-lg font-semibold mb-4 text-primary-400">Space-Track.org API</h3>
+        <h3 class="text-lg font-semibold mb-4 text-primary-400">API Credentials</h3>
         <div class="space-y-4">
+          <!-- Space-Track.org Credentials -->
           <div>
-            <label class="block text-xs font-medium text-space-300 mb-1">Username</label>
-            <input
-              v-model="settings.spaceTrackUsername"
-              type="text"
-              class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
-              placeholder="Enter Space-Track username"
-            />
-          </div>
-          <div>
-            <label class="block text-xs font-medium text-space-300 mb-1">Password</label>
-            <input
-              v-model="settings.spaceTrackPassword"
-              type="password"
-              class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
-              placeholder="Enter Space-Track password"
-            />
-          </div>
-          <div class="flex items-center justify-between">
-            <div class="text-xs text-space-400">
-              Status:
-              <span :class="{
-                'text-green-400': spaceTrackStatus || (spaceTrackFetchStatus.show && spaceTrackFetchStatus.type === 'success'),
-                'text-blue-400': spaceTrackFetchStatus.show && spaceTrackFetchStatus.type === 'info',
-                'text-yellow-400': spaceTrackFetchStatus.show && spaceTrackFetchStatus.type === 'warning',
-                'text-red-400': spaceTrackFetchStatus.show && spaceTrackFetchStatus.type === 'error',
-                'text-orange-400': !spaceTrackStatus && !spaceTrackFetchStatus.show
-              }">
-                {{ spaceTrackFetchStatus.show ? spaceTrackFetchStatus.message : (spaceTrackStatus ? 'Connected' : 'Not connected') }}
-              </span>
-              <div v-if="spaceTrackFetchStatus.show && spaceTrackFetchStatus.details" class="text-xs text-space-500 mt-1">
-                {{ spaceTrackFetchStatus.details }}
+            <h4 class="text-sm font-medium text-space-200 mb-2">Space-Track.org (TLE Data)</h4>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-xs font-medium text-space-300 mb-1">Username</label>
+                <input
+                  v-model="settings.spaceTrackUsername"
+                  type="text"
+                  class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
+                  placeholder="Enter username"
+                />
               </div>
-              <div v-if="spaceTrackFetchStatus.show && spaceTrackFetchStatus.progress" class="text-xs text-space-500 mt-1">
-                {{ spaceTrackFetchStatus.progress }}
+              <div>
+                <label class="block text-xs font-medium text-space-300 mb-1">Password</label>
+                <input
+                  v-model="settings.spaceTrackPassword"
+                  type="password"
+                  class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
+                  placeholder="Enter password"
+                />
               </div>
-              <div v-if="connectionMessage && !spaceTrackFetchStatus.show" class="text-xs text-space-500 mt-1">
-                {{ connectionMessage }}
-              </div>
-            </div>
-            <div class="flex gap-2">
-              <button
-                @click="fetchAllData"
-                class="btn-primary text-xs px-3 py-1"
-                :disabled="tleLoading || isTestingCombined"
-              >
-                {{ (tleLoading || isTestingCombined) ? 'Fetching...' : 'Fetch Data' }}
-              </button>
             </div>
           </div>
 
-          <!-- TLE Data Status -->
-          <div v-if="credentialsLoaded" class="mt-3 p-2 bg-space-800 border border-space-700 rounded text-xs">
-            <div class="flex items-center justify-between">
-              <span class="text-space-300">TLE Data Status:</span>
-              <span :class="{
-                'text-green-400': tleDataStatus.includes('Fresh'),
-                'text-yellow-400': tleDataStatus.includes('Stale'),
-                'text-red-400': tleDataStatus === 'No data'
-              }">
-                {{ tleDataStatus }}
-              </span>
-            </div>
-            <div class="flex gap-2 mt-2">
-              <button
-                @click="forceRefreshTLEData"
-                class="btn-secondary text-xs px-2 py-1"
-                :disabled="tleLoading"
-              >
-                Force Refresh
-              </button>
+          <!-- SatNOGS API Token -->
+          <div>
+            <h4 class="text-sm font-medium text-space-200 mb-2">SatNOGS API (Transmitter Data)</h4>
+            <div>
+              <label class="block text-xs font-medium text-space-300 mb-1">API Token</label>
+              <input
+                v-model="settings.satnogsToken"
+                type="text"
+                class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
+                placeholder="Enter your SatNOGS API token"
+              />
             </div>
           </div>
+
+          <!-- Save Credentials Button -->
+          <button
+            @click="saveSettings"
+            class="btn-primary w-full text-sm"
+            :disabled="isSavingSettings"
+          >
+            {{ isSavingSettings ? 'Saving...' : 'Save Credentials' }}
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- SatNOGS API -->
-    <div class="max-w-lg mx-auto mb-6">
-      <div class="card p-4">
-        <h3 class="text-lg font-semibold mb-4 text-primary-400">SatNOGS API</h3>
-        <div class="space-y-4">
-          <div>
-            <label class="block text-xs font-medium text-space-300 mb-1">API Token</label>
-            <input
-              v-model="settings.satnogsToken"
-              type="text"
-              class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
-              placeholder="Enter your SatNOGS API token"
-            />
-          </div>
-          <div class="flex items-center justify-between">
-            <div class="text-xs text-space-400">
-              Status:
-              <span :class="{
-                'text-green-400': satnogsStatus || (satnogsFetchStatus.show && satnogsFetchStatus.type === 'success'),
-                'text-blue-400': satnogsFetchStatus.show && satnogsFetchStatus.type === 'info',
-                'text-yellow-400': satnogsFetchStatus.show && satnogsFetchStatus.type === 'warning',
-                'text-red-400': satnogsFetchStatus.show && satnogsFetchStatus.type === 'error',
-                'text-orange-400': !satnogsStatus && !satnogsFetchStatus.show
-              }">
-                {{ satnogsFetchStatus.show ? satnogsFetchStatus.message : (satnogsStatus ? 'Connected' : 'Not connected') }}
-              </span>
-              <div v-if="satnogsFetchStatus.show && satnogsFetchStatus.details" class="text-xs text-space-500 mt-1">
-                {{ satnogsFetchStatus.details }}
-              </div>
-              <div v-if="satnogsFetchStatus.show && satnogsFetchStatus.progress" class="text-xs text-space-500 mt-1">
-                {{ satnogsFetchStatus.progress }}
-              </div>
-              <div v-if="satnogsMessage && !satnogsFetchStatus.show" class="text-xs text-space-500 mt-1">
-                {{ satnogsMessage }}
-              </div>
-            </div>
-            <div class="flex gap-2">
-              <button
-                @click="fetchAllData"
-                class="btn-primary text-xs px-3 py-1"
-                :disabled="tleLoading || isTestingCombined"
-              >
-                {{ (tleLoading || isTestingCombined) ? 'Fetching...' : 'Fetch Data' }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Satellite Management -->
     <div class="max-w-lg mx-auto mb-6">
       <div class="card p-4">
-        <h3 class="text-lg font-semibold mb-4 text-primary-400">Tracked Satellites</h3>
-
-        <!-- Add New Satellite -->
-        <div class="mb-4">
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-xs font-medium text-space-300 mb-1">NORAD ID</label>
-              <input
-                v-model="newSatellite.noradId"
-                type="number"
-                class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
-                placeholder="e.g., 25544"
-              />
-            </div>
-            <div>
-              <label class="block text-xs font-medium text-space-300 mb-1">Name</label>
-              <input
-                v-model="newSatellite.name"
-                type="text"
-                class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
-                placeholder="e.g., ISS"
-              />
-            </div>
-          </div>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold text-primary-400">Tracked Satellites</h3>
           <button
-            @click="addSatellite"
-            class="btn-primary w-full mt-2 text-sm"
-            :disabled="!newSatellite.noradId || !newSatellite.name"
+            @click="fetchAllData"
+            class="btn-primary text-xs px-3 py-1"
+            :disabled="tleLoading || isTestingCombined"
           >
-            Add Satellite
+            {{ (tleLoading || isTestingCombined) ? 'Fetching...' : 'Fetch TLE & Transmitter Data' }}
           </button>
         </div>
 
-        <!-- Satellite List -->
+        <!-- Data Fetch Status -->
+        <div v-if="spaceTrackFetchStatus.show || satnogsFetchStatus.show" class="mb-4 p-3 bg-space-800 border border-space-700 rounded text-xs">
+          <div v-if="spaceTrackFetchStatus.show" class="mb-2">
+            <div class="flex items-center justify-between">
+              <span class="text-space-300">TLE Data:</span>
+              <span :class="{
+                'text-green-400': spaceTrackFetchStatus.type === 'success',
+                'text-blue-400': spaceTrackFetchStatus.type === 'info',
+                'text-yellow-400': spaceTrackFetchStatus.type === 'warning',
+                'text-red-400': spaceTrackFetchStatus.type === 'error'
+              }">
+                {{ spaceTrackFetchStatus.message }}
+              </span>
+            </div>
+            <div v-if="spaceTrackFetchStatus.details" class="text-space-500 mt-1">
+              {{ spaceTrackFetchStatus.details }}
+            </div>
+            <div v-if="spaceTrackFetchStatus.progress" class="text-space-500 mt-1">
+              {{ spaceTrackFetchStatus.progress }}
+            </div>
+          </div>
+
+          <div v-if="satnogsFetchStatus.show">
+            <div class="flex items-center justify-between">
+              <span class="text-space-300">Transmitter Data:</span>
+              <span :class="{
+                'text-green-400': satnogsFetchStatus.type === 'success',
+                'text-blue-400': satnogsFetchStatus.type === 'info',
+                'text-yellow-400': satnogsFetchStatus.type === 'warning',
+                'text-red-400': satnogsFetchStatus.type === 'error'
+              }">
+                {{ satnogsFetchStatus.message }}
+              </span>
+            </div>
+            <div v-if="satnogsFetchStatus.details" class="text-space-500 mt-1">
+              {{ satnogsFetchStatus.details }}
+            </div>
+            <div v-if="satnogsFetchStatus.progress" class="text-space-500 mt-1">
+              {{ satnogsFetchStatus.progress }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Search Satellite -->
+        <div class="mb-4">
+          <label class="block text-xs font-medium text-space-300 mb-1">Search Satellite</label>
+          <div class="relative">
+            <input
+              v-model="searchQuery"
+              @input="debouncedSearch(searchQuery, settings.satnogsToken)"
+              type="text"
+              class="w-full bg-space-800 border border-space-700 rounded px-3 py-2 text-sm text-white focus:border-primary-500 focus:outline-none"
+              placeholder="Type satellite name or NORAD ID (min 3 characters)"
+            />
+            <div v-if="searchLoading" class="absolute right-3 top-2.5">
+              <div class="animate-spin w-4 h-4 border-2 border-primary-500 border-t-transparent rounded-full"></div>
+            </div>
+          </div>
+
+          <!-- Search Results -->
+          <div v-if="searchResults.length > 0" class="mt-2 max-h-48 overflow-y-auto border border-space-700 rounded bg-space-800">
+            <div
+              v-for="satellite in searchResults"
+              :key="satellite.sat_id"
+              @click="addSatellite(formatSatellite(satellite))"
+              class="px-3 py-2 hover:bg-space-700 cursor-pointer border-b border-space-700 last:border-b-0"
+            >
+              <div class="text-sm font-mono text-primary-400">{{ satellite.name }}</div>
+              <div class="text-xs text-space-400">
+                NORAD: {{ satellite.norad_cat_id }}
+                <span v-if="satellite.names" class="ml-2">({{ satellite.names }})</span>
+              </div>
+              <div class="text-xs text-space-500">
+                Status: {{ satellite.status }} | Operator: {{ satellite.operator || 'Unknown' }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Search Error -->
+          <div v-if="searchError" class="mt-2 text-red-400 text-xs">
+            {{ searchError }}
+          </div>
+
+          <!-- Search Hint -->
+          <div v-if="searchQuery.length > 0 && searchQuery.length < 3" class="mt-2 text-space-400 text-xs">
+            Type at least 3 characters to search
+          </div>
+
+          <!-- No Token Warning -->
+          <div v-if="!settings.satnogsToken" class="mt-2 text-yellow-400 text-xs">
+            ⚠️ SatNOGS API token required for satellite search. Please add your token above.
+          </div>
+        </div>
+
+        <!-- Tracked Satellites List -->
         <div class="space-y-3">
           <div
             v-for="satellite in settings.trackedSatellites"
@@ -186,6 +183,7 @@
             <div>
               <div class="text-sm font-mono text-primary-400">{{ satellite.name }}</div>
               <div class="text-xs text-space-400">NORAD: {{ satellite.noradId }}</div>
+              <div v-if="satellite.names" class="text-xs text-space-500">{{ satellite.names }}</div>
             </div>
             <button
               @click="removeSatellite(satellite.noradId)"
@@ -196,7 +194,7 @@
           </div>
 
           <div v-if="settings.trackedSatellites.length === 0" class="text-center text-space-400 text-sm py-4">
-            No satellites added yet
+            No satellites added yet. Search and click on a satellite to add it.
           </div>
         </div>
       </div>
@@ -367,24 +365,46 @@
             :key="noradId"
             class="bg-space-900 border border-space-600 rounded p-3"
           >
-            <div class="flex items-center justify-between mb-2">
-              <h4 class="font-semibold text-primary-300">{{ data.satellite?.name || `NORAD ${noradId}` }}</h4>
-              <span class="text-xs text-space-400">{{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}</span>
-            </div>
-
-            <!-- TLE Data -->
-            <div v-if="data.satellite" class="mb-3">
-              <div class="text-sm text-space-300 mb-1">🛰️ Orbital Data (TLE)</div>
-              <div class="text-xs text-space-400 ml-4">
-                <div>NORAD ID: {{ data.satellite.noradId }}</div>
-                <div>Name: {{ data.satellite.name }}</div>
+            <!-- Clickable Header -->
+            <div
+              @click="toggleSatelliteData(noradId)"
+              class="flex items-center justify-between mb-2 cursor-pointer hover:bg-space-800 rounded p-2 transition-all duration-200 hover:scale-[1.02] group"
+            >
+              <div class="flex items-center gap-2">
+                <h4 class="font-semibold text-primary-300 group-hover:text-primary-200 transition-colors">{{ data.satellite?.name || `NORAD ${noradId}` }}</h4>
+                <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors">NORAD ID: {{ noradId }}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors">{{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}</span>
+                <div class="transform transition-transform duration-200" :class="{ 'rotate-180': isSatelliteExpanded(noradId) }">
+                  <svg class="w-4 h-4 text-space-400 group-hover:text-space-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </div>
               </div>
             </div>
 
-            <!-- Transmitter Data -->
-            <div v-if="data.transmitters && data.transmitters.length > 0">
-              <div class="text-sm text-space-300 mb-2">📻 Transmitter Data ({{ data.transmitters.length }} transmitters)</div>
-              <div class="space-y-2">
+            <!-- Collapsible Content -->
+            <div
+              v-if="isSatelliteExpanded(noradId)"
+              class="overflow-hidden transition-all duration-300 ease-in-out"
+            >
+              <!-- Orbital Parameters Box -->
+              <div v-if="getTLEData(parseInt(noradId))" class="mb-3">
+                <div class="text-sm text-space-300 mb-2">🛰️ Orbital Parameters (TLE)</div>
+                <div class="bg-space-800 border border-space-500 rounded p-2 text-xs">
+                  <div class="text-xs text-space-400 space-y-1 font-mono">
+                    <div v-if="getTLEData(parseInt(noradId)).tle0" class="break-all">{{ getTLEData(parseInt(noradId)).tle0 }}</div>
+                    <div v-if="getTLEData(parseInt(noradId)).tle1" class="break-all">{{ getTLEData(parseInt(noradId)).tle1 }}</div>
+                    <div v-if="getTLEData(parseInt(noradId)).tle2" class="break-all">{{ getTLEData(parseInt(noradId)).tle2 }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Transmitter Data -->
+              <div v-if="data.transmitters && data.transmitters.length > 0">
+                <div class="text-sm text-space-300 mb-2">📻 Transmitter Data ({{ data.transmitters.length }} transmitters)</div>
+                <div class="space-y-2">
                 <div
                   v-for="(transmitter, index) in data.transmitters"
                   :key="index"
@@ -431,7 +451,8 @@
               </div>
             </div>
 
-            <div v-else class="text-sm text-space-400 italic">No transmitter data available</div>
+              <div v-else class="text-sm text-space-400 italic">No transmitter data available</div>
+            </div>
           </div>
         </div>
       </div>
@@ -459,28 +480,29 @@
 <script setup>
 import spaceTrackAPI from '~/utils/spaceTrackApi.js'
 import { useTLEData } from '~/composables/useTLEData.js'
+import { useSatelliteSearch } from '~/composables/useSatelliteSearch.js'
 import secureStorage from '~/utils/secureStorage.js'
 import indexedDBStorage from '~/utils/indexedDBStorage.js'
 
 // Composables
-const { fetchTLEData, isLoading: tleLoading, error: tleError, refreshTLEData, getDataFreshness, initializeTLEData } = useTLEData()
+const { fetchTLEData, isLoading: tleLoading, error: tleError, refreshTLEData, getDataFreshness, initializeTLEData, getTLEData, getAllTLEData } = useTLEData()
+const {
+  isLoading: searchLoading,
+  error: searchError,
+  searchResults,
+  searchQuery,
+  debouncedSearch,
+  clearSearch,
+  formatSatellite,
+  isNoradId
+} = useSatelliteSearch()
 
 // Settings data
 const settings = ref({
   spaceTrackUsername: '',
   spaceTrackPassword: '',
   satnogsToken: '',
-  trackedSatellites: [
-    { noradId: 25544, name: 'ISS' },
-    { noradId: 43017, name: 'NOAA-15' },
-    { noradId: 43770, name: 'NOAA-18' },
-    { noradId: 43803, name: 'NOAA-19' },
-    { noradId: 39444, name: 'NOAA-20' },
-    { noradId: 40967, name: 'NOAA-21' },
-    { noradId: 27607, name: 'NOAA-22' },
-    { noradId: 24278, name: 'NOAA-23' },
-    { noradId: 61781, name: 'NOAA-24' }
-  ],
+  trackedSatellites: [],
   updateInterval: 5000,
   distanceUnits: 'km',
   compassType: 'true',
@@ -490,10 +512,6 @@ const settings = ref({
   autoCalibrateCompass: true
 })
 
-const newSatellite = ref({
-  noradId: '',
-  name: ''
-})
 
 const spaceTrackStatus = ref(false)
 const isTestingConnection = ref(false)
@@ -501,6 +519,7 @@ const connectionMessage = ref('')
 const credentialsLoaded = ref(false)
 const tleDataStatus = ref('')
 const storageInfo = ref({})
+const isSavingSettings = ref(false)
 
 // SatNOGS status variables
 const satnogsStatus = ref(false)
@@ -509,6 +528,7 @@ const isTestingCombined = ref(false)
 const satnogsMessage = ref('')
 const combinedData = ref(null)
 const isLoadingStorage = ref(false)
+const expandedSatellites = ref(new Set())
 
 // Fetch status for UI display - separate for each API
 const spaceTrackFetchStatus = ref({
@@ -722,6 +742,8 @@ onUnmounted(() => {
 // Save settings to secure storage
 const saveSettings = async () => {
   try {
+    isSavingSettings.value = true
+
     // Save credentials securely
     if (settings.value.spaceTrackUsername && settings.value.spaceTrackPassword) {
       await secureStorage.storeCredentials({
@@ -749,6 +771,8 @@ const saveSettings = async () => {
   } catch (error) {
     console.error('Failed to save settings:', error)
     console.log('Failed to save settings. Please try again.')
+  } finally {
+    isSavingSettings.value = false
   }
 }
 
@@ -1202,6 +1226,9 @@ const fetchTrackedSatellitesTransponderData = async () => {
     // Store the transponder data
     combinedData.value = transponderData
 
+    // Ensure all satellite cards start collapsed
+    collapseAllSatellites()
+
     // Update status message
     if (successCount > 0) {
       satnogsMessage.value = `Loaded transponder data for ${successCount} satellites`
@@ -1295,6 +1322,9 @@ const fetchTrackedSatellitesTransmitterData = async () => {
 
     // Store the transmitter data
     combinedData.value = transmitterData
+
+    // Ensure all satellite cards start collapsed
+    collapseAllSatellites()
 
     // Store in IndexedDB for persistence
     if (Object.keys(transmitterData).length > 0) {
@@ -1399,38 +1429,102 @@ const fetchTrackedSatellitesTransmitterData = async () => {
 
     // Clear all stored data
     const clearAllData = async () => {
-      if (confirm('This will clear all stored credentials and TLE data. Are you sure?')) {
+      if (confirm('This will clear all satellite data (tracked satellites, TLE data, transmitter data). Credentials and settings will be preserved. Are you sure?')) {
         try {
-          secureStorage.clearCredentials()
-          secureStorage.clearTLECache()
-          settings.value.spaceTrackUsername = ''
-          settings.value.spaceTrackPassword = ''
-          credentialsLoaded.value = false
+          // Clear tracked satellites list first
+          settings.value.trackedSatellites = []
+
+          // Clear all satellite data from database (only TLE and transponder stores)
+          await Promise.all([
+            indexedDBStorage.clearTLEData(),
+            indexedDBStorage.clearTransponderData()
+          ])
+
+          // Clear combined data display
+          combinedData.value = []
+
+          // Clear status messages
+          spaceTrackFetchStatus.value = ''
+          satnogsFetchStatus.value = ''
+
+          // Update TLE status
           tleDataStatus.value = 'No data'
-          alert('All data cleared successfully!')
+
+          // Save the updated settings (with empty tracked satellites) to preserve credentials
+          const cleanSettings = JSON.parse(JSON.stringify(settings.value))
+          await secureStorage.storeSettings(cleanSettings)
+
+          // Reload storage info to reflect cleared data
+          await loadStorageInfo()
+
+          console.log('All satellite data cleared successfully')
+          alert('All satellite data cleared successfully!')
         } catch (error) {
-          console.error('Failed to clear data:', error)
-          alert('Failed to clear data. Please try again.')
+          console.error('Failed to clear satellite data:', error)
+          alert('Failed to clear satellite data. Please try again.')
         }
       }
     }
 
 // Add satellite
-const addSatellite = () => {
-  if (newSatellite.value.noradId && newSatellite.value.name) {
+const addSatellite = (satellite) => {
+  // Check if satellite is already tracked
+  const exists = settings.value.trackedSatellites.some(sat => sat.noradId === satellite.noradId)
+  if (!exists) {
     settings.value.trackedSatellites.push({
-      noradId: parseInt(newSatellite.value.noradId),
-      name: newSatellite.value.name
+      noradId: satellite.noradId,
+      name: satellite.name,
+      names: satellite.names || '',
+      status: satellite.status,
+      operator: satellite.operator || 'Unknown',
+      countries: satellite.countries || '',
+      launched: satellite.launched,
+      website: satellite.website || '',
+      image: satellite.image || '',
+      satId: satellite.satId
     })
-    newSatellite.value = { noradId: '', name: '' }
+    // Clear search after adding
+    clearSearch()
   }
 }
 
+// Toggle satellite data visibility
+const toggleSatelliteData = (noradId) => {
+  if (expandedSatellites.value.has(noradId)) {
+    expandedSatellites.value.delete(noradId)
+  } else {
+    expandedSatellites.value.add(noradId)
+  }
+}
+
+// Check if satellite data is expanded
+const isSatelliteExpanded = (noradId) => {
+  return expandedSatellites.value.has(noradId)
+}
+
+// Collapse all satellite data
+const collapseAllSatellites = () => {
+  expandedSatellites.value.clear()
+}
+
 // Remove satellite
-const removeSatellite = (noradId) => {
-  settings.value.trackedSatellites = settings.value.trackedSatellites.filter(
-    sat => sat.noradId !== noradId
-  )
+const removeSatellite = async (noradId) => {
+  try {
+    // Remove from tracked satellites list
+    settings.value.trackedSatellites = settings.value.trackedSatellites.filter(
+      sat => sat.noradId !== noradId
+    )
+
+    // Clean up all associated data from database
+    await Promise.all([
+      indexedDBStorage.clearTLEDataForSatellite(noradId),
+      indexedDBStorage.clearTransponderDataForSatellite(noradId)
+    ])
+
+    console.log(`Satellite ${noradId} and all its data removed successfully`)
+  } catch (error) {
+    console.error(`Failed to remove satellite ${noradId} data:`, error)
+  }
 }
 
 // Navigation

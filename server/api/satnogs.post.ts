@@ -36,6 +36,26 @@ export default defineEventHandler(async (event) => {
         const limit = params.limit || 100
         url = `https://db.satnogs.org/api/satellites/?limit=${limit}`
         break
+      case 'search':
+        const searchQuery = params.query
+        const searchLimit = params.limit || 20
+
+        if (!searchQuery) {
+          throw createError({
+            statusCode: 400,
+            statusMessage: 'Search query is required'
+          })
+        }
+        // Check if query is numeric (NORAD ID) or text (satellite name)
+        if (/^\d+$/.test(searchQuery)) {
+          // Search by NORAD ID
+          url = `https://db.satnogs.org/api/satellites/?norad_cat_id=${searchQuery}`
+        } else {
+          // Search by satellite name - fetch more results and filter client-side
+          // The SatNOGS search parameter doesn't seem to work reliably
+          url = `https://db.satnogs.org/api/satellites/?limit=500`
+        }
+        break
       case 'transmitters':
         // Fetch transmitters for a specific satellite using NORAD ID
         const { noradId: transmitterNoradId, satId: transmitterSatId } = body
@@ -53,8 +73,7 @@ export default defineEventHandler(async (event) => {
           transmitterParams.append('sat_id', transmitterSatId.toString())
         }
 
-        // Add filters for amateur radio transmitters
-        transmitterParams.append('service', 'Amateur')
+        // Add filters for active transmitters (removed service filter to include all types)
         transmitterParams.append('status', 'active')
 
         if (transmitterParams.toString()) {
@@ -206,8 +225,18 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const data = await response.json()
-    console.log('SatNOGS API response data length:', Array.isArray(data) ? data.length : 'not array')
+    let data = await response.json()
+
+    // Client-side filtering for search by name
+    if (action === 'search' && Array.isArray(data) && !/^\d+$/.test(params.query)) {
+      const searchQuery = params.query.toLowerCase()
+      const searchLimit = params.limit || 20
+
+      data = data.filter(satellite =>
+        satellite.name.toLowerCase().includes(searchQuery) ||
+        (satellite.names && satellite.names.toLowerCase().includes(searchQuery))
+      ).slice(0, searchLimit)
+    }
 
     return {
       success: true,

@@ -10,11 +10,11 @@ import secureStorage from '~/utils/secureStorage.js'
 
 export const useOptimizedSatelliteTracking = () => {
   // Composables
-  const { 
-    tleData, 
-    isLoading: tleLoading, 
-    fetchTLEData, 
-    getTLEData, 
+  const {
+    tleData,
+    isLoading: tleLoading,
+    fetchTLEData,
+    getTLEData,
     hasTLEData,
     getDataFreshness,
     initializeTLEData,
@@ -23,7 +23,7 @@ export const useOptimizedSatelliteTracking = () => {
     cacheStatus
   } = useTLEData()
 
-  const { 
+  const {
     calculateSatellitePosition: fallbackCalculate,
     getSmartUpdateInterval,
     getPerformanceMetrics,
@@ -31,7 +31,7 @@ export const useOptimizedSatelliteTracking = () => {
   } = useOptimizedSatelliteCalculations()
 
   // Reactive data
-  const selectedSatellite = ref('ISS')
+  const selectedSatellite = ref('')
   const satelliteAzimuth = ref(0)
   const satelliteElevation = ref(0)
   const azimuthDelta = ref(0)
@@ -50,17 +50,7 @@ export const useOptimizedSatelliteTracking = () => {
 
   // Settings
   const settings = ref({
-    trackedSatellites: [
-      { noradId: 25544, name: 'ISS' },
-      { noradId: 43017, name: 'NOAA-15' },
-      { noradId: 43770, name: 'NOAA-18' },
-      { noradId: 43803, name: 'NOAA-19' },
-      { noradId: 39444, name: 'NOAA-20' },
-      { noradId: 40967, name: 'NOAA-21' },
-      { noradId: 27607, name: 'NOAA-22' },
-      { noradId: 24278, name: 'NOAA-23' },
-      { noradId: 61781, name: 'NOAA-24' }
-    ],
+    trackedSatellites: [],
     updateInterval: 5000,
     distanceUnits: 'km'
   })
@@ -112,7 +102,7 @@ export const useOptimizedSatelliteTracking = () => {
    */
   const calculateCurrentSatellitePosition = async () => {
     const startTime = performance.now()
-    
+
     if (!userLocation.value.latitude || !userLocation.value.longitude) {
       console.warn('No user location available for satellite calculation')
       return
@@ -128,7 +118,7 @@ export const useOptimizedSatelliteTracking = () => {
     // Check if we have TLE data
     if (!hasTLEData(selectedSat.noradId)) {
       console.warn(`No TLE data available for ${selectedSat.name} (${selectedSat.noradId})`)
-      
+
       if (credentials.value.username && credentials.value.password) {
         try {
           await fetchTLEData([selectedSat], credentials.value.username, credentials.value.password)
@@ -160,7 +150,7 @@ export const useOptimizedSatelliteTracking = () => {
       } else {
         position = fallbackCalculate(tleData, observerLocation)
       }
-      
+
       if (position && !position.error) {
         // Batch DOM updates
         const updates = {
@@ -189,7 +179,7 @@ export const useOptimizedSatelliteTracking = () => {
         if (previousPosition.value) {
           const smartInterval = getSmartUpdateInterval(position, previousPosition.value)
           performanceStats.value.updateInterval = smartInterval
-          
+
           // Adjust timer if needed
           if (updateTimer.value) {
             clearInterval(updateTimer.value)
@@ -198,7 +188,7 @@ export const useOptimizedSatelliteTracking = () => {
         }
 
         previousPosition.value = position
-        
+
         console.log('Satellite position calculated:', {
           ...position,
           calculationTime: performanceStats.value.calculationTime,
@@ -223,7 +213,7 @@ export const useOptimizedSatelliteTracking = () => {
     // Start with smart interval
     const interval = performanceStats.value.updateInterval
     updateTimer.value = setInterval(calculateCurrentSatellitePosition, interval)
-    
+
     // Initial calculation
     calculateCurrentSatellitePosition()
   }
@@ -263,7 +253,7 @@ export const useOptimizedSatelliteTracking = () => {
   const initialize = async () => {
     await loadSettings()
     await initWorker()
-    
+
     // Initialize TLE data
     if (credentials.value.username && credentials.value.password) {
       try {

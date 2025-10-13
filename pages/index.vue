@@ -7,7 +7,7 @@
         <h1 class="text-2xl font-bold bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">
           🛰️ SatTrack
         </h1>
-        <button 
+        <button
           @click="goToSettings"
           class="w-8 h-8 flex items-center justify-center text-primary-400 hover:text-primary-300 transition-colors bg-space-800 hover:bg-space-700 rounded-lg"
         >
@@ -23,12 +23,12 @@
         <label class="block text-xs font-medium text-space-300 mb-1">
           Satellite
         </label>
-        <select 
-          v-model="selectedSatellite" 
+        <select
+          v-model="selectedSatellite"
           class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
         >
-          <option 
-            v-for="satellite in settings.trackedSatellites" 
+          <option
+            v-for="satellite in settings.trackedSatellites"
             :key="satellite.noradId"
             :value="satellite.name"
           >
@@ -143,11 +143,11 @@ import { useSatelliteCalculations } from '~/composables/useSatelliteCalculations
 import secureStorage from '~/utils/secureStorage.js'
 
 // Composables
-const { 
-  tleData, 
-  isLoading: tleLoading, 
-  fetchTLEData, 
-  getTLEData, 
+const {
+  tleData,
+  isLoading: tleLoading,
+  fetchTLEData,
+  getTLEData,
   hasTLEData,
   getDataFreshness,
   initializeTLEData,
@@ -156,14 +156,14 @@ const {
   cacheStatus
 } = useTLEData()
 
-const { 
-  calculateSatellitePosition, 
+const {
+  calculateSatellitePosition,
   calculateNextPass,
-  getVisibilityStatus 
+  getVisibilityStatus
 } = useSatelliteCalculations()
 
 // Reactive data
-const selectedSatellite = ref('ISS')
+const selectedSatellite = ref('')
 const satelliteAzimuth = ref(0)
 const satelliteElevation = ref(0)
 const azimuthDelta = ref(0)
@@ -173,17 +173,7 @@ const nextPassTime = ref('Calculating...')
 
 // Settings - Load from secure storage
 const settings = ref({
-  trackedSatellites: [
-    { noradId: 25544, name: 'ISS' },
-    { noradId: 43017, name: 'NOAA-15' },
-    { noradId: 43770, name: 'NOAA-18' },
-    { noradId: 43803, name: 'NOAA-19' },
-    { noradId: 39444, name: 'NOAA-20' },
-    { noradId: 40967, name: 'NOAA-21' },
-    { noradId: 27607, name: 'NOAA-22' },
-    { noradId: 24278, name: 'NOAA-23' },
-    { noradId: 61781, name: 'NOAA-24' }
-  ],
+  trackedSatellites: [],
   updateInterval: 5000,
   distanceUnits: 'km'
 })
@@ -226,7 +216,7 @@ const handleOrientation = (event) => {
     beta: event.beta || 0,
     gamma: event.gamma || 0
   }
-  
+
   // Use GPS heading for azimuth, device tilt for elevation
   const currentHeading = userLocation.value.heading || 0
   azimuthDelta.value = Math.round(satelliteAzimuth.value - currentHeading)
@@ -244,14 +234,14 @@ const handleLocation = (position) => {
     heading: position.coords.heading || 0,
     speed: position.coords.speed || 0
   }
-  
+
   console.log('Location updated:', userLocation.value)
-  
+
   // Update compass with GPS heading
   if (compassRef.value && userLocation.value.heading !== null) {
     compassRef.value.updateGPSHeading(userLocation.value.heading)
   }
-  
+
   // Calculate satellite position with real location
   calculateCurrentSatellitePosition()
 }
@@ -273,7 +263,7 @@ const calculateCurrentSatellitePosition = async () => {
   // Check if we have TLE data for this satellite
   if (!hasTLEData(selectedSat.noradId)) {
     console.warn(`No TLE data available for ${selectedSat.name} (${selectedSat.noradId})`)
-    
+
     // Try to fetch TLE data if credentials are available
     if (credentials.value.username && credentials.value.password) {
       try {
@@ -295,17 +285,17 @@ const calculateCurrentSatellitePosition = async () => {
 
     // Calculate satellite position
     const position = calculateSatellitePosition(tleData, observerLocation)
-    
+
     if (position) {
       satelliteAzimuth.value = position.azimuth
       satelliteElevation.value = position.elevation
       satelliteRange.value = settings.value.distanceUnits === 'miles' ? position.rangeMiles : position.rangeKm
-      
+
       // Calculate deltas using GPS heading for azimuth
       const currentHeading = userLocation.value.heading || 0
       azimuthDelta.value = Math.round(satelliteAzimuth.value - currentHeading)
       elevationDelta.value = Math.round(satelliteElevation.value - deviceOrientation.value.beta)
-      
+
       // Calculate next pass
       const nextPass = calculateNextPass(tleData, observerLocation)
       if (nextPass) {
@@ -314,7 +304,7 @@ const calculateCurrentSatellitePosition = async () => {
       } else {
         nextPassTime.value = 'No pass found'
       }
-      
+
       console.log('Satellite position calculated:', position)
     } else {
       console.warn('Failed to calculate satellite position')
@@ -333,12 +323,12 @@ const requestPermissions = async () => {
       timeout: 10000,
       maximumAge: 30000
     }
-    
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
         locationPermission.value = true
         handleLocation(position)
-        
+
         // Start watching position for continuous updates
         navigator.geolocation.watchPosition(
           handleLocation,
@@ -349,7 +339,7 @@ const requestPermissions = async () => {
       (error) => {
         console.error('Geolocation error:', error)
         locationPermission.value = false
-        
+
         // Show specific error messages
         switch(error.code) {
           case error.PERMISSION_DENIED:
@@ -366,7 +356,7 @@ const requestPermissions = async () => {
       options
     )
   }
-  
+
   // Request device orientation with enhanced permissions
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     try {
@@ -398,6 +388,11 @@ const loadSettings = async () => {
     const savedSettings = secureStorage.getSettings()
     if (savedSettings) {
       settings.value = { ...settings.value, ...savedSettings }
+
+      // Set first satellite as selected if none is selected and satellites exist
+      if (!selectedSatellite.value && settings.value.trackedSatellites.length > 0) {
+        selectedSatellite.value = settings.value.trackedSatellites[0].name
+      }
     }
 
     // Load encrypted credentials
@@ -424,7 +419,7 @@ watch(selectedSatellite, () => {
 onMounted(async () => {
   await loadSettings()
   requestPermissions()
-  
+
   // Initialize TLE data (loads from cache or fetches fresh)
   if (credentials.value.username && credentials.value.password) {
     try {
@@ -435,10 +430,10 @@ onMounted(async () => {
   } else {
     console.log('No Space-Track.org credentials provided. Please configure in settings.')
   }
-  
+
   // Update satellite position every 5 seconds
   setInterval(calculateCurrentSatellitePosition, 5000)
-  
+
   // Auto-refresh TLE data every 2 hours if credentials are available
   if (credentials.value.username && credentials.value.password) {
     setInterval(async () => {

@@ -368,16 +368,16 @@
             <!-- Clickable Header -->
             <div
               @click="toggleSatelliteData(noradId)"
-              class="flex items-center justify-between mb-2 cursor-pointer hover:bg-space-800 rounded p-2 transition-all duration-200 hover:scale-[1.02] group"
+              class="flex items-center justify-between mb-2 cursor-pointer hover:bg-space-800 rounded p-2 transition-all duration-300 ease-in-out hover:scale-[1.01] group"
             >
               <div class="flex items-center gap-2">
-                <h4 class="font-semibold text-primary-300 group-hover:text-primary-200 transition-colors">{{ data.satellite?.name || `NORAD ${noradId}` }}</h4>
-                <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors">NORAD ID: {{ noradId }}</span>
+                <h4 class="font-semibold text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out">{{ data.satellite?.name || `NORAD ${noradId}` }}</h4>
+                <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out">NORAD ID: {{ noradId }}</span>
               </div>
               <div class="flex items-center gap-2">
-                <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors">{{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}</span>
-                <div class="transform transition-transform duration-200" :class="{ 'rotate-180': isSatelliteExpanded(noradId) }">
-                  <svg class="w-4 h-4 text-space-400 group-hover:text-space-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out">{{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}</span>
+                <div class="transform transition-transform duration-500 ease-in-out" :class="{ 'rotate-180': isSatelliteExpanded(noradId) }">
+                  <svg class="w-4 h-4 text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                   </svg>
                 </div>
@@ -385,10 +385,19 @@
             </div>
 
             <!-- Collapsible Content -->
-            <div
-              v-if="isSatelliteExpanded(noradId)"
-              class="overflow-hidden transition-all duration-300 ease-in-out"
+            <Transition
+              name="slide-down"
+              enter-active-class="transition-all duration-700 ease-out"
+              leave-active-class="transition-all duration-500 ease-in"
+              enter-from-class="max-h-0 opacity-0"
+              enter-to-class="max-h-[2000px] opacity-100"
+              leave-from-class="max-h-[2000px] opacity-100"
+              leave-to-class="max-h-0 opacity-0"
             >
+              <div
+                v-show="isSatelliteExpanded(noradId)"
+                class="overflow-hidden"
+              >
               <!-- Orbital Parameters Box -->
               <div v-if="getTLEData(parseInt(noradId))" class="mb-3">
                 <div class="text-sm text-space-300 mb-2">🛰️ Orbital Parameters (TLE)</div>
@@ -398,6 +407,14 @@
                     <div v-if="getTLEData(parseInt(noradId)).tle1" class="break-all">{{ getTLEData(parseInt(noradId)).tle1 }}</div>
                     <div v-if="getTLEData(parseInt(noradId)).tle2" class="break-all">{{ getTLEData(parseInt(noradId)).tle2 }}</div>
                   </div>
+                </div>
+              </div>
+
+              <!-- Debug: Show TLE data status -->
+              <div v-else class="mb-3 text-xs text-yellow-400">
+                🔍 Debug: No TLE data found for NORAD {{ noradId }}
+                <div class="text-space-400 mt-1">
+                  Available TLE data: {{ Object.keys(getAllTLEData()).join(', ') || 'None' }}
                 </div>
               </div>
 
@@ -452,7 +469,8 @@
             </div>
 
               <div v-else class="text-sm text-space-400 italic">No transmitter data available</div>
-            </div>
+              </div>
+            </Transition>
           </div>
         </div>
       </div>
@@ -1514,6 +1532,14 @@ const removeSatellite = async (noradId) => {
     settings.value.trackedSatellites = settings.value.trackedSatellites.filter(
       sat => sat.noradId !== noradId
     )
+
+    // Remove from combined data display
+    if (combinedData.value && combinedData.value[noradId]) {
+      delete combinedData.value[noradId]
+    }
+
+    // Remove from expanded satellites if it was expanded
+    expandedSatellites.value.delete(noradId)
 
     // Clean up all associated data from database
     await Promise.all([

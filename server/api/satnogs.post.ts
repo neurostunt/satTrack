@@ -30,6 +30,7 @@ export default defineEventHandler(async (event) => {
             statusMessage: 'noradId is required for TLE requests'
           })
         }
+        // Get the most recent TLE data regardless of source
         url = `https://db.satnogs.org/api/tle/?norad_cat_id=${tleNoradId}&format=json`
         break
       case 'satellites':

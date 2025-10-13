@@ -176,6 +176,13 @@ export const useTLEData = () => {
 
           // Fetch TLE data from Space-Track.org
           rawTLEData = await spaceTrackAPI.fetchTLEData(noradIds, username, password)
+
+          // Check if Space-Track returned empty data
+          if (!rawTLEData || rawTLEData.length === 0) {
+            console.warn('Space-Track.org returned empty data, trying SatNOGS backup...')
+            throw new Error('Space-Track.org returned no TLE data')
+          }
+
           dataSource = 'space-track'
           console.log('✓ TLE data successfully fetched from Space-Track.org')
         } catch (spaceTrackError) {

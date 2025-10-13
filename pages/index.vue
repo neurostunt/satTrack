@@ -170,6 +170,7 @@ const azimuthDelta = ref(0)
 const elevationDelta = ref(0)
 const satelliteRange = ref(0)
 const nextPassTime = ref('Calculating...')
+const positionUpdateInterval = ref(null)
 
 // Settings - Load from secure storage
 const settings = ref({
@@ -250,6 +251,18 @@ const handleLocation = (position) => {
 const calculateCurrentSatellitePosition = async () => {
   if (!userLocation.value.latitude || !userLocation.value.longitude) {
     console.warn('No user location available for satellite calculation')
+    return
+  }
+
+  // Check if we have any tracked satellites
+  if (!settings.value.trackedSatellites || settings.value.trackedSatellites.length === 0) {
+    console.warn('No tracked satellites available')
+    return
+  }
+
+  // Check if a satellite is selected
+  if (!selectedSatellite.value) {
+    console.warn('No satellite selected')
     return
   }
 
@@ -416,6 +429,20 @@ watch(selectedSatellite, () => {
   calculateCurrentSatellitePosition()
 })
 
+// Watch for tracked satellites changes to manage interval
+watch(() => settings.value.trackedSatellites, (newSatellites) => {
+  // Clear existing interval
+  if (positionUpdateInterval.value) {
+    clearInterval(positionUpdateInterval.value)
+    positionUpdateInterval.value = null
+  }
+
+  // Start new interval if satellites are available
+  if (newSatellites && newSatellites.length > 0) {
+    positionUpdateInterval.value = setInterval(calculateCurrentSatellitePosition, 5000)
+  }
+}, { deep: true })
+
 onMounted(async () => {
   await loadSettings()
   requestPermissions()
@@ -431,8 +458,10 @@ onMounted(async () => {
     console.log('No Space-Track.org credentials provided. Please configure in settings.')
   }
 
-  // Update satellite position every 5 seconds
-  setInterval(calculateCurrentSatellitePosition, 5000)
+  // Update satellite position every 5 seconds (only if satellites are available)
+  if (settings.value.trackedSatellites && settings.value.trackedSatellites.length > 0) {
+    positionUpdateInterval.value = setInterval(calculateCurrentSatellitePosition, 5000)
+  }
 
   // Auto-refresh TLE data every 2 hours if credentials are available
   if (credentials.value.username && credentials.value.password) {
@@ -447,6 +476,13 @@ onMounted(async () => {
         }
       }
     }, 2 * 60 * 60 * 1000) // 2 hours
+  }
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  if (positionUpdateInterval.value) {
+    clearInterval(positionUpdateInterval.value)
   }
 })
 

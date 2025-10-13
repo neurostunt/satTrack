@@ -1,53 +1,34 @@
-# SatTrack - Satellite Tracker PWA
+# SatTrack
 
-A Progressive Web App for real-time satellite tracking, optimized for mobile devices.
+A simple satellite tracker for radio amateurs. Track satellites, get orbital data, and find transponder frequencies.
 
-## Features
+## What it does
 
-- 🛰️ Real-time satellite tracking
-- 📱 PWA installable on iOS and Android
+- 🛰️ Track satellites in real-time
+- 📡 Get transponder frequencies for radio amateurs
+- 📱 Works on mobile and desktop
 - 🌍 Global satellite coverage
-- 📊 Interactive satellite data
-- 🔄 Offline functionality
-- 🎨 Dark theme optimized for space tracking
+- 💾 Works offline
 
-## PWA Features
+## Quick start
 
-- **Installable**: Can be installed on home screen
-- **Offline Support**: Works without internet connection
-- **Push Notifications**: Get notified about satellite passes
-- **Background Sync**: Updates data in background
-- **Responsive**: Optimized for all screen sizes
+```bash
+npm install
+npm run dev
+```
 
-## Installation
+Open http://localhost:3000
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Run development server: `npm run dev`
-4. Build for production: `npm run build`
+## For radio amateurs
 
-## PWA Installation
+This app helps you:
+- Find active satellites with transponder data
+- Get uplink/downlink frequencies
+- Track satellite passes over your location
+- Plan radio contacts
 
-### On Android:
-1. Open the app in Chrome
-2. Tap the menu (three dots)
-3. Select "Add to Home screen"
-4. Confirm installation
+## Tech
 
-### On iOS:
-1. Open the app in Safari
-2. Tap the Share button
-3. Select "Add to Home Screen"
-4. Confirm installation
+Built with Nuxt 4, TypeScript, and PWA support.
 
-## Development
-
-This project uses:
-- Nuxt 3
-- TypeScript
-- PWA Module
-- Workbox for service workers
-
-## License
-
-MIT License - see LICENSE file for details
+MIT License

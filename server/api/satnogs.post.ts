@@ -1,3 +1,7 @@
+// Simple in-memory cache for search results
+const searchCache = new Map()
+const CACHE_DURATION = 24 * 60 * 60 * 1000 // 24 hours (1 day)
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event)
@@ -6,7 +10,9 @@ export default defineEventHandler(async (event) => {
     console.log('SatNOGS API called:', { method: 'POST', timestamp: new Date().toISOString() })
     console.log('Request body:', { token: token ? token.substring(0, 8) + '...' : 'none', action, ...params })
 
-    if (!token) {
+    // Token is only required for certain actions
+    const tokenRequiredActions = ['test', 'transmitters', 'tle']
+    if (!token && tokenRequiredActions.includes(action)) {
       throw createError({
         statusCode: 400,
         statusMessage: 'SatNOGS API token is required'
@@ -31,11 +37,27 @@ export default defineEventHandler(async (event) => {
           })
         }
         // Get the most recent TLE data regardless of source
-        url = `https://db.satnogs.org/api/tle/?norad_cat_id=${tleNoradId}&format=json`
+        // Try to get all TLE data without status filtering
+        // Add ordering to get the most recent TLE data
+        url = `https://db.satnogs.org/api/tle/?norad_cat_id=${tleNoradId}&format=json&limit=100&ordering=-updated`
         break
       case 'satellites':
         const limit = params.limit || 100
-        url = `https://db.satnogs.org/api/satellites/?limit=${limit}`
+
+        // Check cache for satellites list
+        const satellitesCacheKey = `satellites:${limit}`
+        const cachedSatellites = searchCache.get(satellitesCacheKey)
+
+        if (cachedSatellites && (Date.now() - cachedSatellites.timestamp) < CACHE_DURATION) {
+          console.log(`Cache hit for satellites list (limit: ${limit})`)
+          return {
+            success: true,
+            message: 'SatNOGS API satellites successful (cached)',
+            data: cachedSatellites.data
+          }
+        }
+
+        url = `https://db.satnogs.org/api/satellites/?limit=${limit}&status=alive`
         break
       case 'search':
         const searchQuery = params.query
@@ -47,14 +69,33 @@ export default defineEventHandler(async (event) => {
             statusMessage: 'Search query is required'
           })
         }
+
+        // Check cache first
+        const cacheKey = `search:${searchQuery}:${searchLimit}`
+        const cachedResult = searchCache.get(cacheKey)
+
+        if (cachedResult && (Date.now() - cachedResult.timestamp) < CACHE_DURATION) {
+          console.log(`Cache hit for search query: ${searchQuery}`)
+          return {
+            success: true,
+            message: 'SatNOGS API search successful (cached)',
+            data: cachedResult.data
+          }
+        }
+
         // Check if query is numeric (NORAD ID) or text (satellite name)
         if (/^\d+$/.test(searchQuery)) {
-          // Search by NORAD ID
-          url = `https://db.satnogs.org/api/satellites/?norad_cat_id=${searchQuery}`
+          // Search by NORAD ID - use exact match for complete NORAD IDs
+          if (searchQuery.length >= 5) {
+            url = `https://db.satnogs.org/api/satellites/?norad_cat_id=${searchQuery}&status=alive`
+          } else {
+            // For partial NORAD IDs, fetch more results and filter client-side
+            url = `https://db.satnogs.org/api/satellites/?limit=500&status=alive`
+          }
         } else {
           // Search by satellite name - fetch more results and filter client-side
           // The SatNOGS search parameter doesn't seem to work reliably
-          url = `https://db.satnogs.org/api/satellites/?limit=500`
+          url = `https://db.satnogs.org/api/satellites/?limit=500&status=alive`
         }
         break
       case 'transmitters':
@@ -206,13 +247,19 @@ export default defineEventHandler(async (event) => {
 
     console.log('Making request to:', url)
 
+    // Build headers - only include Authorization for actions that require token
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'SatTrack/1.0'
+    }
+
+    if (token && tokenRequiredActions.includes(action)) {
+      headers['Authorization'] = `Token ${token}`
+    }
+
     const response = await fetch(url, {
       method,
-      headers: {
-        'Authorization': `Token ${token}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'SatTrack/1.0'
-      }
+      headers
     })
 
     console.log('SatNOGS API response status:', response.status)
@@ -228,15 +275,43 @@ export default defineEventHandler(async (event) => {
 
     let data = await response.json()
 
-    // Client-side filtering for search by name
-    if (action === 'search' && Array.isArray(data) && !/^\d+$/.test(params.query)) {
+    // Client-side filtering for search by name or NORAD ID
+    if (action === 'search' && Array.isArray(data)) {
       const searchQuery = params.query.toLowerCase()
       const searchLimit = params.limit || 20
 
-      data = data.filter(satellite =>
-        satellite.name.toLowerCase().includes(searchQuery) ||
-        (satellite.names && satellite.names.toLowerCase().includes(searchQuery))
-      ).slice(0, searchLimit)
+      if (/^\d+$/.test(params.query)) {
+        // Filter by NORAD ID (partial match)
+        data = data.filter(satellite =>
+          satellite.norad_cat_id && satellite.norad_cat_id.toString().includes(params.query)
+        ).slice(0, searchLimit)
+      } else {
+        // Filter by satellite name
+        data = data.filter(satellite =>
+          (satellite.name && satellite.name.toLowerCase().includes(searchQuery)) ||
+          (satellite.names && satellite.names.toLowerCase().includes(searchQuery))
+        ).slice(0, searchLimit)
+      }
+    }
+
+    // Cache only search results (not TLE or transmitter data)
+    if (action === 'search') {
+      const cacheKey = `search:${params.query}:${params.limit || 20}`
+      searchCache.set(cacheKey, {
+        data: data,
+        timestamp: Date.now()
+      })
+      console.log(`Cached search results for query: ${params.query}`)
+    }
+
+    // Cache satellites list (for search functionality)
+    if (action === 'satellites') {
+      const cacheKey = `satellites:${params.limit || 100}`
+      searchCache.set(cacheKey, {
+        data: data,
+        timestamp: Date.now()
+      })
+      console.log(`Cached satellites list (limit: ${params.limit || 100})`)
     }
 
     return {

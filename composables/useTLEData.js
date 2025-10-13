@@ -177,10 +177,19 @@ export const useTLEData = () => {
           // Fetch TLE data from Space-Track.org
           rawTLEData = await spaceTrackAPI.fetchTLEData(noradIds, username, password)
 
-          // Check if Space-Track returned empty data
+          // Check if Space-Track returned empty data or missing satellites
           if (!rawTLEData || rawTLEData.length === 0) {
             console.warn('Space-Track.org returned empty data, trying SatNOGS backup...')
             throw new Error('Space-Track.org returned no TLE data')
+          }
+
+          // Check if all requested satellites are present in the response
+          const returnedNoradIds = rawTLEData.map(tle => parseInt(tle.NORAD_CAT_ID))
+          const missingNoradIds = noradIds.filter(id => !returnedNoradIds.includes(id))
+
+          if (missingNoradIds.length > 0) {
+            console.warn(`Space-Track.org missing data for NORAD IDs: ${missingNoradIds.join(', ')}, trying SatNOGS backup...`)
+            throw new Error(`Space-Track.org missing data for satellites: ${missingNoradIds.join(', ')}`)
           }
 
           dataSource = 'space-track'
@@ -227,6 +236,7 @@ export const useTLEData = () => {
           name: name,
           tle1: tle1,
           tle2: tle2,
+          tle0: tle.TLE_LINE0 || tle.tle0 || name,
           epoch: epoch,
           lastUpdated: new Date().toISOString(),
           source: dataSource
@@ -237,25 +247,12 @@ export const useTLEData = () => {
       lastUpdate.value = new Date().toISOString()
       cacheStatus.value = 'fresh'
 
-      // Save to cache
-      await saveToCache(processedData)
-
       console.log(`TLE data updated successfully from ${dataSource}:`, Object.keys(processedData).length, 'satellites')
 
     } catch (err) {
       console.error('TLE data fetch failed:', err.message)
       error.value = err.message
-
-      // Try to load from cache as fallback
-      const cacheLoaded = await loadFromCache()
-      if (cacheLoaded) {
-        console.log('Using cached data as fallback')
-        isOffline.value = true
-        cacheStatus.value = 'offline'
-        error.value = `Network error: ${err.message}. Using cached data.`
-      } else {
-        throw err
-      }
+      throw err
     } finally {
       isLoading.value = false
     }
@@ -300,20 +297,13 @@ export const useTLEData = () => {
   }
 
   /**
-   * Initialize TLE data (load from cache or fetch)
+   * Initialize TLE data (always fetch fresh data)
    * @param {Array} satellites - Array of satellite objects
    * @param {string} username - Space-Track username
    * @param {string} password - Space-Track password
    */
   const initializeTLEData = async (satellites, username, password) => {
-    // Try to load from cache first
-    const cacheLoaded = await loadFromCache()
-    if (cacheLoaded) {
-      console.log('TLE data initialized from cache')
-      return
-    }
-
-    // If no cache or cache is stale, fetch fresh data
+    // Always fetch fresh data, no caching
     if (username && password) {
       try {
         await fetchTLEData(satellites, username, password)

@@ -18,13 +18,11 @@ export const useSatelliteSearch = () => {
    * @returns {Promise<Array>} Array of satellite search results
    */
   const searchSatellites = async (query, token, limit = 20) => {
-    if (!query || query.length < 3) {
-      searchResults.value = []
-      return []
-    }
+    // For numeric queries (NORAD ID), require at least 3 digits
+    // For text queries (satellite names), require at least 3 characters
+    const minLength = /^\d+$/.test(query) ? 3 : 3
 
-    if (!token) {
-      error.value = 'SatNOGS API token is required for search'
+    if (!query || query.length < minLength) {
       searchResults.value = []
       return []
     }
@@ -38,14 +36,16 @@ export const useSatelliteSearch = () => {
         body: {
           action: 'search',
           query: query.trim(),
-          limit,
-          token
+          limit
+          // Note: token is not required for search action
         }
       })
 
       if (response.success) {
-        searchResults.value = response.data || []
-        return response.data || []
+        const rawResults = response.data || []
+        const formattedResults = rawResults.map(formatSatellite)
+        searchResults.value = formattedResults
+        return formattedResults
       } else {
         throw new Error(response.message || 'Search failed')
       }
@@ -63,7 +63,7 @@ export const useSatelliteSearch = () => {
    * Debounced search function
    * Triggers search after user stops typing for 300ms
    * @param {string} query - Search query
-   * @param {string} token - SatNOGS API token
+   * @param {string} token - SatNOGS API token (not used for search, kept for compatibility)
    * @param {number} limit - Maximum number of results
    */
   const debouncedSearch = (query, token, limit = 20) => {

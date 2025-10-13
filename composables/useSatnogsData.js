@@ -173,6 +173,23 @@ export const useSatnogsData = () => {
   }
 
   /**
+   * Parse CTCSS tone from transmitter description
+   * @param {string} description - Transmitter description
+   * @returns {number|null} CTCSS tone frequency in Hz, or null if not found
+   */
+  const parseCTCSS = (description) => {
+    if (!description) return null
+
+    // Match patterns like "CTCSS 67.0 Hz", "CTCSS 67.0", "67.0 Hz CTCSS", etc.
+    const ctcssMatch = description.match(/(?:ctcss|tone|pl)\s*(\d+(?:\.\d+)?)\s*(?:hz)?/i)
+    if (ctcssMatch) {
+      return parseFloat(ctcssMatch[1])
+    }
+
+    return null
+  }
+
+  /**
    * Get transponder frequencies for radio operators
    * @param {Array} transmitters - Array of transmitter objects
    * @returns {Object} Organized frequency data
@@ -203,7 +220,8 @@ export const useSatnogsData = () => {
         status: transmitter.status || 'Unknown',
         invert: transmitter.invert || false,
         baud: transmitter.baud || null,
-        modulation: transmitter.modulation || null
+        modulation: transmitter.modulation || null,
+        ctcss: parseCTCSS(transmitter.description)
       }
 
       // Categorize by frequency type
@@ -290,6 +308,7 @@ export const useSatnogsData = () => {
     getTransponderFrequencies,
     formatFrequency,
     getActiveTransponders,
-    searchSatellites
+    searchSatellites,
+    parseCTCSS
   }
 }

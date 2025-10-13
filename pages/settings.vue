@@ -43,6 +43,13 @@
       @clear-all-data="clearAllData"
     />
 
+    <!-- Location Settings -->
+    <LocationSettings
+      :settings="settings"
+      @update:settings="settings = $event"
+      @location-updated="handleLocationUpdated"
+    />
+
     <!-- Additional Settings -->
     <AdditionalSettings
       :settings="settings"
@@ -81,6 +88,7 @@ import indexedDBStorage from '~/utils/indexedDBStorage.js'
 import ApiCredentials from '~/components/settings/ApiCredentials.vue'
 import SatelliteManagement from '~/components/settings/SatelliteManagement.vue'
 import StorageManagement from '~/components/settings/StorageManagement.vue'
+import LocationSettings from '~/components/settings/LocationSettings.vue'
 import AdditionalSettings from '~/components/settings/AdditionalSettings.vue'
 import CombinedDataDisplay from '~/components/settings/CombinedDataDisplay.vue'
 
@@ -96,7 +104,10 @@ const settings = ref({
   autoUpdateTLE: true,
   soundAlerts: true,
   highAccuracyMode: false,
-  autoCalibrateCompass: true
+  autoCalibrateCompass: true,
+  gridSquare: '',
+  useGridSquare: false,
+  disableGPS: false
 })
 
 const isSavingSettings = ref(false)
@@ -179,7 +190,19 @@ const loadStoredTransmitterData = async () => {
       const transmitterData = {}
       storedData.forEach(item => {
         if (item.type === 'transmitter') {
-          transmitterData[item.noradId] = item.data
+          // Parse CTCSS tones from stored transmitter descriptions
+          const transmittersWithCTCSS = item.data.transmitters.map(transmitter => {
+            const ctcss = parseCTCSS(transmitter.description)
+            return {
+              ...transmitter,
+              ctcss: ctcss
+            }
+          })
+
+          transmitterData[item.noradId] = {
+            ...item.data,
+            transmitters: transmittersWithCTCSS
+          }
         }
       })
       if (Object.keys(transmitterData).length > 0) {
@@ -314,6 +337,23 @@ const fetchTrackedSatellitesTLEData = async () => {
   }
 }
 
+/**
+ * Parse CTCSS tone from transmitter description
+ * @param {string} description - Transmitter description
+ * @returns {number|null} CTCSS tone frequency in Hz, or null if not found
+ */
+const parseCTCSS = (description) => {
+  if (!description) return null
+
+  // Match patterns like "CTCSS 67.0 Hz", "CTCSS 67.0", "67.0 Hz CTCSS", etc.
+  const ctcssMatch = description.match(/(?:ctcss|tone|pl)\s*(\d+(?:\.\d+)?)\s*(?:hz)?/i)
+  if (ctcssMatch) {
+    return parseFloat(ctcssMatch[1])
+  }
+
+  return null
+}
+
 // Fetch transmitter data for tracked satellites
 const fetchTrackedSatellitesTransmitterData = async () => {
   try {
@@ -350,9 +390,18 @@ const fetchTrackedSatellitesTransmitterData = async () => {
         })
 
         if (response.success && response.data) {
+          // Parse CTCSS tones from transmitter descriptions
+          const transmittersWithCTCSS = response.data.map(transmitter => {
+            const ctcss = parseCTCSS(transmitter.description)
+            return {
+              ...transmitter,
+              ctcss: ctcss
+            }
+          })
+
           transmitterData[satellite.noradId] = {
             satellite: satellite,
-            transmitters: response.data,
+            transmitters: transmittersWithCTCSS,
             noradId: satellite.noradId,
             timestamp: new Date().toISOString()
           }
@@ -377,13 +426,47 @@ const fetchTrackedSatellitesTransmitterData = async () => {
     }
 
   } catch (error) {
-    console.error('Transmitter fetch error:', error)
+    console.error('Failed to fetch transmitter data:', error)
     satnogsFetchStatus.value = {
       show: true,
       type: 'error',
       message: 'Failed to fetch transmitter data',
       details: error.message
     }
+  }
+}
+
+/**
+ * Handle location update from LocationSettings component
+ * @param {Object} locationData - Location data or error
+ */
+const handleLocationUpdated = async (locationData) => {
+  if (locationData.error) {
+    // Show error message
+    spaceTrackFetchStatus.value = {
+      show: true,
+      type: 'error',
+      message: 'Failed to update location',
+      details: locationData.error
+    }
+  } else {
+    // Save settings
+    await saveSettings()
+
+    console.log('Location updated:', locationData)
+
+    // Show success message
+    spaceTrackFetchStatus.value = {
+      show: true,
+      type: 'success',
+      message: 'Location updated successfully',
+      details: `Grid Square: ${locationData.gridSquare} (${locationData.latitude.toFixed(6)}°N, ${locationData.longitude.toFixed(6)}°E)`
+    }
+
+    // Auto-hide message after 5 seconds
+    setTimeout(() => {
+      spaceTrackFetchStatus.value.show = false
+    }, 5000)
   }
 }
 

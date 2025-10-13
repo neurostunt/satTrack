@@ -77,17 +77,6 @@
             class="w-4 h-4 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-2"
           />
         </div>
-
-        <!-- Magnetometer calibration -->
-        <div class="flex items-center justify-between">
-          <label class="text-sm text-space-300">Auto-calibrate compass</label>
-          <input
-            :checked="settings.autoCalibrateCompass"
-            @change="$emit('update:settings', { ...settings, autoCalibrateCompass: $event.target.checked })"
-            type="checkbox"
-            class="w-4 h-4 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-2"
-          />
-        </div>
       </div>
     </div>
   </div>

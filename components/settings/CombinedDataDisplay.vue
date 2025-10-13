@@ -68,7 +68,7 @@
                     class="bg-space-800 border border-space-500 rounded p-2 text-xs"
                   >
                     <div class="flex items-center justify-between mb-1">
-                      <span class="font-semibold text-primary-200">{{ transmitter.description || 'Unknown' }}</span>
+                      <span class="font-semibold text-primary-200">{{ getCleanDescription(transmitter.description) || 'Unknown' }}</span>
                       <span class="text-space-400">{{ transmitter.type }}</span>
                     </div>
 
@@ -95,6 +95,10 @@
                         <span :class="transmitter.alive ? 'text-green-400' : 'text-red-400'">
                           {{ transmitter.alive ? 'Yes' : 'No' }}
                         </span>
+                      </div>
+                      <div v-if="transmitter.ctcss">
+                        <span class="text-space-400">CTCSS:</span>
+                        <span class="text-yellow-400">{{ transmitter.ctcss }} Hz</span>
                       </div>
                     </div>
                   </div>
@@ -140,6 +144,18 @@ const toggleSatelliteData = (noradId) => {
 
 const isSatelliteExpanded = (noradId) => {
   return props.expandedSatellites.has(noradId)
+}
+
+/**
+ * Clean transmitter description by removing CTCSS information
+ * @param {string} description - Original transmitter description
+ * @returns {string} Cleaned description without CTCSS info
+ */
+const getCleanDescription = (description) => {
+  if (!description) return 'Unknown'
+
+  // Remove CTCSS patterns like "CTCSS 67.0 Hz", "CTCSS 67.0", etc.
+  return description.replace(/\s*(?:ctcss|tone|pl)\s*\d+(?:\.\d+)?\s*(?:hz)?/gi, '').trim()
 }
 
 /**

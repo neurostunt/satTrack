@@ -5,7 +5,9 @@
 
 export default defineEventHandler(async (event) => {
   const method = getMethod(event)
-  
+
+  console.log('Space-Track API called:', { method, timestamp: new Date().toISOString() })
+
   if (method !== 'POST') {
     throw createError({
       statusCode: 405,
@@ -16,7 +18,14 @@ export default defineEventHandler(async (event) => {
   const body = await readBody(event)
   const { username, password, action } = body
 
+  console.log('Request body:', {
+    username: username ? `${username.substring(0, 3)}***` : 'missing',
+    password: password ? `***${password.length} chars` : 'missing',
+    action
+  })
+
   if (!username || !password) {
+    console.error('Missing credentials')
     throw createError({
       statusCode: 400,
       statusMessage: 'Username and password required'
@@ -43,7 +52,7 @@ export default defineEventHandler(async (event) => {
 
     if (action === 'fetchTLE') {
       const { noradIds } = body
-      
+
       if (!noradIds || !Array.isArray(noradIds)) {
         throw createError({
           statusCode: 400,
@@ -74,7 +83,9 @@ export default defineEventHandler(async (event) => {
         }
 
         if (!loginResponse.ok) {
-          throw new Error(`Login failed with status: ${loginResponse.status}`)
+          const errorText = await loginResponse.text()
+          console.error('Login failed:', loginResponse.status, errorText)
+          throw new Error(`Login failed with status: ${loginResponse.status} - ${errorText}`)
         }
 
         console.log('Login successful, fetching TLE data...')
@@ -88,7 +99,9 @@ export default defineEventHandler(async (event) => {
         })
 
         if (!tleResponse.ok) {
-          throw new Error(`TLE fetch failed with status: ${tleResponse.status}`)
+          const errorText = await tleResponse.text()
+          console.error('TLE fetch failed:', tleResponse.status, errorText)
+          throw new Error(`TLE fetch failed with status: ${tleResponse.status} - ${errorText}`)
         }
 
         const tleData = await tleResponse.json()
@@ -121,9 +134,9 @@ export default defineEventHandler(async (event) => {
 
   } catch (error) {
     console.error('Space-Track API error:', error)
-    
+
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    
+
     throw createError({
       statusCode: 500,
       statusMessage: 'Space-Track API request failed',

@@ -19,7 +19,7 @@ class SpaceTrackAPI {
   async login(username, password) {
     try {
       console.log('Attempting Space-Track.org login via proxy...')
-      
+
       const response = await fetch('/api/space-track', {
         method: 'POST',
         headers: {
@@ -43,7 +43,7 @@ class SpaceTrackAPI {
         this.isLoggedIn = true
         return true
       }
-      
+
       console.error('Space-Track.org login failed:', data.message)
       this.isLoggedIn = false
       return false
@@ -64,7 +64,7 @@ class SpaceTrackAPI {
   async fetchTLEData(noradIds, username, password) {
     try {
       console.log('Fetching TLE data for NORAD IDs:', noradIds)
-      
+
       const response = await fetch('/api/space-track', {
         method: 'POST',
         headers: {
@@ -105,13 +105,9 @@ class SpaceTrackAPI {
    */
   async testConnection(username, password) {
     try {
-      const loginSuccess = await this.login(username, password)
-      if (loginSuccess) {
-        // Test with a simple query
-        const testData = await this.fetchTLEData([25544], username, password) // ISS
-        return testData && testData.length > 0
-      }
-      return false
+      // Test by fetching TLE data for ISS (NORAD ID 25544)
+      const testData = await this.fetchTLEData([25544], username, password)
+      return testData && testData.length > 0
     } catch (error) {
       console.error('Connection test failed:', error)
       return false

@@ -6,11 +6,12 @@
 class IndexedDBStorage {
   constructor() {
     this.dbName = 'SatTrackDB'
-    this.dbVersion = 1
+    this.dbVersion = 2
     this.db = null
     this.tleStoreName = 'tleData'
     this.settingsStoreName = 'settings'
     this.credentialsStoreName = 'credentials'
+    this.transponderStoreName = 'transponderData'
   }
 
   /**
@@ -53,6 +54,13 @@ class IndexedDBStorage {
         if (!db.objectStoreNames.contains(this.credentialsStoreName)) {
           db.createObjectStore(this.credentialsStoreName, { keyPath: 'id' })
           console.log('Credentials store created')
+        }
+
+        // Create transponder data store
+        if (!db.objectStoreNames.contains(this.transponderStoreName)) {
+          const transponderStore = db.createObjectStore(this.transponderStoreName, { keyPath: 'noradId' })
+          transponderStore.createIndex('timestamp', 'timestamp', { unique: false })
+          console.log('Transponder data store created')
         }
       }
     })
@@ -209,11 +217,12 @@ class IndexedDBStorage {
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([this.credentialsStoreName], 'readwrite')
       const store = transaction.objectStore(this.credentialsStoreName)
-      
+
       const request = store.put({
         id: 'credentials',
         username: credentials.username,
         password: credentials.password,
+        satnogsToken: credentials.satnogsToken || '',
         timestamp: new Date().toISOString()
       })
 
@@ -224,6 +233,30 @@ class IndexedDBStorage {
 
       request.onerror = () => {
         console.error('Failed to store credentials:', request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Clear all credentials
+   * @returns {Promise<void>}
+   */
+  async clearCredentials() {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.credentialsStoreName], 'readwrite')
+      const store = transaction.objectStore(this.credentialsStoreName)
+      const request = store.clear()
+
+      request.onsuccess = () => {
+        console.log('All credentials cleared')
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error('Failed to clear credentials:', request.error)
         reject(request.error)
       }
     })
@@ -246,7 +279,8 @@ class IndexedDBStorage {
         if (result) {
           resolve({
             username: result.username,
-            password: result.password
+            password: result.password,
+            satnogsToken: result.satnogsToken || ''
           })
         } else {
           resolve(null)
@@ -271,7 +305,7 @@ class IndexedDBStorage {
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction([this.settingsStoreName], 'readwrite')
       const store = transaction.objectStore(this.settingsStoreName)
-      
+
       const request = store.put({
         id: 'settings',
         ...settings,
@@ -410,7 +444,7 @@ class IndexedDBStorage {
           navigator.storage.estimate().then(estimate => {
             const quotaMB = Math.round(estimate.quota / 1024 / 1024)
             const usedMB = Math.round(estimate.usage / 1024 / 1024)
-            
+
             // Format our data sizes appropriately
             const formatSize = (bytes) => {
               if (bytes < 1024) return bytes + ' B'
@@ -509,6 +543,215 @@ class IndexedDBStorage {
       console.error('Failed to get cache status:', error)
       return { exists: false, age: null, status: 'error' }
     }
+  }
+
+  /**
+   * Store transponder data for a specific satellite
+   * @param {string} noradId - NORAD ID of the satellite
+   * @param {Object} data - Transponder data to store
+   * @returns {Promise<void>}
+   */
+  async storeTransponderData(noradId, data) {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const store = transaction.objectStore(this.transponderStoreName)
+
+      const transponderRecord = {
+        noradId: noradId,
+        data: data,
+        timestamp: new Date().toISOString()
+      }
+
+      const request = store.put(transponderRecord)
+
+      request.onsuccess = () => {
+        console.log(`Transponder data stored for NORAD ${noradId}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to store transponder data for NORAD ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Store transponder data for multiple satellites
+   * @param {Object} transponderData - Object keyed by NORAD ID
+   * @returns {Promise<void>}
+   */
+  async storeAllTransponderData(transponderData) {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const store = transaction.objectStore(this.transponderStoreName)
+
+      const timestamp = new Date().toISOString()
+      let completed = 0
+      const total = Object.keys(transponderData).length
+
+      if (total === 0) {
+        resolve()
+        return
+      }
+
+      Object.entries(transponderData).forEach(([noradId, data]) => {
+        const transponderRecord = {
+          noradId: noradId,
+          data: data,
+          timestamp: timestamp
+        }
+
+        const request = store.put(transponderRecord)
+
+        request.onsuccess = () => {
+          completed++
+          if (completed === total) {
+            console.log(`All transponder data stored for ${total} satellites`)
+            resolve()
+          }
+        }
+
+        request.onerror = () => {
+          console.error(`Failed to store transponder data for NORAD ${noradId}:`, request.error)
+          reject(request.error)
+        }
+      })
+    })
+  }
+
+  /**
+   * Store all transmitter data for multiple satellites
+   * @param {Object} transmitterData - Object with NORAD IDs as keys and transmitter data as values
+   * @returns {Promise<void>}
+   */
+  async storeAllTransmitterData(transmitterData) {
+    console.log('=== IndexedDB storeAllTransmitterData START ===')
+    console.log('DB version:', this.dbVersion)
+    console.log('Transponder store name:', this.transponderStoreName)
+    console.log('Transmitter data keys:', Object.keys(transmitterData))
+
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      console.log('Creating transaction for store:', this.transponderStoreName)
+      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const store = transaction.objectStore(this.transponderStoreName)
+
+      const timestamp = new Date().toISOString()
+      let completed = 0
+      const total = Object.keys(transmitterData).length
+
+      console.log(`Storing ${total} transmitter records`)
+
+      if (total === 0) {
+        console.log('No transmitter data to store')
+        resolve()
+        return
+      }
+
+      Object.entries(transmitterData).forEach(([noradId, data]) => {
+        const transmitterRecord = {
+          noradId: noradId,
+          data: data,
+          timestamp: timestamp,
+          type: 'transmitter' // Mark as transmitter data
+        }
+
+        console.log(`Storing transmitter record for NORAD ${noradId}:`, transmitterRecord)
+        const request = store.put(transmitterRecord)
+
+        request.onsuccess = () => {
+          completed++
+          console.log(`✓ Stored transmitter data for NORAD ${noradId} (${completed}/${total})`)
+          if (completed === total) {
+            console.log(`✓ All transmitter data stored for ${total} satellites`)
+            console.log('=== IndexedDB storeAllTransmitterData END ===')
+            resolve()
+          }
+        }
+
+        request.onerror = () => {
+          console.error(`✗ Failed to store transmitter data for NORAD ${noradId}:`, request.error)
+          reject(request.error)
+        }
+      })
+    })
+  }
+
+  /**
+   * Get transponder data for a specific satellite
+   * @param {string} noradId - NORAD ID of the satellite
+   * @returns {Promise<Object|null>} - Transponder data or null
+   */
+  async getTransponderData(noradId) {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.transponderStoreName], 'readonly')
+      const store = transaction.objectStore(this.transponderStoreName)
+      const request = store.get(noradId)
+
+      request.onsuccess = () => {
+        resolve(request.result)
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to get transponder data for NORAD ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Get all stored transponder data
+   * @returns {Promise<Array>} - Array of transponder data records
+   */
+  async getAllTransponderData() {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.transponderStoreName], 'readonly')
+      const store = transaction.objectStore(this.transponderStoreName)
+      const request = store.getAll()
+
+      request.onsuccess = () => {
+        resolve(request.result || [])
+      }
+
+      request.onerror = () => {
+        console.error('Failed to get all transponder data:', request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Clear all transponder data
+   * @returns {Promise<void>}
+   */
+  async clearTransponderData() {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const store = transaction.objectStore(this.transponderStoreName)
+      const request = store.clear()
+
+      request.onsuccess = () => {
+        console.log('All transponder data cleared')
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error('Failed to clear transponder data:', request.error)
+        reject(request.error)
+      }
+    })
   }
 
   /**

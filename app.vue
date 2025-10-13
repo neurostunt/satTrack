@@ -2,6 +2,7 @@
   <div class="min-h-screen space-gradient">
     <PWAStatus />
     <NuxtPage />
+    <Toast />
   </div>
 </template>
 

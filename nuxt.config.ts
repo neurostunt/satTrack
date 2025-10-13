@@ -1,6 +1,7 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-10-10',
   devtools: { enabled: true },
+  ssr: false, // Disable SSR globally to prevent hydration issues
   modules: [
     '@vite-pwa/nuxt',
     '@unocss/nuxt'

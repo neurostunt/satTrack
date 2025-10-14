@@ -15,17 +15,16 @@
           <!-- Clickable Header -->
           <div
             @click="toggleSatelliteData(noradId)"
-            class="flex items-center justify-between mb-2 cursor-pointer hover:bg-space-800 rounded p-2 transition-all duration-300 ease-in-out hover:scale-[1.01] group"
+            class="flex items-center justify-between mb-2 cursor-pointer"
           >
-            <div class="flex items-center gap-2">
-              <h4 class="font-semibold text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out">{{ data.satellite?.name || `NORAD ${noradId}` }}</h4>
-              <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out">NORAD ID: {{ noradId }}</span>
-              <span v-if="data.satellite?.status" :class="getStatusColor(data.satellite.status)" class="text-xs font-medium">{{ getStatusText(data.satellite.status) }}</span>
+            <div>
+              <div class="text-sm font-semibold text-primary-300">{{ data.satellite?.name || `NORAD ${noradId}` }} <span class="text-xs text-space-400">NORAD: {{ noradId }}</span></div>
+              <div v-if="data.satellite?.status" :class="getStatusColor(data.satellite.status)" class="text-xs font-medium">{{ getStatusText(data.satellite.status) }}</div>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out">{{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}</span>
+              <span class="text-xs text-space-400">{{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}</span>
               <div class="transform transition-transform duration-500 ease-in-out" :class="{ 'rotate-180': isSatelliteExpanded(noradId) }">
-                <svg class="w-4 h-4 text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 text-space-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </div>

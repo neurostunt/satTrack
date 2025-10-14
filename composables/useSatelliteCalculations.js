@@ -3,12 +3,12 @@
  * Handles satellite position calculations using satellite.js
  */
 
-import { 
-  twoline2satrec, 
-  propagate, 
-  eciToGeodetic, 
-  geodeticToEcf, 
-  ecfToLookAngles 
+import {
+  twoline2satrec,
+  propagate,
+  eciToGeodetic,
+  geodeticToEcf,
+  ecfToLookAngles
 } from 'satellite.js'
 
 export const useSatelliteCalculations = () => {
@@ -36,10 +36,10 @@ export const useSatelliteCalculations = () => {
     try {
       // Parse TLE data
       const satrec = twoline2satrec(tleData.tle1, tleData.tle2)
-      
+
       // Calculate satellite position
       const positionAndVelocity = propagate(satrec, time)
-      
+
       if (positionAndVelocity.position === false) {
         console.warn('Satellite position calculation failed')
         return null
@@ -47,19 +47,19 @@ export const useSatelliteCalculations = () => {
 
       // Convert position to ECI coordinates
       const positionEci = positionAndVelocity.position
-      
+
       // Observer position in ECI
       const observerGd = {
         latitude: observerLocation.latitude * Math.PI / 180,
         longitude: observerLocation.longitude * Math.PI / 180,
         height: (observerLocation.altitude || 0) / 1000 // Convert to km
       }
-      
+
       const observerEci = eciToGeodetic(geodeticToEcf(observerGd, time), time)
-      
+
       // Calculate look angles
       const lookAngles = ecfToLookAngles(observerGd, positionEci, time)
-      
+
       if (!lookAngles) {
         console.warn('Look angles calculation failed')
         return null
@@ -102,36 +102,47 @@ export const useSatelliteCalculations = () => {
    * @param {number} maxDays - Maximum days to search ahead
    * @returns {Object|null} - Next pass info or null
    */
-  const calculateNextPass = (tleData, observerLocation, startTime = new Date(), maxDays = 7) => {
+  const calculateNextPass = (tleData, observerLocation, startTime = new Date(), maxDays = 1) => {
     if (!tleData || !observerLocation) {
       return null
     }
 
     try {
       const endTime = new Date(startTime.getTime() + maxDays * 24 * 60 * 60 * 1000)
-      const timeStep = 60 * 1000 // 1 minute steps
-      
+
       let currentTime = new Date(startTime)
       let lastElevation = -90
       let passStart = null
       let maxElevation = -90
       let maxElevationTime = null
+      let stepCount = 0
+      const maxSteps = 500 // Safety limit
 
-      while (currentTime < endTime) {
+      while (currentTime < endTime && stepCount < maxSteps) {
         const position = calculateSatellitePosition(tleData, observerLocation, currentTime)
-        
+
         if (position) {
+          // Dynamic time step based on elevation
+          let timeStep
+          if (Math.abs(position.elevation) > 30) {
+            timeStep = 30 * 60 * 1000 // 30 minutes when far from horizon
+          } else if (Math.abs(position.elevation) > 10) {
+            timeStep = 10 * 60 * 1000 // 10 minutes when approaching
+          } else {
+            timeStep = 2 * 60 * 1000 // 2 minutes when near horizon
+          }
+
           // Rising above horizon
           if (lastElevation <= 0 && position.elevation > 0) {
             passStart = new Date(currentTime)
           }
-          
+
           // Track maximum elevation
           if (position.elevation > maxElevation) {
             maxElevation = position.elevation
             maxElevationTime = new Date(currentTime)
           }
-          
+
           // Pass ended
           if (lastElevation > 0 && position.elevation <= 0 && passStart) {
             return {
@@ -143,11 +154,15 @@ export const useSatelliteCalculations = () => {
               name: tleData.name
             }
           }
-          
+
           lastElevation = position.elevation
+          currentTime = new Date(currentTime.getTime() + timeStep)
+        } else {
+          // If position calculation fails, use larger step
+          currentTime = new Date(currentTime.getTime() + 30 * 60 * 1000)
         }
-        
-        currentTime = new Date(currentTime.getTime() + timeStep)
+
+        stepCount++
       }
 
       return null
@@ -166,14 +181,14 @@ export const useSatelliteCalculations = () => {
    */
   const calculateMultiplePositions = (tleDataMap, observerLocation, time = new Date()) => {
     const results = {}
-    
+
     Object.values(tleDataMap).forEach(tleData => {
       const position = calculateSatellitePosition(tleData, observerLocation, time)
       if (position) {
         results[tleData.noradId] = position
       }
     })
-    
+
     return results
   }
 
@@ -188,20 +203,20 @@ export const useSatelliteCalculations = () => {
     }
 
     if (position.elevation > 0) {
-      return { 
-        status: 'visible', 
+      return {
+        status: 'visible',
         message: `Above horizon (${position.elevation.toFixed(1)}°)`,
         elevation: position.elevation
       }
     } else if (position.elevation > -10) {
-      return { 
-        status: 'approaching', 
+      return {
+        status: 'approaching',
         message: `Approaching horizon (${position.elevation.toFixed(1)}°)`,
         elevation: position.elevation
       }
     } else {
-      return { 
-        status: 'below', 
+      return {
+        status: 'below',
         message: `Below horizon (${position.elevation.toFixed(1)}°)`,
         elevation: position.elevation
       }
@@ -212,7 +227,7 @@ export const useSatelliteCalculations = () => {
     // State
     calculations: readonly(calculations),
     isCalculating: readonly(isCalculating),
-    
+
     // Methods
     calculateSatellitePosition,
     calculateNextPass,

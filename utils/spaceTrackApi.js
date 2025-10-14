@@ -85,7 +85,7 @@ class SpaceTrackAPI {
       const data = await response.json()
 
       if (data.success) {
-        console.log('TLE data fetched successfully:', data.data.length, 'satellites')
+        console.log(`TLE data fetched successfully: ${data.data.length} satellites from Space-Track.org`)
         return data.data
       } else {
         console.error('TLE data fetch failed:', data.message)

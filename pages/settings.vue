@@ -314,7 +314,7 @@ const fetchTrackedSatellitesTLEData = async () => {
       spaceTrackFetchStatus.value = {
         show: true,
         type: 'success',
-        message: `Successfully fetched TLE data for ${Object.keys(loadedTLEData).length} satellites`,
+        message: `Successfully fetched TLE data for ${Object.keys(loadedTLEData).length} tracked satellites`,
         details: `NORAD IDs: ${Object.keys(loadedTLEData).join(', ')}`
       }
     } else {

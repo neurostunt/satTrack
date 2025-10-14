@@ -45,6 +45,27 @@
           </select>
         </div>
 
+        <!-- Minimum Elevation -->
+        <div>
+          <label class="block text-xs font-medium text-space-300 mb-1">Minimum Elevation for Pass Schedule</label>
+          <div class="flex items-center gap-2">
+            <input
+              :value="settings.minimumElevation"
+              @input="$emit('update:settings', { ...settings, minimumElevation: parseFloat($event.target.value) || 0 })"
+              type="number"
+              min="0"
+              max="90"
+              step="0.1"
+              placeholder="5.0"
+              class="flex-1 bg-space-800 border border-space-700 rounded px-3 py-2 text-sm text-white focus:border-primary-500 focus:outline-none"
+            />
+            <span class="text-xs text-space-400">degrees</span>
+          </div>
+          <p class="text-xs text-space-500 mt-1">
+            Only passes with elevation above this value will be calculated and displayed
+          </p>
+        </div>
+
         <!-- Auto-update TLE -->
         <div class="flex items-center justify-between">
           <label class="text-sm text-space-300">Auto-update TLE data</label>

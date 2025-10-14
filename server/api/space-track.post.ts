@@ -105,12 +105,24 @@ export default defineEventHandler(async (event) => {
         }
 
         const tleData = await tleResponse.json()
-        console.log('TLE data fetched successfully:', tleData.length, 'satellites')
+        console.log('TLE data fetched successfully:', tleData.length, 'satellites from Space-Track.org')
+
+        // Filter to get only the latest TLE for each NORAD ID
+        const latestTLE: Record<string, any> = {}
+        tleData.forEach((tle: any) => {
+          const noradId = String(tle.NORAD_CAT_ID)
+          if (!latestTLE[noradId] || new Date(tle.TLE_LINE0) > new Date(latestTLE[noradId].TLE_LINE0)) {
+            latestTLE[noradId] = tle
+          }
+        })
+
+        const filteredData = Object.values(latestTLE)
+        console.log('Filtered to latest TLE for', filteredData.length, 'unique satellites')
 
         return {
           success: true,
           message: 'TLE data fetched successfully from Space-Track.org',
-          data: tleData,
+          data: filteredData,
           isFallback: false
         }
       } catch (loginError) {

@@ -66,12 +66,12 @@
         />
 
         <!-- Search Results -->
-        <div v-if="searchResults.length > 0" class="mt-2 max-h-48 overflow-y-auto border border-space-700 rounded bg-space-800">
+        <div v-if="searchResults.length > 0" class="mt-2 max-h-48 overflow-y-auto border border-space-600 rounded bg-space-900">
           <div
             v-for="satellite in searchResults"
             :key="satellite.noradId"
             @click="addSatellite(satellite)"
-            class="p-2 hover:bg-space-700 cursor-pointer border-b border-space-600 last:border-b-0"
+            class="p-2 hover:bg-space-800 cursor-pointer border-b border-space-600 last:border-b-0"
           >
             <div class="text-sm font-semibold text-primary-300">{{ satellite.name }}</div>
             <div class="text-xs text-space-400">NORAD: {{ satellite.noradId }}</div>
@@ -100,11 +100,10 @@
         <div
           v-for="satellite in settings.trackedSatellites"
           :key="satellite.noradId"
-          class="flex items-center justify-between p-2 bg-space-800 border border-space-700 rounded"
+          class="flex items-center justify-between p-2 bg-space-900 border border-space-600 rounded"
         >
           <div>
-            <div class="text-sm font-mono text-primary-400">{{ satellite.name }}</div>
-            <div class="text-xs text-space-400">NORAD: {{ satellite.noradId }}</div>
+            <div class="text-sm font-semibold text-primary-300">{{ satellite.name }} <span class="text-xs text-space-400">NORAD: {{ satellite.noradId }}</span></div>
             <div v-if="satellite.names" class="text-xs text-space-500">{{ satellite.names }}</div>
           </div>
           <button

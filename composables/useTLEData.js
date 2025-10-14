@@ -20,8 +20,13 @@ export const useTLEData = () => {
    */
   const loadFromCache = async () => {
     try {
+      console.log('🔍 Loading TLE data from cache...')
       const cacheData = await secureStorage.getTLECache()
+      console.log('🔍 Cache data retrieved:', cacheData)
+
       if (cacheData && cacheData.data) {
+        console.log('🔍 Cache data found, setting tleData.value')
+        console.log('🔍 Cache data keys:', Object.keys(cacheData.data))
         tleData.value = cacheData.data
         lastUpdate.value = cacheData.timestamp
 
@@ -35,14 +40,16 @@ export const useTLEData = () => {
         } else if (ageMinutes < 360) { // 6 hours
           cacheStatus.value = 'stale'
         } else {
-          cacheStatus.value = 'none'
-          return false
+          cacheStatus.value = 'old'
+          // Still load the data even if it's old for schedule calculations
         }
 
         console.log(`TLE data loaded from cache (${Math.round(ageMinutes)} minutes old)`)
         return true
+      } else {
+        console.log('🔍 No cache data found or cache data is empty')
+        return false
       }
-      return false
     } catch (error) {
       console.error('Failed to load from cache:', error)
       return false
@@ -247,6 +254,9 @@ export const useTLEData = () => {
       lastUpdate.value = new Date().toISOString()
       cacheStatus.value = 'fresh'
 
+      // Save to cache
+      await saveToCache(processedData)
+
       console.log(`TLE data updated successfully from ${dataSource}:`, Object.keys(processedData).length, 'satellites')
 
     } catch (err) {
@@ -297,19 +307,21 @@ export const useTLEData = () => {
   }
 
   /**
-   * Initialize TLE data (always fetch fresh data)
+   * Initialize TLE data (load from cache only)
    * @param {Array} satellites - Array of satellite objects
    * @param {string} username - Space-Track username
    * @param {string} password - Space-Track password
+   * @param {string} satnogsToken - SatNOGS API token for backup
    */
-  const initializeTLEData = async (satellites, username, password) => {
-    // Always fetch fresh data, no caching
-    if (username && password) {
-      try {
-        await fetchTLEData(satellites, username, password)
-      } catch (error) {
-        console.error('Failed to initialize TLE data:', error)
-      }
+  const initializeTLEData = async (satellites, username, password, satnogsToken) => {
+    // Load from cache only, no API calls
+    try {
+      const cacheLoaded = await loadFromCache()
+      console.log('Cache loaded:', cacheLoaded)
+      console.log('TLE data after cache load:', Object.keys(tleData.value))
+      console.log('TLE data loaded from cache for initialization')
+    } catch (error) {
+      console.error('Failed to load TLE data from cache:', error)
     }
   }
 

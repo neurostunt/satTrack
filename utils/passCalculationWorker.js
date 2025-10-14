@@ -3,19 +3,14 @@
  * Runs calculations in background without blocking UI
  */
 
-import {
-  twoline2satrec,
-  propagate,
-  eciToGeodetic,
-  geodeticToEcf,
-  ecfToLookAngles
-} from 'satellite.js'
-
 // Listen for messages from main thread
 self.onmessage = function(e) {
+  console.log('🔧 Web Worker received message:', e.data)
+
   const { tleData, observerLocation, startTime, maxDays, satelliteInfo } = e.data
 
   try {
+    console.log('🔧 Starting pass calculation for:', satelliteInfo.name)
     const passes = calculatePasses(tleData, observerLocation, startTime, maxDays, satelliteInfo)
 
     // Send results back to main thread
@@ -65,7 +60,7 @@ function calculatePasses(tleData, observerLocation, startTime, maxDays, satellit
     stepCount++
   }
 
-  return passes.slice(0, 3) // Limit to 3 passes max
+  return passes.slice(0, 5) // Limit to 5 passes max
 }
 
 function calculatePassDetails(tleData, observerLocation, startTime, satelliteInfo) {

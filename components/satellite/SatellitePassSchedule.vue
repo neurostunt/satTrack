@@ -51,16 +51,17 @@
                  <div
                    v-for="pass in passSchedule"
                    :key="`${pass.noradId}-${pass.startTime}`"
-                   class="bg-space-900 border border-space-600 rounded p-3 cursor-pointer"
+                   :class="[getPassBackgroundClass(pass), getPassBorderClass(pass)]"
+                   class="rounded p-3 cursor-pointer"
                    @click="togglePass(`${pass.noradId}-${pass.startTime}`)"
                  >
           <!-- Clickable Header -->
           <div class="mb-1">
                      <!-- First line: Satellite info -->
-                     <div class="flex items-center justify-between mb-1">
+                     <div class="flex items-center justify-between mb-1" :class="getPassTitleClass(pass)">
                        <div>
                          <div class="text-sm font-semibold text-primary-300">{{ pass.name }} <span class="text-xs text-space-400">NORAD: {{ pass.noradId }}</span></div>
-                         <div v-if="pass.status" :class="getStatusColor(pass.status)" class="text-xs font-medium">{{ getStatusText(pass.status) }}</div>
+                         <div v-if="pass.status && pass.status !== 'alive'" :class="getStatusColor(pass.status)" class="text-xs font-medium">{{ getStatusText(pass.status) }}</div>
                        </div>
                        <div class="transform transition-transform duration-500 ease-in-out" :class="{ 'rotate-180': expandedPasses.has(`${pass.noradId}-${pass.startTime}`) }">
                          <svg class="w-4 h-4 text-space-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -74,7 +75,7 @@
               <span class="text-xs text-space-400">
                 {{ formatDuration(pass.duration) }} • {{ formatDateTime(pass.maxElevationTime) }} • {{ pass.maxElevation }}°
               </span>
-              <span class="text-xs text-space-400">{{ getCountdown(pass.startTime) }}</span>
+              <span class="text-xs text-space-400">{{ getCountdown(pass.startTime, pass.endTime) }}</span>
             </div>
           </div>
 
@@ -92,6 +93,14 @@
                 v-show="expandedPasses.has(`${pass.noradId}-${pass.startTime}`)"
                 class="overflow-hidden"
               >
+                <!-- Satellite Pass Visualization for this specific pass -->
+                <div class="mb-4">
+                  <SatellitePassVisualization
+                    :passes="[pass]"
+                    :user-location="userLocation"
+                  />
+                </div>
+
                 <!-- Pass Timing -->
                 <div class="mb-3">
                   <div class="text-sm text-space-300 mb-2">🕐 Pass Timing</div>
@@ -134,7 +143,7 @@
                   <div class="bg-space-800 border border-space-500 rounded p-2 text-xs">
                     <div class="text-space-300">
                       <span class="text-space-400">Time until pass:</span>
-                      <span class="text-space-200 ml-1 font-semibold">{{ getCountdown(pass.startTime) }}</span>
+                      <span class="text-space-200 ml-1 font-semibold">{{ getCountdown(pass.startTime, pass.endTime) }}</span>
                     </div>
                   </div>
                 </div>
@@ -363,12 +372,26 @@ const formatDuration = (minutes) => {
   return `${h > 0 ? h + 'h ' : ''}${m}m`
 }
 
-const getCountdown = (startTimeString) => {
+const isPassActive = (pass) => {
+  const now = new Date()
+  const startTime = new Date(pass.startTime)
+  const endTime = new Date(pass.endTime)
+  return now >= startTime && now <= endTime
+}
+
+const getCountdown = (startTimeString, endTimeString) => {
   const now = new Date()
   const startTime = new Date(startTimeString)
+  const endTime = new Date(endTimeString)
   const diff = startTime.getTime() - now.getTime()
 
-  if (diff < 0) {
+  // Check if pass is currently active (between start and end)
+  if (now >= startTime && now <= endTime) {
+    return 'Passing'
+  }
+
+  // Check if pass has ended
+  if (now > endTime) {
     return 'Passed'
   }
 
@@ -419,6 +442,27 @@ const getStatusText = (status) => {
   }
 }
 
+const getPassBorderClass = (pass) => {
+  if (isPassActive(pass)) {
+    return 'border-primary-400'
+  }
+  return 'border-space-600'
+}
+
+const getPassTitleClass = (pass) => {
+  if (isPassActive(pass)) {
+    return 'animate-pulse'
+  }
+  return ''
+}
+
+const getPassBackgroundClass = (pass) => {
+  if (isPassActive(pass)) {
+    return 'bg-space-900/80'
+  }
+  return 'bg-space-900'
+}
+
 const togglePass = (passKey) => {
   if (expandedPasses.value.has(passKey)) {
     expandedPasses.value.delete(passKey)
@@ -445,8 +489,9 @@ const calculatePassSchedule = async () => {
   isLoading.value = false
   isCalculating.value = true
 
-           // Initialize progress
-           const satellitesToProcess = settings.value.trackedSatellites
+           // Initialize progress - process only first 5 satellites
+           const satellitesToProcess = settings.value.trackedSatellites.slice(0, 5)
+           console.log('📊 Satellites to process:', satellitesToProcess.map(s => `${s.name} (${s.noradId})`))
            calculationProgress.value = {
              current: 0,
              total: satellitesToProcess.length,
@@ -478,7 +523,7 @@ const calculatePassSchedule = async () => {
           worker.terminate()
           console.log(`⏰ Timeout for ${satellite.name}`)
           resolve([])
-        }, 10000) // 10 second timeout
+        }, 15000) // 15 second timeout
 
         worker.onmessage = (e) => {
           clearTimeout(timeout)
@@ -565,6 +610,7 @@ const startCountdownInterval = () => {
   countdownInterval.value = setInterval(() => {
     // Force reactivity update by triggering a re-render
     // This will cause getCountdown to be called again for each pass
+    // and update blinking effects for active passes
     passSchedule.value = [...passSchedule.value]
   }, 1000)
 }
@@ -586,7 +632,8 @@ onMounted(async () => {
   await initializeTLEData(
     settings.value.trackedSatellites,
     settings.value.spaceTrackUsername,
-    settings.value.spaceTrackPassword
+    settings.value.spaceTrackPassword,
+    settings.value.satnogsToken
   )
 
   console.log('After initializeTLEData:')
@@ -607,6 +654,32 @@ onMounted(async () => {
     updateNextUpdateTime()
   }, 5 * 60 * 1000)
 })
+
+// Watch for expired passes and recalculate
+watch(passSchedule, (newSchedule) => {
+  const now = new Date()
+  const expiredPasses = newSchedule.filter(pass => {
+    const endTime = new Date(pass.endTime)
+    return endTime < now
+  })
+
+  if (expiredPasses.length > 0) {
+    console.log(`🗑️ Removing ${expiredPasses.length} expired passes`)
+    // Remove expired passes
+    passSchedule.value = newSchedule.filter(pass => {
+      const endTime = new Date(pass.endTime)
+      return endTime >= now
+    })
+
+    // If we removed passes, recalculate to get more
+    if (passSchedule.value.length < 5) {
+      console.log('🔄 Recalculating to get more passes...')
+      setTimeout(() => {
+        calculatePassSchedule()
+      }, 1000) // Wait 1 second before recalculating
+    }
+  }
+}, { deep: true })
 
 onUnmounted(() => {
   if (updateInterval.value) {

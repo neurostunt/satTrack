@@ -91,7 +91,7 @@ function calculatePasses(tleData, observerLocation, startTimeString, maxDays, sa
   }
 
   console.log('🏁 Calculation complete. Found', passes.length, 'passes above', minimumElevation, 'degrees')
-  return passes.slice(0, 3) // Limit to 3 passes max
+  return passes.slice(0, 5) // Limit to 5 passes max
 }
 
 function parseTLE(tle1, tle2) {

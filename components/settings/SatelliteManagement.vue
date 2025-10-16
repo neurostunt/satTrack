@@ -1,5 +1,5 @@
 <template>
-  <div class="max-w-lg mx-auto mb-6">
+  <div class="max-w-lg mx-auto mb-6" @click="handleClickOutside">
     <div class="card p-4">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-lg font-semibold text-primary-400">Tracked Satellites</h3>
@@ -47,7 +47,7 @@
       </div>
 
       <!-- Search Satellite -->
-      <div class="mb-4">
+      <div class="mb-4" @click.stop>
         <label class="block text-xs font-medium text-space-300 mb-1">Search Satellite</label>
         <div class="relative">
             <input
@@ -57,6 +57,8 @@
               @keydown.arrow-down="handleArrowDown"
               @keydown.arrow-up="handleArrowUp"
               @keydown.escape="clearSearch"
+              @focus="handleInputFocus"
+              @blur="handleInputBlur"
               type="text"
               class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none pr-8 box-border"
               placeholder="Search by name or NORAD ID..."
@@ -73,7 +75,7 @@
         </div>
 
         <!-- Search Results -->
-        <div v-if="searchResults.length > 0" class="mt-2 max-h-48 overflow-y-auto border border-space-700 rounded bg-space-800">
+        <div v-if="showResults && searchResults.length > 0" class="mt-2 max-h-48 overflow-y-auto border border-space-700 rounded bg-space-800">
           <div
             v-for="(satellite, index) in searchResults"
             :key="satellite.sat_id"
@@ -94,7 +96,7 @@
         </div>
 
         <!-- No Results -->
-        <div v-if="!searchLoading && searchQuery.length >= 3 && searchResults.length === 0 && !searchError" class="mt-2 text-space-400 text-xs">
+        <div v-if="showResults && !searchLoading && searchQuery.length >= 3 && searchResults.length === 0 && !searchError" class="mt-2 text-space-400 text-xs">
           No satellites found for "{{ searchQuery }}"
         </div>
 
@@ -115,22 +117,36 @@
       </div>
 
       <!-- Tracked Satellites List -->
-      <div class="space-y-3">
+      <div class="space-y-4">
         <div
           v-for="satellite in settings.trackedSatellites"
           :key="satellite.noradId"
-          class="flex items-center justify-between bg-space-800 border border-space-700 rounded px-3 py-2"
+          class="bg-space-900 border border-space-600 rounded p-3"
         >
-          <div class="flex items-center gap-2">
-            <h4 class="font-semibold text-primary-300">{{ satellite.name }}</h4>
-            <span class="text-xs text-space-400">NORAD ID: {{ satellite.noradId }}</span>
+          <!-- Clickable Header -->
+          <div class="flex items-center justify-between">
+            <div class="flex flex-col">
+              <div class="flex items-center gap-2">
+                <h4 class="font-semibold text-primary-300">
+                  <template v-if="getFormattedSatelliteName(satellite).secondary">
+                    {{ getFormattedSatelliteName(satellite).primary }} -
+                    <span class="text-xs">{{ getFormattedSatelliteName(satellite).secondary }}</span>
+                  </template>
+                  <template v-else>
+                    {{ getFormattedSatelliteName(satellite).primary }}
+                  </template>
+                </h4>
+                <span class="text-xs text-space-400">NORAD ID: {{ satellite.noradId }}</span>
+              </div>
+              <span class="text-xs text-green-400 font-medium">{{ satellite.status || 'alive' }}</span>
+            </div>
+            <button
+              @click="$emit('remove-satellite', satellite.noradId)"
+              class="bg-red-600 hover:bg-red-700 text-white text-xs px-3 py-1 rounded transition-colors duration-200 font-medium"
+            >
+              Remove
+            </button>
           </div>
-          <button
-            @click="$emit('remove-satellite', satellite.noradId)"
-            class="text-red-400 hover:text-red-300 text-xs"
-          >
-            Remove
-          </button>
         </div>
       </div>
     </div>
@@ -183,16 +199,17 @@ const emit = defineEmits(['fetch-all-data', 'add-satellite', 'remove-satellite',
 
 // Reactive state for keyboard navigation
 const selectedIndex = ref(-1)
+const showResults = ref(false)
 
 // Functions
 const formatSatellite = (satellite) => {
+  // Swap name and names - "names" is the full name, "name" is the short name
   const formatted = {
-    name: satellite.name,
+    name: satellite.names || satellite.name,    // Full name (SAUDISAT 1C)
     noradId: satellite.norad_cat_id,
     status: satellite.status,
-    names: satellite.names || satellite.name
+    names: satellite.name                       // Short name (SO-50)
   }
-  console.log('🔍 formatSatellite:', satellite, '->', formatted)
   return formatted
 }
 
@@ -201,6 +218,8 @@ const handleClick = (satellite) => {
   console.log('🚀 handleClick called!')
   console.log('🔍 handleClick called with:', satellite)
   emit('add-satellite', formatSatellite(satellite))
+  showResults.value = false
+  selectedIndex.value = -1
 }
 
 // Keyboard navigation functions
@@ -210,6 +229,7 @@ const handleEnterKey = () => {
     const satellite = props.searchResults[selectedIndex.value]
     console.log('🔍 Emitting add-satellite with:', satellite)
     emit('add-satellite', formatSatellite(satellite))
+    showResults.value = false
     selectedIndex.value = -1
   }
 }
@@ -230,12 +250,81 @@ const handleArrowUp = (event) => {
 
 const clearSearch = () => {
   emit('update:searchQuery', '')
+  showResults.value = false
   selectedIndex.value = -1
 }
 
-// Watch for search results changes to reset selection
-watch(() => props.searchResults, () => {
+// Handle input focus/blur
+const handleInputFocus = () => {
+  if (props.searchQuery.length >= 3 && props.searchResults.length > 0) {
+    showResults.value = true
+  }
+}
+
+const handleInputBlur = () => {
+  // Delay hiding to allow clicks on results
+  setTimeout(() => {
+    showResults.value = false
+  }, 150)
+}
+
+// Handle clicking outside
+const handleClickOutside = () => {
+  showResults.value = false
+}
+
+// Functions
+const getFullSatelliteName = (satellite) => {
+  if (!satellite) return 'Unknown'
+
+  const name = satellite.name || ''
+  const names = satellite.names || ''
+
+  // If both exist and are different, combine them
+  if (names && name && names !== name) {
+    return `${names} - ${name}`
+  }
+
+  // Return whichever exists
+  return names || name || 'Unknown'
+}
+
+const getFormattedSatelliteName = (satellite) => {
+  if (!satellite) return 'Unknown'
+
+  const name = satellite.name || ''
+  const names = satellite.names || ''
+
+  // If both exist and are different, combine them with smaller font for second part
+  if (names && name && names !== name) {
+    return {
+      primary: names,    // SAUDISAT 1C (main name)
+      secondary: name   // SO-50 (secondary name)
+    }
+  }
+
+  // Return single name
+  return {
+    primary: names || name || 'Unknown',
+    secondary: null
+  }
+}
+
+// Watch for search results changes to reset selection and show results
+watch(() => props.searchResults, (newResults) => {
   selectedIndex.value = -1
+  if (newResults && newResults.length > 0 && props.searchQuery.length >= 3) {
+    showResults.value = true
+  }
+})
+
+// Watch for search query changes
+watch(() => props.searchQuery, (newQuery) => {
+  if (newQuery.length >= 3 && props.searchResults.length > 0) {
+    showResults.value = true
+  } else if (newQuery.length < 3) {
+    showResults.value = false
+  }
 })
 </script>
 

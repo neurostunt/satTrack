@@ -10,7 +10,8 @@
             <div class="relative">
               <label class="block text-xs font-medium text-space-300 mb-1">Username</label>
               <input
-                v-model="settings.spaceTrackUsername"
+                :value="localSettings.spaceTrackUsername"
+                @input="handleInputChange('spaceTrackUsername', $event.target.value)"
                 type="text"
                 class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none box-border"
                 placeholder="Enter username"
@@ -19,7 +20,8 @@
             <div class="relative">
               <label class="block text-xs font-medium text-space-300 mb-1">Password</label>
               <input
-                v-model="settings.spaceTrackPassword"
+                :value="localSettings.spaceTrackPassword"
+                @input="handleInputChange('spaceTrackPassword', $event.target.value)"
                 type="password"
                 class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none box-border"
                 placeholder="Enter password"
@@ -34,7 +36,8 @@
           <div class="relative">
             <label class="block text-xs font-medium text-space-300 mb-1">API Token</label>
             <input
-              v-model="settings.satnogsToken"
+              :value="localSettings.satnogsToken"
+              @input="handleInputChange('satnogsToken', $event.target.value)"
               type="text"
               class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none box-border"
               placeholder="Enter your SatNOGS API token"
@@ -43,13 +46,19 @@
         </div>
 
         <!-- Save Credentials Button -->
-        <button
-          @click="saveSettings"
-          class="btn-primary w-full text-sm"
-          :disabled="isSavingSettings"
-        >
-          {{ isSavingSettings ? 'Saving...' : 'Save Credentials' }}
-        </button>
+        <div class="border-t border-space-600 pt-4 mt-4">
+          <button
+            @click="$emit('save-settings')"
+            :disabled="isSavingSettings"
+            class="w-full bg-primary-600 hover:bg-primary-700 disabled:bg-space-600 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+          >
+            <svg v-if="isSavingSettings" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>{{ isSavingSettings ? 'Saving...' : 'Save Credentials' }}</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -57,7 +66,7 @@
 
 <script setup>
 // Props
-defineProps({
+const props = defineProps({
   settings: {
     type: Object,
     required: true
@@ -65,11 +74,51 @@ defineProps({
   isSavingSettings: {
     type: Boolean,
     default: false
+  },
+  updateSettings: {
+    type: Function,
+    required: true
   }
 })
 
 // Emits
-defineEmits(['save-settings'])
+const emit = defineEmits(['save-settings'])
+
+// Local reactive state for form inputs
+const localSettings = ref({
+  spaceTrackUsername: '',
+  spaceTrackPassword: '',
+  satnogsToken: ''
+})
+
+// Initialize local settings from props
+onMounted(() => {
+  localSettings.value = {
+    spaceTrackUsername: props.settings.spaceTrackUsername || '',
+    spaceTrackPassword: props.settings.spaceTrackPassword || '',
+    satnogsToken: props.settings.satnogsToken || ''
+  }
+})
+
+// Update local settings when props change
+watch(() => props.settings, (newSettings) => {
+  if (newSettings) {
+    localSettings.value = {
+      spaceTrackUsername: newSettings.spaceTrackUsername || '',
+      spaceTrackPassword: newSettings.spaceTrackPassword || '',
+      satnogsToken: newSettings.satnogsToken || ''
+    }
+  }
+}, { deep: true })
+
+// Handle input changes
+const handleInputChange = (field, value) => {
+  localSettings.value[field] = value
+  // Update settings immediately
+  props.updateSettings({
+    [field]: value
+  })
+}
 </script>
 
 <style scoped>

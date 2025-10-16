@@ -4,6 +4,7 @@
     <ApiCredentials
       :settings="settings"
       :is-saving-settings="isSavingSettings"
+      :update-settings="updateSettings"
       @save-settings="saveSettings"
     />
 
@@ -121,11 +122,12 @@ const addSatellite = async (satellite) => {
   }
 
   // Add to tracked satellites using updateSettings
+  // Note: satellite.name is already the full name, satellite.names is the short name
   const newSatellite = {
     noradId: satellite.noradId,
-    name: satellite.name,
+    name: satellite.name,          // Full name (SAUDISAT 1C)
     status: satellite.status || 'alive',
-    names: satellite.names || satellite.name
+    names: satellite.names         // Short name (SO-50)
   }
 
   console.log('🔍 Adding satellite:', newSatellite)

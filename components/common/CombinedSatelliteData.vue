@@ -20,7 +20,15 @@
             :class="isSatelliteExpanded(noradId) ? 'bg-space-800' : 'hover:bg-space-800'"
           >
             <div class="flex items-center gap-2">
-              <h4 class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out">{{ data.satellite?.name || `NORAD ${noradId}` }}</h4>
+              <h4 class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out">
+                <template v-if="getFormattedSatelliteName(data.satellite, noradId).secondary">
+                  {{ getFormattedSatelliteName(data.satellite, noradId).primary }} -
+                  <span class="text-xs">{{ getFormattedSatelliteName(data.satellite, noradId).secondary }}</span>
+                </template>
+                <template v-else>
+                  {{ getFormattedSatelliteName(data.satellite, noradId).primary }}
+                </template>
+              </h4>
               <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out">NORAD ID: {{ noradId }}</span>
             </div>
             <div class="flex items-center gap-2">
@@ -165,6 +173,42 @@ const formatFrequencyValue = (frequency) => {
 const expandedSatellites = ref(new Set())
 
 // Functions
+const getFullSatelliteName = (satellite, noradId) => {
+  if (!satellite) return `NORAD ${noradId}`
+
+  const name = satellite.name || ''
+  const names = satellite.names || ''
+
+  // If both exist and are different, combine them
+  if (names && name && names !== name) {
+    return `${names} - ${name}`
+  }
+
+  // Return whichever exists
+  return names || name || `NORAD ${noradId}`
+}
+
+const getFormattedSatelliteName = (satellite, noradId) => {
+  if (!satellite) return { primary: `NORAD ${noradId}`, secondary: null }
+
+  const name = satellite.name || ''
+  const names = satellite.names || ''
+
+  // If both exist and are different, combine them with smaller font for second part
+  if (names && name && names !== name) {
+    return {
+      primary: names,    // SAUDISAT 1C (main name)
+      secondary: name   // SO-50 (secondary name)
+    }
+  }
+
+  // Return single name
+  return {
+    primary: names || name || `NORAD ${noradId}`,
+    secondary: null
+  }
+}
+
 const toggleSatelliteData = (noradId) => {
   if (expandedSatellites.value.has(noradId)) {
     expandedSatellites.value.delete(noradId)

@@ -1,4 +1,9 @@
-export default defineEventHandler(async (event) => {
+// Nuxt server functions are auto-imported
+declare const defineEventHandler: any
+declare const readBody: any
+declare const createError: any
+
+export default defineEventHandler(async (event: any) => {
   try {
     const body = await readBody(event)
     const { token, action, ...params } = body
@@ -39,7 +44,6 @@ export default defineEventHandler(async (event) => {
         break
       case 'search':
         const searchQuery = params.query
-        const searchLimit = params.limit || 20
 
         if (!searchQuery) {
           throw createError({

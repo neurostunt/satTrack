@@ -1,7 +1,7 @@
 <template>
-  <div class="min-h-screen space-gradient p-4">
+  <div class="min-h-screen space-gradient">
     <!-- Header -->
-    <header class="text-center mb-6">
+    <header class="text-center mb-6 px-4 pt-4">
       <h1 class="text-2xl font-bold mb-1 bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">
         {{ title }}
       </h1>
@@ -9,7 +9,7 @@
     </header>
 
     <!-- Main Content -->
-    <main class="max-w-lg mx-auto">
+    <main class="max-w-lg mx-auto px-4 pb-4">
       <slot />
     </main>
   </div>

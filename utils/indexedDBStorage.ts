@@ -4,6 +4,14 @@
  */
 
 class IndexedDBStorage {
+  private dbName: string
+  private dbVersion: number
+  private db: IDBDatabase | null
+  private tleStoreName: string
+  private settingsStoreName: string
+  private credentialsStoreName: string
+  private transponderStoreName: string
+
   constructor() {
     this.dbName = 'SatTrackDB'
     this.dbVersion = 2
@@ -16,9 +24,8 @@ class IndexedDBStorage {
 
   /**
    * Initialize IndexedDB connection
-   * @returns {Promise<void>}
    */
-  async init() {
+  async init(): Promise<void> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.dbName, this.dbVersion)
 
@@ -34,7 +41,7 @@ class IndexedDBStorage {
       }
 
       request.onupgradeneeded = (event) => {
-        const db = event.target.result
+        const db = (event.target as IDBOpenDBRequest).result
 
         // Create TLE data store
         if (!db.objectStoreNames.contains(this.tleStoreName)) {
@@ -68,9 +75,8 @@ class IndexedDBStorage {
 
   /**
    * Ensure database is initialized
-   * @returns {Promise<void>}
    */
-  async ensureDB() {
+  async ensureDB(): Promise<void> {
     if (!this.db) {
       await this.init()
     }
@@ -78,15 +84,12 @@ class IndexedDBStorage {
 
   /**
    * Store TLE data for multiple satellites
-   * @param {Object} tleData - TLE data object keyed by NORAD ID
-   * @param {string} timestamp - ISO timestamp
-   * @returns {Promise<void>}
    */
-  async storeTLEData(tleData, timestamp) {
+  async storeTLEData(tleData: Record<string, any>, timestamp: string): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.tleStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.tleStoreName], 'readwrite')
       const store = transaction.objectStore(this.tleStoreName)
 
       // Clear existing data first
@@ -94,7 +97,7 @@ class IndexedDBStorage {
 
       // Store each satellite's TLE data
       const promises = Object.entries(tleData).map(([noradId, data]) => {
-        return new Promise((resolveEntry, rejectEntry) => {
+        return new Promise<void>((resolveEntry, rejectEntry) => {
           const request = store.add({
             noradId: parseInt(noradId),
             name: data.name,
@@ -121,13 +124,12 @@ class IndexedDBStorage {
 
   /**
    * Retrieve TLE data for all satellites
-   * @returns {Promise<Object|null>} - TLE data object or null
    */
-  async getTLEData() {
+  async getTLEData(): Promise<{ data: Record<number, any>; timestamp: string } | null> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.tleStoreName], 'readonly')
+      const transaction = this.db!.transaction([this.tleStoreName], 'readonly')
       const store = transaction.objectStore(this.tleStoreName)
       const request = store.getAll()
 
@@ -139,10 +141,10 @@ class IndexedDBStorage {
         }
 
         // Convert array back to object keyed by NORAD ID
-        const tleData = {}
-        let latestTimestamp = null
+        const tleData: Record<number, any> = {}
+        let latestTimestamp: string | null = null
 
-        results.forEach(item => {
+        results.forEach((item: any) => {
           tleData[item.noradId] = {
             noradId: item.noradId,
             name: item.name,
@@ -159,7 +161,7 @@ class IndexedDBStorage {
 
         resolve({
           data: tleData,
-          timestamp: latestTimestamp
+          timestamp: latestTimestamp || ''
         })
       }
 
@@ -172,14 +174,12 @@ class IndexedDBStorage {
 
   /**
    * Get TLE data for a specific satellite
-   * @param {number} noradId - NORAD catalog ID
-   * @returns {Promise<Object|null>} - TLE data or null
    */
-  async getSatelliteTLEData(noradId) {
+  async getSatelliteTLEData(noradId: number): Promise<any | null> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.tleStoreName], 'readonly')
+      const transaction = this.db!.transaction([this.tleStoreName], 'readonly')
       const store = transaction.objectStore(this.tleStoreName)
       const request = store.get(noradId)
 
@@ -208,14 +208,12 @@ class IndexedDBStorage {
 
   /**
    * Store encrypted credentials
-   * @param {Object} credentials - { username, password }
-   * @returns {Promise<void>}
    */
-  async storeCredentials(credentials) {
+  async storeCredentials(credentials: { username: string; password: string; satnogsToken?: string }): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.credentialsStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.credentialsStoreName], 'readwrite')
       const store = transaction.objectStore(this.credentialsStoreName)
 
       const request = store.put({
@@ -240,13 +238,12 @@ class IndexedDBStorage {
 
   /**
    * Clear all credentials
-   * @returns {Promise<void>}
    */
-  async clearCredentials() {
+  async clearCredentials(): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.credentialsStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.credentialsStoreName], 'readwrite')
       const store = transaction.objectStore(this.credentialsStoreName)
       const request = store.clear()
 
@@ -264,13 +261,12 @@ class IndexedDBStorage {
 
   /**
    * Retrieve encrypted credentials
-   * @returns {Promise<Object|null>} - Credentials or null
    */
-  async getCredentials() {
+  async getCredentials(): Promise<{ username: string; password: string; satnogsToken: string } | null> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.credentialsStoreName], 'readonly')
+      const transaction = this.db!.transaction([this.credentialsStoreName], 'readonly')
       const store = transaction.objectStore(this.credentialsStoreName)
       const request = store.get('credentials')
 
@@ -296,14 +292,12 @@ class IndexedDBStorage {
 
   /**
    * Store general settings
-   * @param {Object} settings - Settings object
-   * @returns {Promise<void>}
    */
-  async storeSettings(settings) {
+  async storeSettings(settings: Record<string, any>): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.settingsStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.settingsStoreName], 'readwrite')
       const store = transaction.objectStore(this.settingsStoreName)
 
       const request = store.put({
@@ -326,13 +320,12 @@ class IndexedDBStorage {
 
   /**
    * Retrieve general settings
-   * @returns {Promise<Object>} - Settings object
    */
-  async getSettings() {
+  async getSettings(): Promise<Record<string, any>> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.settingsStoreName], 'readonly')
+      const transaction = this.db!.transaction([this.settingsStoreName], 'readonly')
       const store = transaction.objectStore(this.settingsStoreName)
       const request = store.get('settings')
 
@@ -356,13 +349,12 @@ class IndexedDBStorage {
 
   /**
    * Clear all TLE data
-   * @returns {Promise<void>}
    */
-  async clearTLEData() {
+  async clearTLEData(): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.tleStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.tleStoreName], 'readwrite')
       const store = transaction.objectStore(this.tleStoreName)
       const request = store.clear()
 
@@ -380,14 +372,12 @@ class IndexedDBStorage {
 
   /**
    * Clear TLE data for specific satellite
-   * @param {number} noradId - NORAD catalog number
-   * @returns {Promise<void>}
    */
-  async clearTLEDataForSatellite(noradId) {
+  async clearTLEDataForSatellite(noradId: number): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.tleStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.tleStoreName], 'readwrite')
       const store = transaction.objectStore(this.tleStoreName)
       const request = store.delete(noradId)
 
@@ -404,41 +394,16 @@ class IndexedDBStorage {
   }
 
   /**
-   * Clear all credentials
-   * @returns {Promise<void>}
-   */
-  async clearCredentials() {
-    await this.ensureDB()
-
-    return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.credentialsStoreName], 'readwrite')
-      const store = transaction.objectStore(this.credentialsStoreName)
-      const request = store.clear()
-
-      request.onsuccess = () => {
-        console.log('Credentials cleared from IndexedDB')
-        resolve()
-      }
-
-      request.onerror = () => {
-        console.error('Failed to clear credentials:', request.error)
-        reject(request.error)
-      }
-    })
-  }
-
-  /**
    * Get storage usage information
-   * @returns {Promise<Object>} - Storage usage stats
    */
-  async getStorageInfo() {
+  async getStorageInfo(): Promise<any> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
       // Get actual data sizes from our stores
-      const getStoreSize = (storeName) => {
+      const getStoreSize = (storeName: string): Promise<number> => {
         return new Promise((resolveStore, rejectStore) => {
-          const transaction = this.db.transaction([storeName], 'readonly')
+          const transaction = this.db!.transaction([storeName], 'readonly')
           const store = transaction.objectStore(storeName)
           const request = store.getAll()
 
@@ -460,18 +425,18 @@ class IndexedDBStorage {
         getStoreSize(this.tleStoreName),
         getStoreSize(this.settingsStoreName),
         getStoreSize(this.credentialsStoreName)
-      ]).then(([tleSize, settingsSize, credentialsSize]) => {
+      ]).then(([tleSize, settingsSize, credentialsSize]: [number, number, number]) => {
         const totalBytes = tleSize + settingsSize + credentialsSize
         const totalMB = Math.round(totalBytes / 1024 / 1024 * 100) / 100
 
         // Also get browser storage quota info
         if (navigator.storage && navigator.storage.estimate) {
           navigator.storage.estimate().then(estimate => {
-            const quotaMB = Math.round(estimate.quota / 1024 / 1024)
-            const usedMB = Math.round(estimate.usage / 1024 / 1024)
+            const quotaMB = Math.round((estimate.quota || 0) / 1024 / 1024)
+            const usedMB = Math.round((estimate.usage || 0) / 1024 / 1024)
 
             // Format our data sizes appropriately
-            const formatSize = (bytes) => {
+            const formatSize = (bytes: number): string => {
               if (bytes < 1024) return bytes + ' B'
               if (bytes < 1024 * 1024) return Math.round(bytes / 1024 * 100) / 100 + ' KB'
               return Math.round(bytes / 1024 / 1024 * 100) / 100 + ' MB'
@@ -480,7 +445,7 @@ class IndexedDBStorage {
             resolve({
               available: quotaMB + ' MB',
               used: usedMB + ' MB',
-              percentage: Math.round((estimate.usage / estimate.quota) * 100) + '%',
+              percentage: Math.round(((estimate.usage || 0) / (estimate.quota || 1)) * 100) + '%',
               ourData: {
                 total: formatSize(totalBytes),
                 tle: formatSize(tleSize),
@@ -490,7 +455,7 @@ class IndexedDBStorage {
             })
           }).catch(() => {
             // Fallback if quota estimation fails
-            const formatSize = (bytes) => {
+            const formatSize = (bytes: number): string => {
               if (bytes < 1024) return bytes + ' B'
               if (bytes < 1024 * 1024) return Math.round(bytes / 1024 * 100) / 100 + ' KB'
               return Math.round(bytes / 1024 / 1024 * 100) / 100 + ' MB'
@@ -510,7 +475,7 @@ class IndexedDBStorage {
           })
         } else {
           // Fallback if storage API not available
-          const formatSize = (bytes) => {
+          const formatSize = (bytes: number): string => {
             if (bytes < 1024) return bytes + ' B'
             if (bytes < 1024 * 1024) return Math.round(bytes / 1024 * 100) / 100 + ' KB'
             return Math.round(bytes / 1024 / 1024 * 100) / 100 + ' MB'
@@ -537,10 +502,8 @@ class IndexedDBStorage {
 
   /**
    * Check if TLE data exists and is fresh
-   * @param {number} maxAgeHours - Maximum age in hours
-   * @returns {Promise<Object>} - Cache status info
    */
-  async getCacheStatus(maxAgeHours = 6) {
+  async getCacheStatus(maxAgeHours = 6): Promise<any> {
     try {
       const tleData = await this.getTLEData()
       if (!tleData) {
@@ -549,7 +512,7 @@ class IndexedDBStorage {
 
       const cacheTime = new Date(tleData.timestamp)
       const now = new Date()
-      const ageHours = (now - cacheTime) / (1000 * 60 * 60)
+      const ageHours = (now.getTime() - cacheTime.getTime()) / (1000 * 60 * 60)
 
       let status = 'stale'
       if (ageHours < 0.5) {
@@ -572,15 +535,12 @@ class IndexedDBStorage {
 
   /**
    * Store transponder data for a specific satellite
-   * @param {string} noradId - NORAD ID of the satellite
-   * @param {Object} data - Transponder data to store
-   * @returns {Promise<void>}
    */
-  async storeTransponderData(noradId, data) {
+  async storeTransponderData(noradId: string, data: any): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.transponderStoreName], 'readwrite')
       const store = transaction.objectStore(this.transponderStoreName)
 
       const transponderRecord = {
@@ -605,14 +565,12 @@ class IndexedDBStorage {
 
   /**
    * Store transponder data for multiple satellites
-   * @param {Object} transponderData - Object keyed by NORAD ID
-   * @returns {Promise<void>}
    */
-  async storeAllTransponderData(transponderData) {
+  async storeAllTransponderData(transponderData: Record<string, any>): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.transponderStoreName], 'readwrite')
       const store = transaction.objectStore(this.transponderStoreName)
 
       const timestamp = new Date().toISOString()
@@ -651,10 +609,8 @@ class IndexedDBStorage {
 
   /**
    * Store all transmitter data for multiple satellites
-   * @param {Object} transmitterData - Object with NORAD IDs as keys and transmitter data as values
-   * @returns {Promise<void>}
    */
-  async storeAllTransmitterData(transmitterData) {
+  async storeAllTransmitterData(transmitterData: Record<string, any>): Promise<void> {
     console.log('=== IndexedDB storeAllTransmitterData START ===')
     console.log('DB version:', this.dbVersion)
     console.log('Transponder store name:', this.transponderStoreName)
@@ -664,7 +620,7 @@ class IndexedDBStorage {
 
     return new Promise((resolve, reject) => {
       console.log('Creating transaction for store:', this.transponderStoreName)
-      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.transponderStoreName], 'readwrite')
       const store = transaction.objectStore(this.transponderStoreName)
 
       const timestamp = new Date().toISOString()
@@ -710,14 +666,12 @@ class IndexedDBStorage {
 
   /**
    * Get transponder data for a specific satellite
-   * @param {string} noradId - NORAD ID of the satellite
-   * @returns {Promise<Object|null>} - Transponder data or null
    */
-  async getTransponderData(noradId) {
+  async getTransponderData(noradId: string): Promise<any | null> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.transponderStoreName], 'readonly')
+      const transaction = this.db!.transaction([this.transponderStoreName], 'readonly')
       const store = transaction.objectStore(this.transponderStoreName)
       const request = store.get(noradId)
 
@@ -734,13 +688,12 @@ class IndexedDBStorage {
 
   /**
    * Get all stored transponder data
-   * @returns {Promise<Array>} - Array of transponder data records
    */
-  async getAllTransponderData() {
+  async getAllTransponderData(): Promise<any[]> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.transponderStoreName], 'readonly')
+      const transaction = this.db!.transaction([this.transponderStoreName], 'readonly')
       const store = transaction.objectStore(this.transponderStoreName)
       const request = store.getAll()
 
@@ -757,13 +710,12 @@ class IndexedDBStorage {
 
   /**
    * Clear all transponder data
-   * @returns {Promise<void>}
    */
-  async clearTransponderData() {
+  async clearTransponderData(): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.transponderStoreName], 'readwrite')
       const store = transaction.objectStore(this.transponderStoreName)
       const request = store.clear()
 
@@ -781,14 +733,12 @@ class IndexedDBStorage {
 
   /**
    * Clear transponder data for specific satellite
-   * @param {number} noradId - NORAD catalog number
-   * @returns {Promise<void>}
    */
-  async clearTransponderDataForSatellite(noradId) {
+  async clearTransponderDataForSatellite(noradId: number): Promise<void> {
     await this.ensureDB()
 
     return new Promise((resolve, reject) => {
-      const transaction = this.db.transaction([this.transponderStoreName], 'readwrite')
+      const transaction = this.db!.transaction([this.transponderStoreName], 'readwrite')
       const store = transaction.objectStore(this.transponderStoreName)
       const request = store.delete(noradId)
 
@@ -807,7 +757,7 @@ class IndexedDBStorage {
   /**
    * Close database connection
    */
-  close() {
+  close(): void {
     if (this.db) {
       this.db.close()
       this.db = null

@@ -59,6 +59,10 @@ import SatelliteManagement from '~/components/settings/SatelliteManagement.vue'
 import StorageManagement from '~/components/settings/StorageManagement.vue'
 import AdditionalSettings from '~/components/settings/AdditionalSettings.vue'
 import CombinedDataDisplay from '~/components/settings/CombinedDataDisplay.vue'
+import { useSettings } from '~/composables/storage/useSettings'
+import { useTLEData } from '~/composables/api/useTLEData'
+import { useSatelliteSearch } from '~/composables/api/useSatelliteSearch'
+import { useIndexedDB } from '~/composables/storage/useIndexedDB'
 
 // Import composables
 const {
@@ -78,6 +82,14 @@ const {
 const {
   searchSatellites
 } = useSatelliteSearch()
+
+const {
+  storeTransponderData,
+  getStorageInfo,
+  clearTLEData: clearIndexedDBTLEData,
+  clearTransmitterData: clearIndexedDBTransmitterData,
+  clearAll: clearIndexedDBAllData
+} = useIndexedDB()
 
 // Local search state
 const searchQuery = ref('')
@@ -335,7 +347,7 @@ const fetchTrackedSatellitesTransmitterData = async () => {
           }))
 
           console.log(`Storing transmitter data for NORAD ${noradId}:`, processedTransmitterData.length, 'transmitters')
-          await indexedDBStorage.storeTransponderData(noradId, processedTransmitterData)
+          await storeTransponderData(noradId, processedTransmitterData)
           console.log(`Successfully stored transmitter data for NORAD ${noradId}`)
           successCount++
         } else {
@@ -384,7 +396,7 @@ const removeSatellite = async (noradId) => {
 const loadStorageInfo = async () => {
   isLoadingStorage.value = true
   try {
-    const info = await indexedDBStorage.getStorageInfo()
+    const info = await getStorageInfo()
     storageInfo.value = info
   } catch (error) {
     console.error('Failed to load storage info:', error)
@@ -396,7 +408,7 @@ const loadStorageInfo = async () => {
 const clearTLEData = async () => {
   isClearingData.value = true
   try {
-    await indexedDBStorage.clearTLEData()
+    await clearIndexedDBTLEData()
     console.log('TLE data cleared successfully')
     await loadStorageInfo()
   } catch (error) {
@@ -409,7 +421,7 @@ const clearTLEData = async () => {
 const clearTransmitterData = async () => {
   isClearingData.value = true
   try {
-    await indexedDBStorage.clearTransmitterData()
+    await clearIndexedDBTransmitterData()
     console.log('Transmitter data cleared successfully')
     await loadStorageInfo()
   } catch (error) {
@@ -422,7 +434,7 @@ const clearTransmitterData = async () => {
 const clearAllData = async () => {
   isClearingData.value = true
   try {
-    await indexedDBStorage.clearAllData()
+    await clearIndexedDBAllData()
     console.log('All data cleared successfully')
     await loadStorageInfo()
   } catch (error) {

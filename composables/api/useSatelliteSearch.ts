@@ -3,21 +3,24 @@
  * Provides debounced search functionality for both satellite names and NORAD IDs
  */
 
+import { ref, readonly } from 'vue'
+import { useSatnogs } from './useSatnogs'
+import type { Satellite } from '~/types/satellite'
+
 export const useSatelliteSearch = () => {
-  const isLoading = ref(false)
-  const error = ref(null)
-  const searchResults = ref([])
-  const searchQuery = ref('')
-  const searchTimeout = ref(null)
+  const isLoading = ref<boolean>(false)
+  const error = ref<string | null>(null)
+  const searchResults = ref<Satellite[]>([])
+  const searchQuery = ref<string>('')
+  const searchTimeout = ref<NodeJS.Timeout | null>(null)
+
+  // Use SatNOGS composable
+  const satnogs = useSatnogs()
 
   /**
    * Search satellites by name or NORAD ID
-   * @param {string} query - Search query (satellite name or NORAD ID)
-   * @param {string} token - SatNOGS API token
-   * @param {number} limit - Maximum number of results (default: 20)
-   * @returns {Promise<Array>} Array of satellite search results
    */
-  const searchSatellites = async (query, token, limit = 20) => {
+  const searchSatellites = async (query: string, token: string, limit: number = 20): Promise<Satellite[]> => {
     if (!query || query.length < 3) {
       searchResults.value = []
       return []
@@ -33,24 +36,13 @@ export const useSatelliteSearch = () => {
     error.value = null
 
     try {
-      const response = await $fetch('/api/satnogs', {
-        method: 'POST',
-        body: {
-          action: 'search',
-          query: query.trim(),
-          limit,
-          token
-        }
-      })
+      satnogs.setToken(token)
+      const results = await satnogs.searchSatellites(query.trim(), limit)
 
-      if (response.success) {
-        searchResults.value = response.data || []
-        return response.data || []
-      } else {
-        throw new Error(response.message || 'Search failed')
-      }
+      searchResults.value = results
+      return results
     } catch (err) {
-      error.value = err.message || 'Search failed'
+      error.value = err instanceof Error ? err.message : 'Search failed'
       console.error('Satellite search error:', err)
       searchResults.value = []
       return []
@@ -61,12 +53,8 @@ export const useSatelliteSearch = () => {
 
   /**
    * Debounced search function
-   * Triggers search after user stops typing for 300ms
-   * @param {string} query - Search query
-   * @param {string} token - SatNOGS API token
-   * @param {number} limit - Maximum number of results
    */
-  const debouncedSearch = (query, token, limit = 20) => {
+  const debouncedSearch = (query: string, token: string, limit: number = 20): void => {
     // Clear existing timeout
     if (searchTimeout.value) {
       clearTimeout(searchTimeout.value)
@@ -81,7 +69,7 @@ export const useSatelliteSearch = () => {
   /**
    * Clear search results and reset state
    */
-  const clearSearch = () => {
+  const clearSearch = (): void => {
     searchResults.value = []
     searchQuery.value = ''
     error.value = null
@@ -93,10 +81,8 @@ export const useSatelliteSearch = () => {
 
   /**
    * Format satellite for display
-   * @param {Object} satellite - Satellite object from SatNOGS API
-   * @returns {Object} Formatted satellite object
    */
-  const formatSatellite = (satellite) => {
+  const formatSatellite = (satellite: any): Satellite => {
     return {
       noradId: satellite.norad_cat_id,
       name: satellite.name,
@@ -113,19 +99,15 @@ export const useSatelliteSearch = () => {
 
   /**
    * Check if query is a NORAD ID (numeric)
-   * @param {string} query - Search query
-   * @returns {boolean} True if query is numeric
    */
-  const isNoradId = (query) => {
+  const isNoradId = (query: string): boolean => {
     return /^\d+$/.test(query.trim())
   }
 
   /**
    * Get search suggestions based on current query
-   * @param {string} query - Current search query
-   * @returns {Array} Array of formatted satellite suggestions
    */
-  const getSuggestions = (query) => {
+  const getSuggestions = (query: string): Satellite[] => {
     if (!query || query.length < 3) return []
 
     return searchResults.value

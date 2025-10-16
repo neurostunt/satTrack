@@ -178,7 +178,7 @@
 </template>
 
 <script setup>
-import { useSatnogsData } from '~/composables/useSatnogsData.js'
+import { useSatnogsData } from '~/composables/api/useSatnogsData'
 
 const props = defineProps({
   satelliteData: {

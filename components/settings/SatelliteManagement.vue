@@ -126,19 +126,20 @@
           <!-- Clickable Header -->
           <div class="flex items-center justify-between">
             <div class="flex flex-col">
-              <div class="flex items-center gap-2">
-                <h4 class="font-semibold text-primary-300">
-                  <template v-if="getFormattedSatelliteName(satellite).secondary">
-                    {{ getFormattedSatelliteName(satellite).primary }} -
-                    <span class="text-xs">{{ getFormattedSatelliteName(satellite).secondary }}</span>
-                  </template>
-                  <template v-else>
-                    {{ getFormattedSatelliteName(satellite).primary }}
-                  </template>
-                </h4>
-                <span class="text-xs text-space-400">NORAD ID: {{ satellite.noradId }}</span>
+              <div class="flex flex-col">
+        <!-- First row: Main satellite name -->
+        <h4 class="font-semibold text-primary-300 pt-0 pb-0.5 leading-1">
+          {{ getFormattedSatelliteName(satellite).primary }}
+        </h4>
+                <!-- Second row: Secondary name + NORAD ID (closer spacing) -->
+                <div class="flex items-center gap-2 text-xs text-space-400 -mt-2 pb-2">
+                  <span v-if="getFormattedSatelliteName(satellite).secondary">
+                    {{ getFormattedSatelliteName(satellite).secondary }} -
+                  </span>
+                  <span>NORAD ID: {{ satellite.noradId }}</span>
+                </div>
               </div>
-              <span class="text-xs text-green-400 font-medium">{{ satellite.status || 'alive' }}</span>
+              <!-- <span class="text-xs text-green-400 font-medium">{{ satellite.status || 'alive' }}</span> -->
             </div>
             <button
               @click="$emit('remove-satellite', satellite.noradId)"
@@ -154,6 +155,9 @@
 </template>
 
 <script setup>
+// Import satellite name utilities
+import { getFullSatelliteName, formatSatelliteNameForDisplay } from '~/utils/satelliteNameUtils'
+
 // Props
 const props = defineProps({
   settings: {
@@ -274,40 +278,8 @@ const handleClickOutside = () => {
 }
 
 // Functions
-const getFullSatelliteName = (satellite) => {
-  if (!satellite) return 'Unknown'
-
-  const name = satellite.name || ''
-  const names = satellite.names || ''
-
-  // If both exist and are different, combine them
-  if (names && name && names !== name) {
-    return `${names} - ${name}`
-  }
-
-  // Return whichever exists
-  return names || name || 'Unknown'
-}
-
 const getFormattedSatelliteName = (satellite) => {
-  if (!satellite) return 'Unknown'
-
-  const name = satellite.name || ''
-  const names = satellite.names || ''
-
-  // If both exist and are different, combine them with smaller font for second part
-  if (names && name && names !== name) {
-    return {
-      primary: names,    // SAUDISAT 1C (main name)
-      secondary: name   // SO-50 (secondary name)
-    }
-  }
-
-  // Return single name
-  return {
-    primary: names || name || 'Unknown',
-    secondary: null
-  }
+  return formatSatelliteNameForDisplay(satellite)
 }
 
 // Watch for search results changes to reset selection and show results

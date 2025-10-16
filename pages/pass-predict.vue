@@ -1,10 +1,10 @@
 <template>
-  <NuxtLayout name="default" title="🛰️ SatTrack" subtitle="Satellite Tracking System">
+  <NuxtLayout name="default" title="🛰️ Pass Predict" subtitle="Satellite Pass Prediction">
     <!-- Observation Location -->
     <ObservationLocation />
 
-    <!-- Combined Satellite Data -->
-    <CombinedSatelliteData
+    <!-- Pass Prediction Data -->
+    <PassPredictData
       :combined-data="combinedData"
       :get-t-l-e-data="getTLEData"
       :format-frequency="formatFrequency"
@@ -15,7 +15,7 @@
 <script setup>
 import { ref, onMounted, watch } from 'vue'
 import ObservationLocation from '~/components/common/ObservationLocation.vue'
-import CombinedSatelliteData from '~/components/common/CombinedSatelliteData.vue'
+import PassPredictData from '~/components/common/PassPredictData.vue'
 import { useSettings } from '~/composables/storage/useSettings'
 import { useTLEData } from '~/composables/api/useTLEData'
 import { useIndexedDB } from '~/composables/storage/useIndexedDB'

@@ -19,20 +19,27 @@
             class="flex items-center justify-between mb-1 cursor-pointer rounded py-1 px-2 transition-all duration-300 ease-in-out hover:scale-[1.01] group"
             :class="isSatelliteExpanded(noradId) ? 'bg-space-800' : 'hover:bg-space-800'"
           >
-            <div class="flex items-center gap-2">
-              <h4 class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out">
-                <template v-if="getFormattedSatelliteName(data.satellite, noradId).secondary">
-                  {{ getFormattedSatelliteName(data.satellite, noradId).primary }} -
-                  <span class="text-xs">{{ getFormattedSatelliteName(data.satellite, noradId).secondary }}</span>
-                </template>
-                <template v-else>
-                  {{ getFormattedSatelliteName(data.satellite, noradId).primary }}
-                </template>
-              </h4>
-              <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out">NORAD ID: {{ noradId }}</span>
+            <div class="flex items-center gap-2 w-full">
+              <div class="flex flex-col w-full">
+        <!-- First row: Main satellite name + timestamp -->
+        <div class="flex items-center pt-0 pb-1 leading-1">
+          <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out w-[60%] py-0.5 pb-2">
+            {{ getFormattedSatelliteName(data.satellite, noradId).primary }}
+          </div>
+          <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out w-[40%] text-right flex-shrink-0 mr-2">
+            {{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}
+          </span>
+        </div>
+                <!-- Second row: Secondary name + NORAD ID (closer spacing) -->
+                <div class="flex items-center gap-2 text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out -mt-2 pb-2">
+                  <span v-if="getFormattedSatelliteName(data.satellite, noradId).secondary">
+                    {{ getFormattedSatelliteName(data.satellite, noradId).secondary }} -
+                  </span>
+                  <span>NORAD ID: {{ noradId }}</span>
+                </div>
+              </div>
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out">{{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}</span>
               <div class="transform transition-transform duration-500 ease-in-out" :class="{ 'rotate-180': isSatelliteExpanded(noradId) }">
                 <svg class="w-4 h-4 text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -60,9 +67,8 @@
                 <div class="text-sm text-space-300 mb-2">🛰️ Orbital Parameters (TLE)</div>
                 <div class="bg-space-800 border border-space-500 rounded p-2 text-xs">
                   <div class="text-xs text-space-400 space-y-1 font-mono">
-                    <div v-if="getTLEData(parseInt(noradId)).tle0" class="break-all">{{ getTLEData(parseInt(noradId)).tle0 }}</div>
-                    <div v-if="getTLEData(parseInt(noradId)).tle1" class="break-all">{{ getTLEData(parseInt(noradId)).tle1 }}</div>
-                    <div v-if="getTLEData(parseInt(noradId)).tle2" class="break-all">{{ getTLEData(parseInt(noradId)).tle2 }}</div>
+                    <div v-if="getTLEData(parseInt(noradId)).line1" class="break-all">{{ getTLEData(parseInt(noradId)).line1 }}</div>
+                    <div v-if="getTLEData(parseInt(noradId)).line2" class="break-all">{{ getTLEData(parseInt(noradId)).line2 }}</div>
                   </div>
                 </div>
               </div>
@@ -133,6 +139,8 @@
 
 <script setup>
 import { ref } from 'vue'
+// Import satellite name utilities
+import { getFullSatelliteName, formatSatelliteNameForDisplay } from '~/utils/satelliteNameUtils'
 
 // Props
 defineProps({
@@ -173,40 +181,8 @@ const formatFrequencyValue = (frequency) => {
 const expandedSatellites = ref(new Set())
 
 // Functions
-const getFullSatelliteName = (satellite, noradId) => {
-  if (!satellite) return `NORAD ${noradId}`
-
-  const name = satellite.name || ''
-  const names = satellite.names || ''
-
-  // If both exist and are different, combine them
-  if (names && name && names !== name) {
-    return `${names} - ${name}`
-  }
-
-  // Return whichever exists
-  return names || name || `NORAD ${noradId}`
-}
-
 const getFormattedSatelliteName = (satellite, noradId) => {
-  if (!satellite) return { primary: `NORAD ${noradId}`, secondary: null }
-
-  const name = satellite.name || ''
-  const names = satellite.names || ''
-
-  // If both exist and are different, combine them with smaller font for second part
-  if (names && name && names !== name) {
-    return {
-      primary: names,    // SAUDISAT 1C (main name)
-      secondary: name   // SO-50 (secondary name)
-    }
-  }
-
-  // Return single name
-  return {
-    primary: names || name || `NORAD ${noradId}`,
-    secondary: null
-  }
+  return formatSatelliteNameForDisplay(satellite, noradId)
 }
 
 const toggleSatelliteData = (noradId) => {

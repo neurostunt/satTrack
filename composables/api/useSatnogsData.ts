@@ -3,39 +3,37 @@
  * Handles transponder data, frequencies, and satellite information
  */
 
+import { ref, readonly } from 'vue'
+import { useSatnogs } from './useSatnogs'
+import { useSecureStorage } from '../storage/useSecureStorage'
+import type { Satellite, Transmitter } from '~/types/satellite'
+
 export const useSatnogsData = () => {
-  const isLoading = ref(false)
-  const error = ref(null)
-  const satellites = ref([])
-  const transmitters = ref([])
-  const combinedData = ref({})
+  const isLoading = ref<boolean>(false)
+  const error = ref<string | null>(null)
+  const satellites = ref<Satellite[]>([])
+  const transmitters = ref<Transmitter[]>([])
+  const combinedData = ref<Record<number, any>>({})
+
+  // Use composables
+  const satnogs = useSatnogs()
+  const storage = useSecureStorage()
 
   /**
    * Fetch satellite list from SatNOGS
    * @param {number} limit - Number of satellites to fetch
    * @returns {Promise<Array>} Array of satellites
    */
-  const fetchSatellites = async (limit = 100) => {
+  const fetchSatellites = async (limit: number = 100): Promise<Satellite[]> => {
     isLoading.value = true
     error.value = null
 
     try {
-      const response = await $fetch('/api/satnogs', {
-        method: 'POST',
-        body: {
-          action: 'satellites',
-          limit
-        }
-      })
-
-      if (response.success) {
-        satellites.value = response.data
-        return response.data
-      } else {
-        throw new Error(response.message || 'Failed to fetch satellites')
-      }
+      const results = await satnogs.searchSatellites('', limit)
+      satellites.value = results
+      return results
     } catch (err) {
-      error.value = err.message || 'Failed to fetch satellites'
+      error.value = err instanceof Error ? err.message : 'Failed to fetch satellites'
       console.error('SatNOGS satellites fetch error:', err)
       throw err
     } finally {
@@ -45,30 +43,17 @@ export const useSatnogsData = () => {
 
   /**
    * Fetch transmitters for a specific satellite
-   * @param {number} satId - SatNOGS satellite ID
-   * @returns {Promise<Array>} Array of transmitters
    */
-  const fetchTransmitters = async (satId) => {
+  const fetchTransmitters = async (satId: number): Promise<Transmitter[]> => {
     isLoading.value = true
     error.value = null
 
     try {
-      const response = await $fetch('/api/satnogs', {
-        method: 'POST',
-        body: {
-          action: 'transmitters',
-          satId
-        }
-      })
-
-      if (response.success) {
-        transmitters.value = response.data
-        return response.data
-      } else {
-        throw new Error(response.message || 'Failed to fetch transmitters')
-      }
+      const results = await satnogsService.fetchTransmitters(satId)
+      transmitters.value = results
+      return results
     } catch (err) {
-      error.value = err.message || 'Failed to fetch transmitters'
+      error.value = err instanceof Error ? err.message : 'Failed to fetch transmitters'
       console.error('SatNOGS transmitters fetch error:', err)
       throw err
     } finally {
@@ -78,31 +63,17 @@ export const useSatnogsData = () => {
 
   /**
    * Fetch combined satellite and transponder data by NORAD ID
-   * This combines orbital data (from Space-Track) with transponder data (from SatNOGS)
-   * @param {number} noradId - NORAD catalog number
-   * @returns {Promise<Object>} Combined satellite and transponder data
    */
-  const fetchCombinedData = async (noradId) => {
+  const fetchCombinedData = async (noradId: number): Promise<any> => {
     isLoading.value = true
     error.value = null
 
     try {
-      const response = await $fetch('/api/satnogs', {
-        method: 'POST',
-        body: {
-          action: 'combined-data',
-          noradId
-        }
-      })
-
-      if (response.success) {
-        combinedData.value = response.data
-        return response.data
-      } else {
-        throw new Error(response.message || 'Failed to fetch combined data')
-      }
+      const results = await satnogsService.fetchCombinedData(noradId)
+      combinedData.value = results
+      return results
     } catch (err) {
-      error.value = err.message || 'Failed to fetch combined data'
+      error.value = err instanceof Error ? err.message : 'Failed to fetch combined data'
       console.error('SatNOGS combined data fetch error:', err)
       throw err
     } finally {
@@ -115,12 +86,17 @@ export const useSatnogsData = () => {
    * @param {Array} trackedSatellites - Array of satellite objects with noradId
    * @returns {Promise<Object>} Object with NORAD IDs as keys and transponder data as values
    */
-  const fetchTrackedSatellitesData = async (trackedSatellites) => {
+  const fetchTrackedSatellitesData = async (trackedSatellites: Satellite[]): Promise<{
+    results: Record<number, any>
+    successCount: number
+    errorCount: number
+    totalSatellites: number
+  }> => {
     isLoading.value = true
     error.value = null
 
     try {
-      const results = {}
+      const results: Record<number, any> = {}
       let successCount = 0
       let errorCount = 0
 
@@ -129,25 +105,13 @@ export const useSatnogsData = () => {
       // Process satellites in parallel for better performance
       const promises = trackedSatellites.map(async (satellite) => {
         try {
-          const response = await $fetch('/api/satnogs', {
-            method: 'POST',
-            body: {
-              action: 'combined-data',
-              noradId: satellite.noradId
-            }
-          })
-
-          if (response.success) {
-            results[satellite.noradId] = response.data
-            successCount++
-            console.log(`✓ Found ${response.data.transmitters.length} transmitters for ${satellite.name}`)
-          } else {
-            errorCount++
-            console.log(`✗ No transponder data found for ${satellite.name}`)
-          }
+          const data = await satnogsService.fetchCombinedData(satellite.noradId)
+          results[satellite.noradId] = data
+          successCount++
+          console.log(`✓ Found ${data.transmitters?.length || 0} transmitters for ${satellite.name}`)
         } catch (err) {
           errorCount++
-          console.log(`✗ Error fetching data for ${satellite.name}:`, err.message)
+          console.log(`✗ Error fetching data for ${satellite.name}:`, err instanceof Error ? err.message : 'Unknown error')
         }
       })
 
@@ -158,13 +122,13 @@ export const useSatnogsData = () => {
       console.log(`Transponder data fetch complete: ${successCount} success, ${errorCount} errors`)
 
       return {
-        results,
+        results: results,
         successCount,
         errorCount,
         totalSatellites: trackedSatellites.length
       }
     } catch (err) {
-      error.value = err.message || 'Failed to fetch tracked satellites data'
+      error.value = err instanceof Error ? err.message : 'Failed to fetch tracked satellites data'
       console.error('SatNOGS tracked satellites fetch error:', err)
       throw err
     } finally {
@@ -174,10 +138,8 @@ export const useSatnogsData = () => {
 
   /**
    * Get transponder frequencies for radio operators
-   * @param {Array} transmitters - Array of transmitter objects
-   * @returns {Object} Organized frequency data
    */
-  const getTransponderFrequencies = (transmitters) => {
+  const getTransponderFrequencies = (transmitters: Transmitter[]): Record<string, any[]> => {
     if (!transmitters || !Array.isArray(transmitters)) {
       return {
         uplinks: [],
@@ -188,16 +150,16 @@ export const useSatnogsData = () => {
     }
 
     const frequencies = {
-      uplinks: [],
-      downlinks: [],
-      beacons: [],
-      telemetry: []
+      uplinks: [] as any[],
+      downlinks: [] as any[],
+      beacons: [] as any[],
+      telemetry: [] as any[]
     }
 
     transmitters.forEach(transmitter => {
       const freq = {
         id: transmitter.id,
-        frequency: transmitter.downlink_low || transmitter.uplink_low,
+        frequency: transmitter.downlinkLow || transmitter.uplinkLow,
         description: transmitter.description || transmitter.mode || 'Unknown',
         mode: transmitter.mode || 'Unknown',
         status: transmitter.status || 'Unknown',
@@ -208,10 +170,10 @@ export const useSatnogsData = () => {
 
       // Categorize by frequency type
       if (transmitter.description?.toLowerCase().includes('uplink') ||
-          transmitter.uplink_low) {
+          transmitter.uplinkLow) {
         frequencies.uplinks.push(freq)
       } else if (transmitter.description?.toLowerCase().includes('downlink') ||
-                 transmitter.downlink_low) {
+                 transmitter.downlinkLow) {
         frequencies.downlinks.push(freq)
       } else if (transmitter.description?.toLowerCase().includes('beacon')) {
         frequencies.beacons.push(freq)
@@ -228,10 +190,8 @@ export const useSatnogsData = () => {
 
   /**
    * Format frequency for display
-   * @param {number} frequency - Frequency in Hz
-   * @returns {string} Formatted frequency
    */
-  const formatFrequency = (frequency) => {
+  const formatFrequency = (frequency: number): string => {
     if (!frequency) return 'Unknown'
 
     if (frequency >= 1000000) {
@@ -245,10 +205,8 @@ export const useSatnogsData = () => {
 
   /**
    * Get active transponders (currently operational)
-   * @param {Array} transmitters - Array of transmitter objects
-   * @returns {Array} Active transmitters
    */
-  const getActiveTransponders = (transmitters) => {
+  const getActiveTransponders = (transmitters: Transmitter[]): Transmitter[] => {
     if (!transmitters || !Array.isArray(transmitters)) return []
 
     return transmitters.filter(transmitter =>
@@ -260,17 +218,14 @@ export const useSatnogsData = () => {
 
   /**
    * Search satellites by name or NORAD ID
-   * @param {string} query - Search query
-   * @returns {Array} Matching satellites
    */
-  const searchSatellites = (query) => {
+  const searchSatellites = (query: string): Satellite[] => {
     if (!satellites.value || !Array.isArray(satellites.value)) return []
 
     const searchTerm = query.toLowerCase()
     return satellites.value.filter(satellite =>
       satellite.name?.toLowerCase().includes(searchTerm) ||
-      satellite.norad_cat_id?.toString().includes(searchTerm) ||
-      satellite.tle?.includes(searchTerm)
+      satellite.noradId?.toString().includes(searchTerm)
     )
   }
 

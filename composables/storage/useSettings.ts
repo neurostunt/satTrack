@@ -1,47 +1,46 @@
 import { ref, computed, readonly } from 'vue'
-import secureStorage from '~/utils/secureStorage'
+import { useSecureStorage } from './useSecureStorage'
+import type { StorageSettings } from '~/types/storage'
 
 // Default settings
-const defaultSettings = {
+const defaultSettings: StorageSettings = {
   trackedSatellites: [],
   spaceTrackUsername: '',
   spaceTrackPassword: '',
   satnogsToken: '',
   updateInterval: 5000,
-  distanceUnits: 'km',
-  compassType: 'magnetic',
-  autoUpdateTLE: false,
-  soundAlerts: false,
-  highAccuracyGPS: false,
-  autoCalibrateCompass: false,
-  minimumElevation: 5.0,
-
-  // Transmitter filters
+  observationLocation: {
+    latitude: 0,
+    longitude: 0,
+    altitude: 0
+  },
   transmitterFilters: {
     amateur: true,
-    fm: true,
-    cw: true,
-    aprs: true,
-    sstv: true,
-    telemetry: true,
+    data: true,
     voice: true,
     repeater: true,
     beacon: true,
     weather: true,
     communication: true
-  }
+  },
+  gridSquare: '',
+  useGPS: true,
+  minElevation: 5.0
 }
 
 // Reactive state
 const settings = ref({ ...defaultSettings })
 
+// Use storage composable
+const storage = useSecureStorage()
+
 // Computed
 const isSettingsLoaded = computed(() => Object.keys(settings.value).length > 0)
 
 // Functions
-const loadSettings = async () => {
+const loadSettings = async (): Promise<void> => {
   try {
-    const storedSettings = await secureStorage.getSettings()
+    const storedSettings = await storage.getSettings()
     if (storedSettings) {
       settings.value = { ...defaultSettings, ...storedSettings }
     }
@@ -51,37 +50,30 @@ const loadSettings = async () => {
   }
 }
 
-const saveSettings = async () => {
+const saveSettings = async (): Promise<void> => {
   try {
     // Create a clean settings object without functions or circular references
-    const cleanTrackedSatellites = settings.value.trackedSatellites.map(satellite => ({
+    const cleanTrackedSatellites = settings.value.trackedSatellites.map((satellite: any) => ({
       noradId: satellite.noradId,
       name: satellite.name,
       status: satellite.status,
       names: satellite.names
     })) // Convert Proxy Objects to plain objects
 
-    console.log('🔍 Debug: Original trackedSatellites:', settings.value.trackedSatellites)
-    console.log('🔍 Debug: Clean trackedSatellites:', cleanTrackedSatellites)
-
-    const cleanSettings = {
+    const cleanSettings: StorageSettings = {
       trackedSatellites: cleanTrackedSatellites,
       spaceTrackUsername: settings.value.spaceTrackUsername,
       spaceTrackPassword: settings.value.spaceTrackPassword,
       satnogsToken: settings.value.satnogsToken,
       updateInterval: settings.value.updateInterval,
-      distanceUnits: settings.value.distanceUnits,
-      compassType: settings.value.compassType,
-      autoUpdateTLE: settings.value.autoUpdateTLE,
-      soundAlerts: settings.value.soundAlerts,
-      highAccuracyGPS: settings.value.highAccuracyGPS,
-      autoCalibrateCompass: settings.value.autoCalibrateCompass,
-      minimumElevation: settings.value.minimumElevation,
-      transmitterFilters: { ...settings.value.transmitterFilters } // Deep copy the filters object
+      observationLocation: settings.value.observationLocation,
+      transmitterFilters: { ...settings.value.transmitterFilters },
+      gridSquare: settings.value.gridSquare,
+      useGPS: settings.value.useGPS,
+      minElevation: settings.value.minElevation
     }
 
-    console.log('🔍 Debug: Saving clean settings:', cleanSettings)
-    await secureStorage.storeSettings(cleanSettings)
+    await storage.storeSettings(cleanSettings)
     console.log('Settings saved successfully')
   } catch (error) {
     console.error('Failed to save settings:', error)
@@ -89,7 +81,7 @@ const saveSettings = async () => {
   }
 }
 
-const resetSettings = () => {
+const resetSettings = (): void => {
   settings.value = { ...defaultSettings }
 }
 
@@ -101,7 +93,7 @@ export const useSettings = () => {
     loadSettings,
     saveSettings,
     resetSettings,
-    updateSettings: (updates) => {
+    updateSettings: (updates: Partial<StorageSettings>) => {
       settings.value = { ...settings.value, ...updates }
     }
   }

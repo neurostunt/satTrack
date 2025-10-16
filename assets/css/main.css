@@ -1,11 +1,21 @@
 /* UnoCSS will be automatically injected by the module */
 /* Simple base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 html {
   font-family: 'Inter', system-ui, sans-serif;
+  margin: 0;
+  padding: 0;
 }
 
 body {
   @apply bg-space-950 text-white;
+  margin: 0;
+  padding: 0;
 }
 
 /* PWA specific styles */

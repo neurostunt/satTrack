@@ -8,6 +8,10 @@ import indexedDBStorage from './indexedDBStorage.js'
 
 // Simple encryption/decryption using Web Crypto API
 class SecureStorage {
+  private storageKey: string
+  private tleCacheKey: string
+  private settingsKey: string
+
   constructor() {
     this.storageKey = 'sattrack-secure'
     this.tleCacheKey = 'sattrack-tle-cache'
@@ -16,14 +20,13 @@ class SecureStorage {
 
   /**
    * Generate a simple encryption key from device fingerprint
-   * @returns {Promise<CryptoKey>}
    */
-  async generateKey() {
+  async generateKey(): Promise<CryptoKey> {
     // Create a device-specific key based on user agent and screen resolution
     const deviceInfo = `${navigator.userAgent}-${screen.width}x${screen.height}`
     const encoder = new TextEncoder()
     const data = encoder.encode(deviceInfo)
-    
+
     // Create a hash and use it as key material
     const hashBuffer = await crypto.subtle.digest('SHA-256', data)
     return await crypto.subtle.importKey(
@@ -37,30 +40,28 @@ class SecureStorage {
 
   /**
    * Encrypt data using AES-GCM
-   * @param {string} data - Data to encrypt
-   * @returns {Promise<string>} - Encrypted data as base64
    */
-  async encrypt(data) {
+  async encrypt(data: string): Promise<string> {
     try {
       const key = await this.generateKey()
       const encoder = new TextEncoder()
       const dataBuffer = encoder.encode(data)
-      
+
       // Generate random IV
       const iv = crypto.getRandomValues(new Uint8Array(12))
-      
+
       // Encrypt the data
       const encrypted = await crypto.subtle.encrypt(
         { name: 'AES-GCM', iv: iv },
         key,
         dataBuffer
       )
-      
+
       // Combine IV and encrypted data
       const combined = new Uint8Array(iv.length + encrypted.byteLength)
       combined.set(iv)
       combined.set(new Uint8Array(encrypted), iv.length)
-      
+
       // Convert to base64
       return btoa(String.fromCharCode(...combined))
     } catch (error) {
@@ -72,29 +73,27 @@ class SecureStorage {
 
   /**
    * Decrypt data using AES-GCM
-   * @param {string} encryptedData - Encrypted data as base64
-   * @returns {Promise<string>} - Decrypted data
    */
-  async decrypt(encryptedData) {
+  async decrypt(encryptedData: string): Promise<string> {
     try {
       const key = await this.generateKey()
-      
+
       // Convert from base64
       const combined = new Uint8Array(
         atob(encryptedData).split('').map(char => char.charCodeAt(0))
       )
-      
+
       // Extract IV and encrypted data
       const iv = combined.slice(0, 12)
       const encrypted = combined.slice(12)
-      
+
       // Decrypt the data
       const decrypted = await crypto.subtle.decrypt(
         { name: 'AES-GCM', iv: iv },
         key,
         encrypted
       )
-      
+
       const decoder = new TextDecoder()
       return decoder.decode(decrypted)
     } catch (error) {
@@ -110,9 +109,8 @@ class SecureStorage {
 
   /**
    * Store encrypted credentials using IndexedDB
-   * @param {Object} credentials - { username, password }
    */
-  async storeCredentials(credentials) {
+  async storeCredentials(credentials: { username: string; password: string; satnogsToken?: string }): Promise<void> {
     try {
       // Use IndexedDB for credentials (more secure than localStorage)
       await indexedDBStorage.storeCredentials(credentials)
@@ -133,9 +131,8 @@ class SecureStorage {
 
   /**
    * Retrieve and decrypt credentials from IndexedDB or localStorage fallback
-   * @returns {Promise<Object|null>} - { username, password } or null
    */
-  async getCredentials() {
+  async getCredentials(): Promise<{ username: string; password: string; satnogsToken: string } | null> {
     try {
       // Try IndexedDB first
       const indexedDBCredentials = await indexedDBStorage.getCredentials()
@@ -146,7 +143,7 @@ class SecureStorage {
       // Fallback to localStorage
       const encrypted = localStorage.getItem(this.storageKey)
       if (!encrypted) return null
-      
+
       const decrypted = await this.decrypt(encrypted)
       return JSON.parse(decrypted)
     } catch (error) {
@@ -158,14 +155,14 @@ class SecureStorage {
   /**
    * Clear stored credentials from both IndexedDB and localStorage
    */
-  async clearCredentials() {
+  async clearCredentials(): Promise<void> {
     try {
       // Clear from IndexedDB
       await indexedDBStorage.clearCredentials()
     } catch (error) {
       console.error('Failed to clear IndexedDB credentials:', error)
     }
-    
+
     // Clear from localStorage fallback
     localStorage.removeItem(this.storageKey)
     console.log('Credentials cleared from all storage')
@@ -173,10 +170,8 @@ class SecureStorage {
 
   /**
    * Store TLE data with metadata using IndexedDB
-   * @param {Object} tleData - Processed TLE data
-   * @param {string} timestamp - ISO timestamp
    */
-  async storeTLECache(tleData, timestamp) {
+  async storeTLECache(tleData: Record<string, any>, timestamp: string): Promise<void> {
     try {
       // Use IndexedDB for large TLE datasets
       await indexedDBStorage.storeTLEData(tleData, timestamp)
@@ -190,7 +185,7 @@ class SecureStorage {
           timestamp: timestamp,
           version: '1.0'
         }
-        
+
         const encrypted = await this.encrypt(JSON.stringify(cacheData))
         localStorage.setItem(this.tleCacheKey, encrypted)
         console.log('TLE data cached in localStorage (fallback)')
@@ -202,9 +197,8 @@ class SecureStorage {
 
   /**
    * Retrieve cached TLE data from IndexedDB or localStorage fallback
-   * @returns {Promise<Object|null>} - Cached TLE data or null
    */
-  async getTLECache() {
+  async getTLECache(): Promise<any | null> {
     try {
       // Try IndexedDB first
       const indexedDBData = await indexedDBStorage.getTLEData()
@@ -212,14 +206,14 @@ class SecureStorage {
         // Check if cache is still valid (less than 6 hours old)
         const cacheTime = new Date(indexedDBData.timestamp)
         const now = new Date()
-        const ageHours = (now - cacheTime) / (1000 * 60 * 60)
-        
+        const ageHours = (now.getTime() - cacheTime.getTime()) / (1000 * 60 * 60)
+
         if (ageHours > 6) {
           console.log('IndexedDB TLE cache expired, clearing...')
           await this.clearTLECache()
           return null
         }
-        
+
         console.log(`TLE cache retrieved from IndexedDB (${Math.round(ageHours * 60)} minutes old)`)
         return indexedDBData
       }
@@ -227,21 +221,21 @@ class SecureStorage {
       // Fallback to localStorage
       const encrypted = localStorage.getItem(this.tleCacheKey)
       if (!encrypted) return null
-      
+
       const decrypted = await this.decrypt(encrypted)
       const cacheData = JSON.parse(decrypted)
-      
+
       // Check if cache is still valid (less than 6 hours old)
       const cacheTime = new Date(cacheData.timestamp)
       const now = new Date()
-      const ageHours = (now - cacheTime) / (1000 * 60 * 60)
-      
+      const ageHours = (now.getTime() - cacheTime.getTime()) / (1000 * 60 * 60)
+
       if (ageHours > 6) {
         console.log('localStorage TLE cache expired, clearing...')
         this.clearTLECache()
         return null
       }
-      
+
       console.log(`TLE cache retrieved from localStorage (${Math.round(ageHours * 60)} minutes old)`)
       return cacheData
     } catch (error) {
@@ -253,14 +247,14 @@ class SecureStorage {
   /**
    * Clear TLE cache from both IndexedDB and localStorage
    */
-  async clearTLECache() {
+  async clearTLECache(): Promise<void> {
     try {
       // Clear from IndexedDB
       await indexedDBStorage.clearTLEData()
     } catch (error) {
       console.error('Failed to clear IndexedDB TLE cache:', error)
     }
-    
+
     // Clear from localStorage fallback
     localStorage.removeItem(this.tleCacheKey)
     console.log('TLE cache cleared from all storage')
@@ -268,9 +262,8 @@ class SecureStorage {
 
   /**
    * Store general settings using IndexedDB
-   * @param {Object} settings - Settings object
    */
-  async storeSettings(settings) {
+  async storeSettings(settings: Record<string, any>): Promise<void> {
     try {
       // Use IndexedDB for settings
       await indexedDBStorage.storeSettings(settings)
@@ -283,7 +276,7 @@ class SecureStorage {
         const safeSettings = { ...settings }
         delete safeSettings.spaceTrackUsername
         delete safeSettings.spaceTrackPassword
-        
+
         localStorage.setItem(this.settingsKey, JSON.stringify(safeSettings))
         console.log('Settings stored in localStorage (fallback)')
       } catch (fallbackError) {
@@ -294,9 +287,8 @@ class SecureStorage {
 
   /**
    * Retrieve general settings from IndexedDB or localStorage fallback
-   * @returns {Promise<Object>} - Settings object
    */
-  async getSettings() {
+  async getSettings(): Promise<Record<string, any>> {
     try {
       // Try IndexedDB first
       const indexedDBSettings = await indexedDBStorage.getSettings()
@@ -315,29 +307,27 @@ class SecureStorage {
 
   /**
    * Check if credentials are stored
-   * @returns {Promise<boolean>}
    */
-  async hasCredentials() {
+  async hasCredentials(): Promise<boolean> {
     const credentials = await this.getCredentials()
     return !!(credentials && credentials.username && credentials.password)
   }
 
   /**
    * Get storage usage info from both IndexedDB and localStorage
-   * @returns {Promise<Object>} - Storage usage statistics
    */
-  async getStorageInfo() {
+  async getStorageInfo(): Promise<any> {
     try {
       // Get IndexedDB storage info
       const indexedDBInfo = await indexedDBStorage.getStorageInfo()
-      
+
       // Get localStorage usage
       const credentials = localStorage.getItem(this.storageKey)
       const tleCache = localStorage.getItem(this.tleCacheKey)
       const settings = localStorage.getItem(this.settingsKey)
-      
+
       const localStorageUsage = (credentials?.length || 0) + (tleCache?.length || 0) + (settings?.length || 0)
-      
+
       return {
         indexedDB: indexedDBInfo,
         localStorage: {

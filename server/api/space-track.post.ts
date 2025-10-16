@@ -3,7 +3,14 @@
  * Handles CORS by making server-side requests
  */
 
-export default defineEventHandler(async (event) => {
+// Nuxt server functions are auto-imported
+declare const defineEventHandler: any
+declare const getMethod: any
+declare const createError: any
+declare const readBody: any
+declare const $fetch: any
+
+export default defineEventHandler(async (event: any) => {
   const method = getMethod(event)
 
   console.log('Space-Track API called:', { method, timestamp: new Date().toISOString() })

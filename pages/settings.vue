@@ -15,6 +15,7 @@
       :is-testing-combined="isTestingCombined"
       :space-track-fetch-status="spaceTrackFetchStatus"
       :satnogs-fetch-status="satnogsFetchStatus"
+      :pass-prediction-status="passPredictionStatus"
       v-model:search-query="searchQuery"
       :search-loading="searchLoading"
       :search-results="searchResults"
@@ -76,7 +77,8 @@ const {
   tleLoading,
   getTLEData,
   initializeTLEData,
-  fetchTLEData
+  fetchTLEData,
+  passPredictionStatus
 } = useTLEData()
 
 const {
@@ -212,16 +214,16 @@ const storageInfo = ref({})
 
 // Fetch status objects
 const spaceTrackFetchStatus = ref({
-  show: false,
-  status: '',
-  message: '',
+  show: true, // Always show
+  status: 'success',
+  message: 'TLE data fetched successfully: 0 satellites',
   progress: ''
 })
 
 const satnogsFetchStatus = ref({
-  show: false,
-  status: '',
-  message: '',
+  show: true, // Always show
+  status: 'success',
+  message: 'Transmitter data fetched: 0 successful, 0 failed',
   progress: ''
 })
 

@@ -13,12 +13,13 @@ export const useIndexedDB = () => {
 
   // Database configuration
   const dbName = 'SatTrackDB'
-  const dbVersion = 2
+  const dbVersion = 3
   const db = ref<IDBDatabase | null>(null)
   const tleStoreName = 'tleData'
   const settingsStoreName = 'settings'
   const credentialsStoreName = 'credentials'
   const transponderStoreName = 'transponderData'
+  const passPredictionStoreName = 'passPredictions'
 
   /**
    * Initialize IndexedDB connection
@@ -74,6 +75,15 @@ export const useIndexedDB = () => {
             const transponderStore = database.createObjectStore(transponderStoreName, { keyPath: 'noradId' })
             transponderStore.createIndex('timestamp', 'timestamp', { unique: false })
             console.log('Transponder data store created')
+          }
+
+          // Create pass prediction store
+          if (!database.objectStoreNames.contains(passPredictionStoreName)) {
+            const passStore = database.createObjectStore(passPredictionStoreName, { keyPath: 'id' })
+            passStore.createIndex('noradId', 'noradId', { unique: false })
+            passStore.createIndex('nextPassTime', 'nextPassTime', { unique: false })
+            passStore.createIndex('timestamp', 'timestamp', { unique: false })
+            console.log('Pass prediction store created')
           }
         }
       } catch (err) {
@@ -475,6 +485,201 @@ export const useIndexedDB = () => {
   }
 
   /**
+   * Store pass prediction data
+   */
+  const storePassPredictions = async (noradId: number, passes: any[], observerLocation: any): Promise<void> => {
+    if (!db.value) {
+      await init()
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        isLoading.value = true
+        error.value = null
+
+        const transaction = db.value!.transaction([passPredictionStoreName], 'readwrite')
+        const store = transaction.objectStore(passPredictionStoreName)
+
+        const passData = {
+          id: `${noradId}-${observerLocation.lat}-${observerLocation.lng}`,
+          noradId,
+          observerLocation,
+          passes,
+          nextPassTime: passes.length > 0 ? passes[0].startTime : null,
+          timestamp: Date.now()
+        }
+
+        store.put(passData)
+
+        transaction.oncomplete = () => {
+          console.log(`Stored pass predictions for NORAD ID: ${noradId}`)
+          console.log(`📊 Stored ${passes.length} passes in database`)
+          isLoading.value = false
+          resolve()
+        }
+
+        transaction.onerror = () => {
+          error.value = transaction.error?.message || 'Pass prediction storage failed'
+          console.error('Pass prediction storage error:', transaction.error)
+          isLoading.value = false
+          reject(transaction.error)
+        }
+      } catch (err) {
+        error.value = err instanceof Error ? err.message : 'Pass prediction storage failed'
+        console.error('Pass prediction storage error:', err)
+        isLoading.value = false
+        reject(err)
+      }
+    })
+  }
+
+  /**
+   * Retrieve pass prediction data
+   */
+  const getPassPredictions = async (noradId: number, observerLocation: any): Promise<any | null> => {
+    if (!db.value) {
+      await init()
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        isLoading.value = true
+        error.value = null
+
+        const transaction = db.value!.transaction([passPredictionStoreName], 'readonly')
+        const store = transaction.objectStore(passPredictionStoreName)
+        const id = `${noradId}-${observerLocation.lat}-${observerLocation.lng}`
+        const request = store.get(id)
+
+        request.onsuccess = () => {
+          const result = request.result
+          isLoading.value = false
+          resolve(result || null)
+        }
+
+        request.onerror = () => {
+          error.value = request.error?.message || 'Pass prediction retrieval failed'
+          console.error('Pass prediction retrieval error:', request.error)
+          isLoading.value = false
+          reject(request.error)
+        }
+      } catch (err) {
+        error.value = err instanceof Error ? err.message : 'Pass prediction retrieval failed'
+        console.error('Pass prediction retrieval error:', err)
+        isLoading.value = false
+        reject(err)
+      }
+    })
+  }
+
+  /**
+   * Get all pass predictions sorted by next pass time
+   */
+  const getAllPassPredictions = async (): Promise<any[]> => {
+    if (!db.value) {
+      await init()
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        isLoading.value = true
+        error.value = null
+
+        const transaction = db.value!.transaction([passPredictionStoreName], 'readonly')
+        const store = transaction.objectStore(passPredictionStoreName)
+        const index = store.index('nextPassTime')
+        const request = index.getAll()
+
+        request.onsuccess = () => {
+          const result = request.result || []
+          console.log('📊 getAllPassPredictions raw result:', result)
+          console.log('📊 getAllPassPredictions result length:', result.length)
+
+          // Filter out expired passes and sort by next pass time
+          const validPasses = result
+            .filter(pass => {
+              console.log(`📊 Filtering pass for NORAD ${pass.noradId}:`, {
+                hasNextPassTime: !!pass.nextPassTime,
+                nextPassTime: pass.nextPassTime,
+                timestamp: pass.timestamp,
+                ageInHours: pass.timestamp ? (Date.now() - pass.timestamp) / (1000 * 60 * 60) : 'no timestamp'
+              })
+
+              // Keep passes that haven't ended yet (more lenient filtering)
+              if (!pass.nextPassTime) {
+                console.log(`📊 Filtering out pass for NORAD ${pass.noradId}: no nextPassTime`)
+                return false
+              }
+
+              // For now, just check if the pass data exists and is recent
+              const isValid = pass.timestamp && (Date.now() - pass.timestamp) < (24 * 60 * 60 * 1000) // Within 24 hours
+              console.log(`📊 Pass for NORAD ${pass.noradId} is valid:`, isValid)
+              return isValid
+            })
+            .sort((a, b) => a.nextPassTime - b.nextPassTime)
+
+          console.log('📊 getAllPassPredictions filtered result:', validPasses)
+          console.log('📊 getAllPassPredictions valid passes count:', validPasses.length)
+
+          isLoading.value = false
+          resolve(validPasses)
+        }
+
+        request.onerror = () => {
+          error.value = request.error?.message || 'All pass predictions retrieval failed'
+          console.error('All pass predictions retrieval error:', request.error)
+          isLoading.value = false
+          reject(request.error)
+        }
+      } catch (err) {
+        error.value = err instanceof Error ? err.message : 'All pass predictions retrieval failed'
+        console.error('All pass predictions retrieval error:', err)
+        isLoading.value = false
+        reject(err)
+      }
+    })
+  }
+
+  /**
+   * Clear pass prediction data
+   */
+  const clearPassPredictions = async (): Promise<void> => {
+    if (!db.value) {
+      await init()
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        isLoading.value = true
+        error.value = null
+
+        const transaction = db.value!.transaction([passPredictionStoreName], 'readwrite')
+        const store = transaction.objectStore(passPredictionStoreName)
+
+        store.clear()
+
+        transaction.oncomplete = () => {
+          console.log('Pass prediction data cleared')
+          isLoading.value = false
+          resolve()
+        }
+
+        transaction.onerror = () => {
+          error.value = transaction.error?.message || 'Pass prediction clear failed'
+          console.error('Pass prediction clear error:', transaction.error)
+          isLoading.value = false
+          reject(transaction.error)
+        }
+      } catch (err) {
+        error.value = err instanceof Error ? err.message : 'Pass prediction clear failed'
+        console.error('Pass prediction clear error:', err)
+        isLoading.value = false
+        reject(err)
+      }
+    })
+  }
+
+  /**
    * Clear error state
    */
   const clearError = (): void => {
@@ -494,6 +699,10 @@ export const useIndexedDB = () => {
     storeTransponderData,
     getTransponderData,
     getAllTransponderData,
+    storePassPredictions,
+    getPassPredictions,
+    getAllPassPredictions,
+    clearPassPredictions,
     getStorageInfo,
     clearTLEData,
     clearTransmitterData,

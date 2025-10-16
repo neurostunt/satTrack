@@ -1,7 +1,12 @@
 <template>
   <NuxtLayout name="default" title="🛰️ SatTrack" subtitle="Satellite Tracking System">
     <!-- Observation Location -->
-    <ObservationLocation />
+    <ObservationLocation
+      :latitude="settings.observationLocation?.latitude || 0"
+      :longitude="settings.observationLocation?.longitude || 0"
+      :altitude="settings.observationLocation?.altitude || 0"
+      :grid-square="settings.gridSquare || ''"
+    />
 
     <!-- Combined Satellite Data -->
     <CombinedSatelliteData

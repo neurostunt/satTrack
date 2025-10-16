@@ -13,7 +13,7 @@
       </div>
 
       <!-- Data Fetch Status -->
-      <div v-if="spaceTrackFetchStatus.show || satnogsFetchStatus.show" class="mb-4 p-3 bg-space-800 border border-space-700 rounded text-xs">
+      <div v-if="spaceTrackFetchStatus.show || satnogsFetchStatus.show || passPredictionStatus.show" class="mb-4 p-3 bg-space-800 border border-space-700 rounded text-xs">
         <div v-if="spaceTrackFetchStatus.show" class="mb-2">
           <div class="flex items-center justify-between">
             <span class="text-space-300">TLE Data:</span>
@@ -29,7 +29,7 @@
             {{ spaceTrackFetchStatus.progress }}
           </div>
         </div>
-        <div v-if="satnogsFetchStatus.show">
+        <div v-if="satnogsFetchStatus.show" class="mb-2">
           <div class="flex items-center justify-between">
             <span class="text-space-300">Transmitter Data:</span>
             <span :class="{
@@ -42,6 +42,24 @@
           </div>
           <div v-if="satnogsFetchStatus.progress" class="text-space-400 mt-1">
             {{ satnogsFetchStatus.progress }}
+          </div>
+        </div>
+        <div v-if="passPredictionStatus.show">
+          <div class="flex items-center justify-between">
+            <span class="text-space-300">Pass Predictions:</span>
+            <span :class="{
+              'text-green-400': passPredictionStatus.status === 'success',
+              'text-red-400': passPredictionStatus.status === 'error',
+              'text-yellow-400': passPredictionStatus.status === 'loading'
+            }">
+              {{ passPredictionStatus.message }}
+            </span>
+          </div>
+          <div v-if="passPredictionStatus.progress" class="text-space-400 mt-1">
+            {{ passPredictionStatus.progress }}
+          </div>
+          <div v-if="passPredictionStatus.countdown" class="text-primary-400 mt-1 font-mono">
+            Next refresh in: {{ passPredictionStatus.countdown }}
           </div>
         </div>
       </div>
@@ -177,6 +195,10 @@ const props = defineProps({
     required: true
   },
   satnogsFetchStatus: {
+    type: Object,
+    required: true
+  },
+  passPredictionStatus: {
     type: Object,
     required: true
   },

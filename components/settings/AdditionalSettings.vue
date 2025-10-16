@@ -4,6 +4,73 @@
       <h3 class="text-lg font-semibold mb-4 text-primary-400">Tracking Settings</h3>
 
       <div class="space-y-4">
+        <!-- Observer Location -->
+        <div>
+          <h4 class="text-sm font-medium text-space-200 mb-2">Observer Location</h4>
+
+          <!-- GPS Location Button -->
+          <div class="mb-3">
+            <button
+              @click="getLocationFromGPS"
+              :disabled="isGettingLocation"
+              class="w-full bg-green-600 hover:bg-green-700 disabled:bg-space-600 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
+            >
+              <svg v-if="isGettingLocation" class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              <span>{{ isGettingLocation ? 'Getting Location...' : 'Get Location from GPS' }}</span>
+            </button>
+            <div v-if="locationError" class="text-red-400 text-xs mt-1">
+              {{ locationError }}
+            </div>
+            <div v-if="locationSuccess" class="text-green-400 text-xs mt-1">
+              {{ locationSuccess }}
+            </div>
+          </div>
+
+          <!-- Manual Location Inputs -->
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-xs font-medium text-space-300 mb-1">Latitude</label>
+              <input
+                v-model.number="settings.observationLocation.latitude"
+                type="number"
+                step="0.000001"
+                class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none"
+                placeholder="44.958341"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-space-300 mb-1">Longitude</label>
+              <input
+                v-model.number="settings.observationLocation.longitude"
+                type="number"
+                step="0.000001"
+                class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none"
+                placeholder="20.416665"
+              />
+            </div>
+          </div>
+          <div class="mt-1">
+            <label class="block text-xs font-medium text-space-300 mb-1">Altitude (meters)</label>
+            <input
+              v-model.number="settings.observationLocation.altitude"
+              type="number"
+              step="1"
+              class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none"
+              placeholder="0"
+            />
+          </div>
+          <div class="text-xs text-space-500 mt-1">
+            Used for accurate pass predictions and elevation calculations
+          </div>
+        </div>
+
         <!-- Update Interval -->
         <div>
           <label class="block text-xs font-medium text-space-300 mb-1">Update Interval</label>
@@ -214,6 +281,8 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
+
 // Props
 const props = defineProps({
   settings: {
@@ -232,6 +301,80 @@ const props = defineProps({
 
 // Emits
 defineEmits(['save-settings'])
+
+// Reactive state for GPS location
+const isGettingLocation = ref(false)
+const locationError = ref('')
+const locationSuccess = ref('')
+
+// GPS location function
+const getLocationFromGPS = async () => {
+  if (!navigator.geolocation) {
+    locationError.value = 'Geolocation is not supported by this browser'
+    return
+  }
+
+  isGettingLocation.value = true
+  locationError.value = ''
+  locationSuccess.value = ''
+
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(
+        resolve,
+        reject,
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      )
+    })
+
+    const { latitude, longitude, altitude } = position.coords
+
+    // Update settings with GPS coordinates
+    props.updateSettings({
+      observationLocation: {
+        latitude: latitude,
+        longitude: longitude,
+        altitude: altitude || 0
+      }
+    })
+
+    locationSuccess.value = `Location updated: ${latitude.toFixed(6)}°N, ${longitude.toFixed(6)}°E${altitude ? `, ${Math.round(altitude)}m` : ''}`
+
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      locationSuccess.value = ''
+    }, 3000)
+
+  } catch (error) {
+    console.error('GPS location error:', error)
+
+    switch (error.code) {
+      case error.PERMISSION_DENIED:
+        locationError.value = 'Location access denied. Please allow location access and try again.'
+        break
+      case error.POSITION_UNAVAILABLE:
+        locationError.value = 'Location information unavailable. Please check your GPS settings.'
+        break
+      case error.TIMEOUT:
+        locationError.value = 'Location request timed out. Please try again.'
+        break
+      default:
+        locationError.value = 'An unknown error occurred while retrieving location.'
+        break
+    }
+
+    // Clear error message after 5 seconds
+    setTimeout(() => {
+      locationError.value = ''
+    }, 5000)
+  } finally {
+    isGettingLocation.value = false
+  }
+}
 
 // Helper function to update transmitter filter
 const updateTransmitterFilter = (filterName, checked) => {

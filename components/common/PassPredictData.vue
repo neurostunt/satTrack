@@ -73,6 +73,34 @@
                 </div>
               </div>
 
+              <!-- Pass Predictions -->
+              <div v-if="data.passPredictions && data.passPredictions.passes.length > 0" class="mb-3">
+                <div class="text-sm text-space-300 mb-2">🛰️ Pass Predictions</div>
+                <div class="bg-space-800 border border-space-500 rounded p-2 text-xs">
+                  <div class="mb-2">
+                    <div class="text-primary-400 font-medium">Next Pass: {{ data.passPredictions.nextPassFormatted }}</div>
+                    <div class="text-space-400">Total Passes: {{ data.passPredictions.passCount }}</div>
+                  </div>
+
+                  <!-- Upcoming Passes -->
+                  <div class="space-y-1">
+                    <div
+                      v-for="(pass, index) in data.passPredictions.passes.slice(0, 5)"
+                      :key="index"
+                      class="flex justify-between items-center text-xs"
+                    >
+                      <div>
+                        <span class="text-space-300">{{ formatPassTime(pass.startTime) }}</span>
+                        <span class="text-space-400 ml-2">{{ formatPassDuration(pass.duration) }}</span>
+                      </div>
+                      <div class="text-green-400 font-medium">
+                        {{ Math.round(pass.maxElevation) }}°
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <!-- Satellite Status -->
               <div v-if="data.satellite?.status" class="mb-3">
                 <div class="text-sm text-space-300 mb-2">📊 Satellite Status</div>
@@ -156,6 +184,17 @@ const getStatusText = (status) => {
     default:
       return 'UNKNOWN'
   }
+}
+
+const formatPassTime = (timestamp) => {
+  const date = new Date(timestamp)
+  return date.toLocaleString()
+}
+
+const formatPassDuration = (durationMs) => {
+  const minutes = Math.floor(durationMs / (1000 * 60))
+  const seconds = Math.floor((durationMs % (1000 * 60)) / 1000)
+  return `${minutes}m ${seconds}s`
 }
 </script>
 

@@ -6,6 +6,8 @@
 import { ref, readonly } from 'vue'
 import { useSpaceTrack } from './useSpaceTrack'
 import { useSecureStorage } from '../storage/useSecureStorage'
+import { usePassPrediction } from '../satellite/usePassPrediction'
+import { useSettings } from '../storage/useSettings'
 import type { TLEData, Satellite } from '~/types/satellite'
 
 export const useTLEData = () => {
@@ -16,9 +18,67 @@ export const useTLEData = () => {
   const isOffline = ref<boolean>(false)
   const cacheStatus = ref<'none' | 'fresh' | 'stale' | 'offline'>('none')
 
+  // Pass prediction progress state
+  const passPredictionStatus = ref<{
+    show: boolean
+    status: 'loading' | 'success' | 'error'
+    message: string
+    progress: string
+    countdown?: string
+  }>({
+    show: true, // Always show
+    status: 'success',
+    message: 'Pass predictions calculated: 0 satellites',
+    progress: 'Data cached for offline use',
+    countdown: '2:00:00'
+  })
+
+  // Countdown timer for refresh cycle
+  const countdownInterval = ref<NodeJS.Timeout | null>(null)
+  const refreshTime = ref<number | null>(null)
+
+  // Start countdown timer
+  const startCountdown = () => {
+    if (countdownInterval.value) {
+      clearInterval(countdownInterval.value)
+    }
+
+    refreshTime.value = Date.now() + (2 * 60 * 60 * 1000) // 2 hours from now
+
+    countdownInterval.value = setInterval(() => {
+      if (refreshTime.value) {
+        const remaining = refreshTime.value - Date.now()
+        if (remaining <= 0) {
+          // Countdown finished
+          passPredictionStatus.value.countdown = '00:00:00'
+          if (countdownInterval.value) {
+            clearInterval(countdownInterval.value)
+            countdownInterval.value = null
+          }
+        } else {
+          // Update countdown
+          const hours = Math.floor(remaining / (1000 * 60 * 60))
+          const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60))
+          const seconds = Math.floor((remaining % (1000 * 60)) / 1000)
+          passPredictionStatus.value.countdown = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+        }
+      }
+    }, 1000)
+  }
+
+  // Stop countdown timer
+  const stopCountdown = () => {
+    if (countdownInterval.value) {
+      clearInterval(countdownInterval.value)
+      countdownInterval.value = null
+    }
+  }
+
   // Use composables
   const spaceTrack = useSpaceTrack()
   const storage = useSecureStorage()
+  const { calculatePassesForSatellites } = usePassPrediction()
+  const { settings } = useSettings()
 
   /**
    * Load TLE data from cache
@@ -241,6 +301,16 @@ export const useTLEData = () => {
 
       // Save to cache
       await saveToCache(processedData)
+      console.log('💾 TLE data saved to cache, about to calculate pass predictions...')
+
+      // Calculate pass predictions after TLE data is updated
+      console.log('🛰️ Calling calculatePassPredictionsAfterTLEUpdate...')
+      await calculatePassPredictionsAfterTLEUpdate(satellites, processedData, {
+        lat: settings.value.observationLocation?.latitude || 40.7128,
+        lng: settings.value.observationLocation?.longitude || -74.0060,
+        alt: settings.value.observationLocation?.altitude || 0
+      })
+      console.log('✅ calculatePassPredictionsAfterTLEUpdate completed')
 
       console.log(`TLE data updated successfully from ${dataSource}:`, Object.keys(processedData).length, 'satellites')
 
@@ -348,7 +418,110 @@ export const useTLEData = () => {
    * Force refresh TLE data
    */
   const refreshTLEData = async (satellites: Satellite[], username: string, password: string, satnogsToken: string | null = null): Promise<void> => {
+    // Reset countdown when refresh is triggered
+    stopCountdown()
     await fetchTLEData(satellites, username, password, satnogsToken, true)
+  }
+
+  /**
+   * Calculate pass predictions after TLE data is updated
+   */
+  const calculatePassPredictionsAfterTLEUpdate = async (
+    satellites: Satellite[],
+    processedData: Record<number, TLEData>,
+    observerLocation?: { lat: number; lng: number; alt: number }
+  ): Promise<void> => {
+    console.log('🚀 calculatePassPredictionsAfterTLEUpdate called!')
+    console.log('🚀 Satellites count:', satellites.length)
+    console.log('🚀 Processed data keys:', Object.keys(processedData))
+    console.log('🚀 Observer location passed:', observerLocation)
+
+    try {
+      console.log('🛰️ Starting pass prediction calculations after TLE update...')
+
+      // Show progress indicator
+      passPredictionStatus.value = {
+        show: true,
+        status: 'loading',
+        message: 'Calculating pass predictions...',
+        progress: 'Processing satellite orbits'
+      }
+
+      // Use passed observer location or fallback to settings/default
+      const location = observerLocation || {
+        lat: settings.value.observationLocation?.latitude || 40.7128,
+        lng: settings.value.observationLocation?.longitude || -74.0060,
+        alt: settings.value.observationLocation?.altitude || 0
+      }
+
+      console.log('🛰️ Using observer location:', location)
+
+      // Prepare satellite data with TLE for pass calculation
+      const satellitesWithTLE = satellites
+        .filter(satellite => processedData[satellite.noradId])
+        .map(satellite => ({
+          noradId: satellite.noradId,
+          tleData: processedData[satellite.noradId]
+        }))
+
+      if (satellitesWithTLE.length === 0) {
+        console.log('⚠️ No satellites with TLE data for pass calculation')
+        passPredictionStatus.value = {
+          show: true,
+          status: 'error',
+          message: 'No satellites with TLE data for pass calculation',
+          progress: ''
+        }
+        return
+      }
+
+      console.log(`📊 Calculating passes for ${satellitesWithTLE.length} satellites`)
+
+      // Update progress
+      passPredictionStatus.value = {
+        show: true,
+        status: 'loading',
+        message: `Calculating passes for ${satellitesWithTLE.length} satellites...`,
+        progress: 'Processing orbital mechanics'
+      }
+
+      // Calculate passes for all satellites
+      console.log(`🔄 About to calculate passes for ${satellitesWithTLE.length} satellites`)
+      console.log(`🔄 Observer location:`, location)
+      console.log(`🔄 Satellites with TLE:`, satellitesWithTLE.map(s => ({ noradId: s.noradId, hasTLE: !!s.tleData })))
+
+      await calculatePassesForSatellites(satellitesWithTLE, location)
+
+      console.log(`✅ Pass predictions successfully calculated for ${satellitesWithTLE.length} satellites`)
+
+      // Show success status and start countdown
+      passPredictionStatus.value = {
+        show: true,
+        status: 'success',
+        message: `Pass predictions calculated: ${satellitesWithTLE.length} satellites`,
+        progress: 'Data cached for offline use',
+        countdown: '2:00:00'
+      }
+
+      // Start countdown timer
+      startCountdown()
+
+    } catch (error) {
+      console.error('❌ Failed to calculate pass predictions after TLE update:', error)
+      console.error('❌ Error details:', error instanceof Error ? error.message : 'Unknown error')
+      console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack trace')
+
+      // Show error status
+      passPredictionStatus.value = {
+        show: true,
+        status: 'error',
+        message: `Pass prediction calculation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        progress: 'TLE data still available',
+        countdown: '2:00:00'
+      }
+
+      // Don't throw error - pass prediction failure shouldn't break TLE data fetching
+    }
   }
 
   return {
@@ -359,6 +532,7 @@ export const useTLEData = () => {
     error: readonly(error),
     isOffline: readonly(isOffline),
     cacheStatus: readonly(cacheStatus),
+    passPredictionStatus: readonly(passPredictionStatus),
 
     // Methods
     fetchTLEData,
@@ -371,6 +545,8 @@ export const useTLEData = () => {
     refreshTLEData,
     loadFromCache,
     saveToCache,
-    needsRefresh
+    needsRefresh,
+    startCountdown,
+    stopCountdown
   }
 }

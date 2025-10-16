@@ -10,8 +10,8 @@ const defaultSettings: StorageSettings = {
   satnogsToken: '',
   updateInterval: 5000,
   observationLocation: {
-    latitude: 0,
-    longitude: 0,
+    latitude: 44.958341,
+    longitude: 20.416665,
     altitude: 0
   },
   transmitterFilters: {
@@ -23,7 +23,7 @@ const defaultSettings: StorageSettings = {
     weather: true,
     communication: true
   },
-  gridSquare: '',
+  gridSquare: 'KN04FXQL',
   useGPS: true,
   minElevation: 5.0
 }

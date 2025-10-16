@@ -88,6 +88,8 @@ const {
 const {
   storeTransponderData,
   getStorageInfo,
+  storeCredentials,
+  getCredentials,
   clearTLEData: clearIndexedDBTLEData,
   clearTransmitterData: clearIndexedDBTransmitterData,
   clearAll: clearIndexedDBAllData
@@ -231,8 +233,30 @@ const satnogsFetchStatus = ref({
 const saveSettings = async () => {
   isSavingSettings.value = true
   try {
+    // Save regular settings
     await saveSettingsToStorage()
-    console.log('Settings saved successfully')
+    
+    // Save credentials separately
+    console.log('🔑 Saving credentials:', {
+      username: settings.value.spaceTrackUsername,
+      password: settings.value.spaceTrackPassword ? '***' : 'empty',
+      satnogsToken: settings.value.satnogsToken ? '***' : 'empty',
+      n2yoApiKey: settings.value.n2yoApiKey ? '***' : 'empty'
+    })
+    
+    if (settings.value.spaceTrackUsername || settings.value.spaceTrackPassword || settings.value.satnogsToken || settings.value.n2yoApiKey) {
+      await storeCredentials({
+        username: settings.value.spaceTrackUsername || '',
+        password: settings.value.spaceTrackPassword || '',
+        satnogsToken: settings.value.satnogsToken || '',
+        n2yoApiKey: settings.value.n2yoApiKey || ''
+      })
+      console.log('✅ Credentials saved successfully')
+    } else {
+      console.log('⚠️ No credentials to save')
+    }
+    
+    console.log('Settings and credentials saved successfully')
   } catch (error) {
     console.error('Failed to save settings:', error)
   } finally {
@@ -503,6 +527,30 @@ watch(searchQuery, async (newQuery) => {
 onMounted(async () => {
   await loadSettings()
   await loadStorageInfo()
+  
+  // Load credentials from database
+  try {
+    console.log('🔍 Loading credentials from database...')
+    const credentials = await getCredentials()
+    console.log('📋 Loaded credentials:', credentials)
+    
+    if (credentials) {
+      // Update settings with loaded credentials
+      console.log('🔄 Updating settings with loaded credentials')
+      updateSettings({
+        spaceTrackUsername: credentials.username,
+        spaceTrackPassword: credentials.password,
+        satnogsToken: credentials.satnogsToken,
+        n2yoApiKey: credentials.n2yoApiKey
+      })
+      console.log('✅ Settings updated with credentials')
+    } else {
+      console.log('⚠️ No credentials found in database')
+    }
+  } catch (error) {
+    console.error('Failed to load credentials:', error)
+  }
+  
   await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
 })
 

@@ -45,6 +45,24 @@
           </div>
         </div>
 
+        <!-- N2YO API Key -->
+        <div>
+          <h4 class="text-sm font-medium text-space-200 mb-2">N2YO API (Pass Comparison)</h4>
+          <div class="relative">
+            <label class="block text-xs font-medium text-space-300 mb-1">API Key</label>
+            <input
+              :value="localSettings.n2yoApiKey"
+              @input="handleInputChange('n2yoApiKey', $event.target.value)"
+              type="password"
+              class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none box-border"
+              placeholder="Enter your N2YO API key"
+            />
+            <div class="text-xs text-space-500 mt-1">
+              Get your free API key from <a href="https://www.n2yo.com/api/" target="_blank" class="text-primary-400 hover:text-primary-300">n2yo.com</a>
+            </div>
+          </div>
+        </div>
+
         <!-- Save Credentials Button -->
         <div class="border-t border-space-600 pt-4 mt-4">
           <button
@@ -88,7 +106,8 @@ const emit = defineEmits(['save-settings'])
 const localSettings = ref({
   spaceTrackUsername: '',
   spaceTrackPassword: '',
-  satnogsToken: ''
+  satnogsToken: '',
+  n2yoApiKey: ''
 })
 
 // Initialize local settings from props
@@ -96,7 +115,8 @@ onMounted(() => {
   localSettings.value = {
     spaceTrackUsername: props.settings.spaceTrackUsername || '',
     spaceTrackPassword: props.settings.spaceTrackPassword || '',
-    satnogsToken: props.settings.satnogsToken || ''
+    satnogsToken: props.settings.satnogsToken || '',
+    n2yoApiKey: props.settings.n2yoApiKey || ''
   }
 })
 
@@ -106,7 +126,8 @@ watch(() => props.settings, (newSettings) => {
     localSettings.value = {
       spaceTrackUsername: newSettings.spaceTrackUsername || '',
       spaceTrackPassword: newSettings.spaceTrackPassword || '',
-      satnogsToken: newSettings.satnogsToken || ''
+      satnogsToken: newSettings.satnogsToken || '',
+      n2yoApiKey: newSettings.n2yoApiKey || ''
     }
   }
 }, { deep: true })

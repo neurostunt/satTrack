@@ -4,6 +4,10 @@
  */
 
 class SpaceTrackAPI {
+  private baseUrl: string
+  private sessionCookie: string | null
+  private isLoggedIn: boolean
+
   constructor() {
     this.baseUrl = 'https://www.space-track.org'
     this.sessionCookie = null
@@ -16,7 +20,7 @@ class SpaceTrackAPI {
    * @param {string} password - Space-Track password
    * @returns {Promise<boolean>} - Success status
    */
-  async login(username, password) {
+  async login(username: string, password: string): Promise<boolean> {
     try {
       console.log('Attempting Space-Track.org login via proxy...')
 
@@ -61,7 +65,7 @@ class SpaceTrackAPI {
    * @param {string} password - Space-Track password
    * @returns {Promise<Object>} - TLE data with metadata
    */
-  async fetchTLEData(noradIds, username, password) {
+  async fetchTLEData(noradIds: number[], username: string, password: string): Promise<any> {
     try {
       console.log('Fetching TLE data for NORAD IDs:', noradIds)
 
@@ -103,7 +107,7 @@ class SpaceTrackAPI {
    * @param {string} password - Space-Track password
    * @returns {Promise<boolean>} - Connection test result
    */
-  async testConnection(username, password) {
+  async testConnection(username: string, password: string): Promise<boolean> {
     try {
       // Test by fetching TLE data for ISS (NORAD ID 25544)
       const testData = await this.fetchTLEData([25544], username, password)
@@ -118,14 +122,14 @@ class SpaceTrackAPI {
    * Get session status
    * @returns {boolean} - Login status
    */
-  getSessionStatus() {
+  getSessionStatus(): boolean {
     return this.isLoggedIn
   }
 
   /**
    * Logout from Space-Track.org
    */
-  logout() {
+  logout(): void {
     this.sessionCookie = null
     this.isLoggedIn = false
     console.log('Logged out from Space-Track.org')

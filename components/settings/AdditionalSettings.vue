@@ -75,7 +75,7 @@
         <div>
           <label class="block text-xs font-medium text-space-300 mb-1">Update Interval</label>
           <select
-            v-model="settings.updateInterval"
+            v-model="updateInterval"
             class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
           >
             <option value="1000">1 second</option>
@@ -89,7 +89,7 @@
         <div>
           <label class="block text-xs font-medium text-space-300 mb-1">Distance Units</label>
           <select
-            v-model="settings.distanceUnits"
+            v-model="distanceUnits"
             class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
           >
             <option value="km">Kilometers</option>
@@ -101,7 +101,7 @@
         <div>
           <label class="block text-xs font-medium text-space-300 mb-1">Compass Type</label>
           <select
-            v-model="settings.compassType"
+            v-model="compassType"
             class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
           >
             <option value="magnetic">Magnetic</option>
@@ -116,7 +116,7 @@
         <div class="flex items-center justify-between">
           <label class="text-sm text-space-300">Auto-update TLE data</label>
           <input
-            v-model="settings.autoUpdateTLE"
+            v-model="autoUpdateTLE"
             type="checkbox"
             class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
           />
@@ -126,7 +126,7 @@
         <div class="flex items-center justify-between">
           <label class="text-sm text-space-300">Sound alerts</label>
           <input
-            v-model="settings.soundAlerts"
+            v-model="soundAlerts"
             type="checkbox"
             class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
           />
@@ -136,7 +136,7 @@
         <div class="flex items-center justify-between">
           <label class="text-sm text-space-300">High accuracy GPS</label>
           <input
-            v-model="settings.highAccuracyGPS"
+            v-model="highAccuracyGPS"
             type="checkbox"
             class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
           />
@@ -146,7 +146,7 @@
         <div class="flex items-center justify-between">
           <label class="text-sm text-space-300">Auto-calibrate compass</label>
           <input
-            v-model="settings.autoCalibrateCompass"
+            v-model="autoCalibrateCompass"
             type="checkbox"
             class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
           />
@@ -306,6 +306,42 @@ defineEmits(['save-settings'])
 const isGettingLocation = ref(false)
 const locationError = ref('')
 const locationSuccess = ref('')
+
+// Computed properties for form fields
+const distanceUnits = computed({
+  get: () => props.settings.distanceUnits || 'km',
+  set: (value) => props.updateSettings({ distanceUnits: value })
+})
+
+const compassType = computed({
+  get: () => props.settings.compassType || 'magnetic',
+  set: (value) => props.updateSettings({ compassType: value })
+})
+
+const updateInterval = computed({
+  get: () => props.settings.updateInterval || 5000,
+  set: (value) => props.updateSettings({ updateInterval: parseInt(value) })
+})
+
+const autoUpdateTLE = computed({
+  get: () => props.settings.autoUpdateTLE || false,
+  set: (value) => props.updateSettings({ autoUpdateTLE: value })
+})
+
+const soundAlerts = computed({
+  get: () => props.settings.soundAlerts || false,
+  set: (value) => props.updateSettings({ soundAlerts: value })
+})
+
+const highAccuracyGPS = computed({
+  get: () => props.settings.highAccuracyGPS || false,
+  set: (value) => props.updateSettings({ highAccuracyGPS: value })
+})
+
+const autoCalibrateCompass = computed({
+  get: () => props.settings.autoCalibrateCompass || false,
+  set: (value) => props.updateSettings({ autoCalibrateCompass: value })
+})
 
 // GPS location function
 const getLocationFromGPS = async () => {

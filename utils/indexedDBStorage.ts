@@ -11,15 +11,17 @@ class IndexedDBStorage {
   private settingsStoreName: string
   private credentialsStoreName: string
   private transponderStoreName: string
+  private passPredictionStoreName: string
 
   constructor() {
     this.dbName = 'SatTrackDB'
-    this.dbVersion = 2
+    this.dbVersion = 3
     this.db = null
     this.tleStoreName = 'tleData'
     this.settingsStoreName = 'settings'
     this.credentialsStoreName = 'credentials'
     this.transponderStoreName = 'transponderData'
+    this.passPredictionStoreName = 'passPredictions'
   }
 
   /**
@@ -68,6 +70,15 @@ class IndexedDBStorage {
           const transponderStore = db.createObjectStore(this.transponderStoreName, { keyPath: 'noradId' })
           transponderStore.createIndex('timestamp', 'timestamp', { unique: false })
           console.log('Transponder data store created')
+        }
+
+        // Create pass prediction store
+        if (!db.objectStoreNames.contains(this.passPredictionStoreName)) {
+          const passStore = db.createObjectStore(this.passPredictionStoreName, { keyPath: 'id' })
+          passStore.createIndex('noradId', 'noradId', { unique: false })
+          passStore.createIndex('nextPassTime', 'nextPassTime', { unique: false })
+          passStore.createIndex('timestamp', 'timestamp', { unique: false })
+          console.log('Pass prediction store created')
         }
       }
     })
@@ -209,31 +220,46 @@ class IndexedDBStorage {
   /**
    * Store encrypted credentials
    */
-  async storeCredentials(credentials: { username: string; password: string; satnogsToken?: string }): Promise<void> {
+  async storeCredentials(credentials: { username: string; password: string; satnogsToken?: string; n2yoApiKey?: string }): Promise<void> {
     await this.ensureDB()
 
-    return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([this.credentialsStoreName], 'readwrite')
-      const store = transaction.objectStore(this.credentialsStoreName)
+    try {
+      // Import secure storage utility
+      const secureStorage = (await import('./secureStorage')).default
 
-      const request = store.put({
-        id: 'credentials',
-        username: credentials.username,
-        password: credentials.password,
-        satnogsToken: credentials.satnogsToken || '',
-        timestamp: new Date().toISOString()
+      // Encrypt sensitive data
+      const encryptedUsername = credentials.username ? await secureStorage.encrypt(credentials.username) : ''
+      const encryptedPassword = credentials.password ? await secureStorage.encrypt(credentials.password) : ''
+      const encryptedSatnogsToken = credentials.satnogsToken ? await secureStorage.encrypt(credentials.satnogsToken) : ''
+      const encryptedN2yoApiKey = credentials.n2yoApiKey ? await secureStorage.encrypt(credentials.n2yoApiKey) : ''
+
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction([this.credentialsStoreName], 'readwrite')
+        const store = transaction.objectStore(this.credentialsStoreName)
+
+        const request = store.put({
+          id: 'credentials',
+          username: encryptedUsername,
+          password: encryptedPassword,
+          satnogsToken: encryptedSatnogsToken,
+          n2yoApiKey: encryptedN2yoApiKey,
+          timestamp: new Date().toISOString()
+        })
+
+        request.onsuccess = () => {
+          console.log('🔐 Encrypted credentials stored in IndexedDB')
+          resolve()
+        }
+
+        request.onerror = () => {
+          console.error('Failed to store credentials:', request.error)
+          reject(request.error)
+        }
       })
-
-      request.onsuccess = () => {
-        console.log('Credentials stored in IndexedDB')
-        resolve()
-      }
-
-      request.onerror = () => {
-        console.error('Failed to store credentials:', request.error)
-        reject(request.error)
-      }
-    })
+    } catch (error) {
+      console.error('Failed to encrypt credentials:', error)
+      throw new Error('Failed to encrypt credentials')
+    }
   }
 
   /**
@@ -262,22 +288,45 @@ class IndexedDBStorage {
   /**
    * Retrieve encrypted credentials
    */
-  async getCredentials(): Promise<{ username: string; password: string; satnogsToken: string } | null> {
+  async getCredentials(): Promise<{ username: string; password: string; satnogsToken: string; n2yoApiKey: string } | null> {
     await this.ensureDB()
 
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const transaction = this.db!.transaction([this.credentialsStoreName], 'readonly')
       const store = transaction.objectStore(this.credentialsStoreName)
       const request = store.get('credentials')
 
-      request.onsuccess = () => {
+      request.onsuccess = async () => {
         const result = request.result
         if (result) {
-          resolve({
-            username: result.username,
-            password: result.password,
-            satnogsToken: result.satnogsToken || ''
-          })
+          try {
+            // Import secure storage utility
+            const secureStorage = (await import('./secureStorage')).default
+
+            // Decrypt sensitive data
+            const decryptedUsername = result.username ? await secureStorage.decrypt(result.username) : ''
+            const decryptedPassword = result.password ? await secureStorage.decrypt(result.password) : ''
+            const decryptedSatnogsToken = result.satnogsToken ? await secureStorage.decrypt(result.satnogsToken) : ''
+            const decryptedN2yoApiKey = result.n2yoApiKey ? await secureStorage.decrypt(result.n2yoApiKey) : ''
+
+            console.log('🔓 Decrypted credentials retrieved from IndexedDB')
+            resolve({
+              username: decryptedUsername,
+              password: decryptedPassword,
+              satnogsToken: decryptedSatnogsToken,
+              n2yoApiKey: decryptedN2yoApiKey
+            })
+          } catch (error) {
+            console.error('Failed to decrypt credentials:', error)
+            // If decryption fails, try to return empty credentials (might be old unencrypted data)
+            console.log('⚠️ Attempting to return credentials as-is (might be unencrypted)')
+            resolve({
+              username: result.username || '',
+              password: result.password || '',
+              satnogsToken: result.satnogsToken || '',
+              n2yoApiKey: result.n2yoApiKey || ''
+            })
+          }
         } else {
           resolve(null)
         }
@@ -749,6 +798,139 @@ class IndexedDBStorage {
 
       request.onerror = () => {
         console.error(`Failed to clear transponder data for satellite ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Store pass prediction data
+   */
+  async storePassPredictions(noradId: number, passes: any[], observerLocation: any): Promise<void> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.passPredictionStoreName], 'readwrite')
+      const store = transaction.objectStore(this.passPredictionStoreName)
+
+      const passData = {
+        id: `${noradId}-${observerLocation.lat}-${observerLocation.lng}`,
+        noradId,
+        observerLocation,
+        passes,
+        nextPassTime: passes.length > 0 ? passes[0].startTime : null,
+        timestamp: Date.now()
+      }
+
+      const request = store.put(passData)
+
+      request.onsuccess = () => {
+        console.log(`Stored pass predictions for NORAD ID: ${noradId}`)
+        console.log(`📊 Stored ${passes.length} passes in database`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to store pass predictions for NORAD ID ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Retrieve pass prediction data
+   */
+  async getPassPredictions(noradId: number, observerLocation: any): Promise<any | null> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.passPredictionStoreName], 'readonly')
+      const store = transaction.objectStore(this.passPredictionStoreName)
+      const id = `${noradId}-${observerLocation.lat}-${observerLocation.lng}`
+      const request = store.get(id)
+
+      request.onsuccess = () => {
+        resolve(request.result || null)
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to get pass predictions for NORAD ID ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Get all pass predictions sorted by next pass time
+   */
+  async getAllPassPredictions(): Promise<any[]> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.passPredictionStoreName], 'readonly')
+      const store = transaction.objectStore(this.passPredictionStoreName)
+      const index = store.index('nextPassTime')
+      const request = index.getAll()
+
+      request.onsuccess = () => {
+        const result = request.result || []
+        console.log('📊 getAllPassPredictions raw result:', result)
+        console.log('📊 getAllPassPredictions result length:', result.length)
+
+        // Filter out expired passes and sort by next pass time
+        const validPasses = result
+          .filter(pass => {
+            console.log(`📊 Filtering pass for NORAD ${pass.noradId}:`, {
+              hasNextPassTime: !!pass.nextPassTime,
+              nextPassTime: pass.nextPassTime,
+              timestamp: pass.timestamp,
+              ageInHours: pass.timestamp ? (Date.now() - pass.timestamp) / (1000 * 60 * 60) : 'no timestamp'
+            })
+
+            // Keep passes that haven't ended yet (more lenient filtering)
+            if (!pass.nextPassTime) {
+              console.log(`📊 Filtering out pass for NORAD ${pass.noradId}: no nextPassTime`)
+              return false
+            }
+
+            // For now, just check if the pass data exists and is recent
+            const isValid = pass.timestamp && (Date.now() - pass.timestamp) < (24 * 60 * 60 * 1000) // Within 24 hours
+            console.log(`📊 Pass for NORAD ${pass.noradId} is valid:`, isValid)
+            return isValid
+          })
+          .sort((a, b) => a.nextPassTime - b.nextPassTime)
+
+        console.log('📊 getAllPassPredictions filtered result:', validPasses)
+        console.log('📊 getAllPassPredictions valid passes count:', validPasses.length)
+
+        resolve(validPasses)
+      }
+
+      request.onerror = () => {
+        console.error('Failed to get all pass predictions:', request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Clear pass prediction data
+   */
+  async clearPassPredictions(): Promise<void> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.passPredictionStoreName], 'readwrite')
+      const store = transaction.objectStore(this.passPredictionStoreName)
+      const request = store.clear()
+
+      request.onsuccess = () => {
+        console.log('Pass prediction data cleared')
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error('Failed to clear pass prediction data:', request.error)
         reject(request.error)
       }
     })

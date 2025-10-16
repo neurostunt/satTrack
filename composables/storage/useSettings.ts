@@ -8,6 +8,7 @@ const defaultSettings: StorageSettings = {
   spaceTrackUsername: '',
   spaceTrackPassword: '',
   satnogsToken: '',
+  n2yoApiKey: '',
   updateInterval: 5000,
   observationLocation: {
     latitude: 44.958341,
@@ -25,7 +26,13 @@ const defaultSettings: StorageSettings = {
   },
   gridSquare: 'KN04FXQL',
   useGPS: true,
-  minElevation: 5.0
+  minElevation: 5.0,
+  distanceUnits: 'km',
+  compassType: 'magnetic',
+  autoUpdateTLE: false,
+  soundAlerts: false,
+  highAccuracyGPS: false,
+  autoCalibrateCompass: false
 }
 
 // Reactive state
@@ -65,12 +72,19 @@ const saveSettings = async (): Promise<void> => {
       spaceTrackUsername: settings.value.spaceTrackUsername,
       spaceTrackPassword: settings.value.spaceTrackPassword,
       satnogsToken: settings.value.satnogsToken,
+      n2yoApiKey: settings.value.n2yoApiKey,
       updateInterval: settings.value.updateInterval,
       observationLocation: settings.value.observationLocation,
       transmitterFilters: { ...settings.value.transmitterFilters },
       gridSquare: settings.value.gridSquare,
       useGPS: settings.value.useGPS,
-      minElevation: settings.value.minElevation
+      minElevation: settings.value.minElevation,
+      distanceUnits: settings.value.distanceUnits,
+      compassType: settings.value.compassType,
+      autoUpdateTLE: settings.value.autoUpdateTLE,
+      soundAlerts: settings.value.soundAlerts,
+      highAccuracyGPS: settings.value.highAccuracyGPS,
+      autoCalibrateCompass: settings.value.autoCalibrateCompass
     }
 
     await storage.storeSettings(cleanSettings)

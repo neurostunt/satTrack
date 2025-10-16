@@ -149,8 +149,8 @@
         <h4 class="font-semibold text-primary-300 pt-0 pb-0.5 leading-1">
           {{ getFormattedSatelliteName(satellite).primary }}
         </h4>
-                <!-- Second row: Secondary name + NORAD ID (closer spacing) -->
-                <div class="flex items-center gap-2 text-xs text-space-400 -mt-2 pb-2">
+                <!-- Second row: Secondary name + NORAD ID (proper spacing) -->
+                <div class="flex items-center gap-2 text-xs text-space-400 mt-1 pb-2">
                   <span v-if="getFormattedSatelliteName(satellite).secondary">
                     {{ getFormattedSatelliteName(satellite).secondary }} -
                   </span>

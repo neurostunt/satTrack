@@ -309,7 +309,7 @@ export const useTLEData = () => {
         lat: settings.value.observationLocation?.latitude || 40.7128,
         lng: settings.value.observationLocation?.longitude || -74.0060,
         alt: settings.value.observationLocation?.altitude || 0
-      })
+      }, settings.value.n2yoApiKey)
       console.log('✅ calculatePassPredictionsAfterTLEUpdate completed')
 
       console.log(`TLE data updated successfully from ${dataSource}:`, Object.keys(processedData).length, 'satellites')
@@ -429,7 +429,8 @@ export const useTLEData = () => {
   const calculatePassPredictionsAfterTLEUpdate = async (
     satellites: Satellite[],
     processedData: Record<number, TLEData>,
-    observerLocation?: { lat: number; lng: number; alt: number }
+    observerLocation?: { lat: number; lng: number; alt: number },
+    n2yoApiKey?: string
   ): Promise<void> => {
     console.log('🚀 calculatePassPredictionsAfterTLEUpdate called!')
     console.log('🚀 Satellites count:', satellites.length)
@@ -438,6 +439,18 @@ export const useTLEData = () => {
 
     try {
       console.log('🛰️ Starting pass prediction calculations after TLE update...')
+
+      // Check if N2YO API key is available
+      if (!n2yoApiKey) {
+        console.warn('⚠️ N2YO API key not available, skipping pass predictions')
+        passPredictionStatus.value = {
+          show: true,
+          status: 'error',
+          message: 'N2YO API key not configured - pass predictions disabled',
+          progress: 'Please configure N2YO API key in Settings'
+        }
+        return
+      }
 
       // Show progress indicator
       passPredictionStatus.value = {
@@ -490,7 +503,7 @@ export const useTLEData = () => {
       console.log(`🔄 Observer location:`, location)
       console.log(`🔄 Satellites with TLE:`, satellitesWithTLE.map(s => ({ noradId: s.noradId, hasTLE: !!s.tleData })))
 
-      await calculatePassesForSatellites(satellitesWithTLE, location)
+      await calculatePassesForSatellites(satellitesWithTLE, location, 10, n2yoApiKey || '')
 
       console.log(`✅ Pass predictions successfully calculated for ${satellitesWithTLE.length} satellites`)
 

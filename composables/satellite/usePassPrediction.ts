@@ -1,11 +1,11 @@
 /**
  * Pass Prediction Composable
- * Handles satellite pass calculations using tle.js library
+ * Handles satellite pass calculations using N2YO API
  */
 
 import { ref, readonly } from 'vue'
-import * as tle from 'tle.js'
 import { useIndexedDB } from '../storage/useIndexedDB'
+import { useN2YO } from '../api/useN2YO'
 
 export interface ObserverLocation {
   lat: number
@@ -46,6 +46,9 @@ export const usePassPrediction = () => {
     clearPassPredictions
   } = useIndexedDB()
 
+  // N2YO API instance
+  const { getRadioPasses, isLoading: n2yoLoading, error: n2yoError } = useN2YO()
+
   // Cache duration: 2 hours (as discussed)
   const CACHE_DURATION = 2 * 60 * 60 * 1000 // 2 hours in milliseconds
 
@@ -57,83 +60,58 @@ export const usePassPrediction = () => {
   }
 
   /**
-   * Calculate visible passes for a satellite using tle.js
+   * Get passes from N2YO API and convert to our format
    */
-  const calculatePasses = async (
+  const getPassesFromN2YO = async (
     noradId: number,
     observerLocation: ObserverLocation,
-    tleData: any,
-    daysAhead: number = 7
+    minElevation: number = 10,
+    days: number = 7,
+    apiKey: string
   ): Promise<PassPrediction[]> => {
     try {
-      isCalculating.value = true
-      error.value = null
+      console.log(`🛰️ Fetching N2YO passes for NORAD ID: ${noradId}`)
+      
+      const n2yoResponse = await getRadioPasses(
+        noradId,
+        observerLocation.lat,
+        observerLocation.lng,
+        observerLocation.alt || 0,
+        days,
+        minElevation,
+        apiKey
+      )
 
-      console.log(`🛰️ Calculating passes for NORAD ID: ${noradId}`)
+      // Convert N2YO passes to our format
+      const passes: PassPrediction[] = n2yoResponse.passes.map(pass => ({
+        startTime: pass.startUTC * 1000, // Convert Unix timestamp to milliseconds
+        endTime: pass.endUTC * 1000,
+        duration: (pass.endUTC - pass.startUTC) * 1000, // Duration in milliseconds
+        maxElevation: pass.maxEl,
+        startAzimuth: pass.startAz,
+        endAzimuth: pass.endAz,
+        startElevation: pass.startEl,
+        endElevation: pass.endEl
+      }))
 
-      // Parse TLE data
-      const tleParsed = tle.parseTLE(tleData.line1 + '\n' + tleData.line2)
-
-      // Calculate passes for the next N days
-      const passes: PassPrediction[] = []
-      const startTime = new Date()
-      const endTime = new Date(startTime.getTime() + (daysAhead * 24 * 60 * 60 * 1000))
-
-      // Get ground tracks to find passes
-      const groundTracks = await tle.getGroundTracks(tleParsed)
-
-      // For now, create mock pass data based on orbital period
-      // This is a simplified implementation - in a real scenario, you'd need
-      // more sophisticated orbital mechanics calculations
-      const orbitalPeriod = tle.getAverageOrbitTimeMS(tleParsed) || 90 * 60 * 1000 // Default 90 minutes
-      const now = Date.now()
-
-      // Generate passes for the next few days
-      for (let i = 0; i < 5; i++) {
-        const passStartTime = now + ((i + 1) * orbitalPeriod) // Start first pass in the future
-        const passEndTime = passStartTime + (15 * 60 * 1000) // 15 minute pass duration
-
-        if (passStartTime <= endTime.getTime()) {
-          passes.push({
-            startTime: passStartTime,
-            endTime: passEndTime,
-            duration: 15 * 60 * 1000, // 15 minutes
-            maxElevation: Math.random() * 60 + 10, // Random elevation between 10-70 degrees
-            startAzimuth: Math.random() * 360,
-            endAzimuth: Math.random() * 360,
-            startElevation: 5,
-            endElevation: 5
-          })
-        }
-      }
-
-      console.log(`✅ Calculated ${passes.length} passes for NORAD ID: ${noradId}`)
-      console.log(`📊 Pass details:`, passes.map(p => ({
-        startTime: new Date(p.startTime).toLocaleString(),
-        duration: `${Math.floor(p.duration / 60000)}m`,
-        maxElevation: `${Math.round(p.maxElevation)}°`
-      })))
+      console.log(`✅ Got ${passes.length} passes from N2YO for NORAD ID: ${noradId}`)
       return passes
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Pass calculation failed'
-      error.value = errorMessage
-      console.error('Pass calculation error:', err)
-
-      // Return empty array if calculation fails
-      return []
-    } finally {
-      isCalculating.value = false
+      console.error(`❌ Failed to get N2YO passes for NORAD ID: ${noradId}`, err)
+      throw err
     }
   }
 
+
   /**
-   * Get pass predictions with caching
+   * Get pass predictions with caching (N2YO only)
    */
   const getPassPredictionsWithCache = async (
     noradId: number,
     observerLocation: ObserverLocation,
-    tleData: any
+    minElevation: number = 10,
+    n2yoApiKey: string
   ): Promise<PassPrediction[]> => {
     try {
       isLoading.value = true
@@ -151,12 +129,12 @@ export const usePassPrediction = () => {
         return cachedData.passes
       }
 
-      console.log(`🔄 Cache miss or expired for ${noradId}, calculating new passes`)
+      console.log(`🔄 Cache miss or expired for ${noradId}, fetching from N2YO`)
 
-      // Calculate new passes
-      console.log(`🔄 Calculating fresh pass predictions for NORAD ID: ${noradId}`)
-      const passes = await calculatePasses(noradId, observerLocation, tleData)
-      console.log(`✅ Calculated ${passes.length} passes for NORAD ID: ${noradId}`)
+      // Get passes from N2YO API
+      console.log(`🛰️ Getting passes from N2YO API for NORAD ID: ${noradId}`)
+      const passes = await getPassesFromN2YO(noradId, observerLocation, minElevation, 7, n2yoApiKey)
+      console.log(`✅ Successfully got ${passes.length} passes from N2YO for NORAD ID: ${noradId}`)
 
       // Cache the results
       console.log(`💾 Storing ${passes.length} passes for NORAD ID: ${noradId} in database`)
@@ -215,8 +193,10 @@ export const usePassPrediction = () => {
    * Calculate passes for multiple satellites
    */
   const calculatePassesForSatellites = async (
-    satellites: Array<{ noradId: number; tleData: any }>,
-    observerLocation: ObserverLocation
+    satellites: Array<{ noradId: number }>,
+    observerLocation: ObserverLocation,
+    minElevation: number = 10,
+    n2yoApiKey: string
   ): Promise<Map<number, PassPrediction[]>> => {
     try {
       isLoading.value = true
@@ -234,7 +214,8 @@ export const usePassPrediction = () => {
           const passes = await getPassPredictionsWithCache(
             satellite.noradId,
             observerLocation,
-            satellite.tleData
+            minElevation,
+            n2yoApiKey
           )
           console.log(`✅ Got ${passes.length} passes for satellite ${satellite.noradId}`)
           results.set(satellite.noradId, passes)
@@ -321,7 +302,6 @@ export const usePassPrediction = () => {
     isCalculating: readonly(isCalculating),
 
     // Methods
-    calculatePasses,
     getPassPredictionsWithCache,
     getAllPassPredictionsSorted,
     calculatePassesForSatellites,

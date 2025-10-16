@@ -680,6 +680,71 @@ export const useIndexedDB = () => {
   }
 
   /**
+   * Store credentials
+   */
+  const storeCredentials = async (credentials: { username: string; password: string; satnogsToken?: string; n2yoApiKey?: string }): Promise<void> => {
+    await init()
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.value!.transaction([credentialsStoreName], 'readwrite')
+      const store = transaction.objectStore(credentialsStoreName)
+
+      const request = store.put({
+        id: 'credentials',
+        username: credentials.username,
+        password: credentials.password,
+        satnogsToken: credentials.satnogsToken || '',
+        n2yoApiKey: credentials.n2yoApiKey || '',
+        timestamp: new Date().toISOString()
+      })
+
+      request.onsuccess = () => {
+        console.log('Credentials stored successfully')
+        resolve()
+      }
+
+      request.onerror = () => {
+        const error = request.error || new Error('Failed to store credentials')
+        console.error('Failed to store credentials:', error)
+        reject(error)
+      }
+    })
+  }
+
+  /**
+   * Get credentials
+   */
+  const getCredentials = async (): Promise<{ username: string; password: string; satnogsToken: string; n2yoApiKey: string } | null> => {
+    await init()
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.value!.transaction([credentialsStoreName], 'readonly')
+      const store = transaction.objectStore(credentialsStoreName)
+      const request = store.get('credentials')
+
+      request.onsuccess = () => {
+        const result = request.result
+        if (result) {
+          resolve({
+            username: result.username || '',
+            password: result.password || '',
+            satnogsToken: result.satnogsToken || '',
+            n2yoApiKey: result.n2yoApiKey || ''
+          })
+        } else {
+          resolve(null)
+        }
+      }
+
+      request.onerror = () => {
+        const error = request.error || new Error('Failed to get credentials')
+        console.error('Failed to get credentials:', error)
+        reject(error)
+      }
+    })
+  }
+
+  /**
    * Clear error state
    */
   const clearError = (): void => {
@@ -703,6 +768,8 @@ export const useIndexedDB = () => {
     getPassPredictions,
     getAllPassPredictions,
     clearPassPredictions,
+    storeCredentials,
+    getCredentials,
     getStorageInfo,
     clearTLEData,
     clearTransmitterData,

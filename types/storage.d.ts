@@ -8,12 +8,19 @@ export interface StorageSettings {
   spaceTrackUsername: string
   spaceTrackPassword: string
   satnogsToken: string
+  n2yoApiKey: string
   updateInterval: number
   observationLocation: ObservationLocation
   transmitterFilters: TransmitterFilters
   gridSquare: string
   useGPS: boolean
   minElevation: number
+  distanceUnits: string
+  compassType: string
+  autoUpdateTLE: boolean
+  soundAlerts: boolean
+  highAccuracyGPS: boolean
+  autoCalibrateCompass: boolean
 }
 
 export interface TransmitterFilters {

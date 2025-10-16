@@ -1,468 +1,268 @@
 <template>
-  <div class="min-h-screen space-gradient p-4">
-    <!-- Header - Smaller -->
-    <header class="text-center mb-6">
-      <div class="flex items-center justify-between mb-1">
-        <div class="w-8"></div> <!-- Spacer -->
-        <h1 class="text-2xl font-bold bg-gradient-to-r from-primary-400 to-primary-600 bg-clip-text text-transparent">
-          🛰️ SatTrack
-        </h1>
-        <button
-          @click="goToSettings"
-          class="w-8 h-8 flex items-center justify-center text-primary-400 hover:text-primary-300 transition-colors bg-space-800 hover:bg-space-700 rounded-lg"
-        >
-          ⚙️
-        </button>
-      </div>
-      <p class="text-space-300 text-sm">Handheld Yagi Antenna Tracker</p>
-    </header>
+  <NuxtLayout name="default" title="🛰️ SatTrack" subtitle="Satellite Tracking System">
+    <!-- Observation Location -->
+    <ObservationLocation />
 
-    <!-- Satellite Selection - Compact -->
-    <div class="max-w-lg mx-auto mb-6">
-      <div class="card p-4">
-        <label class="block text-xs font-medium text-space-300 mb-1">
-          Satellite
-        </label>
-        <select
-          v-model="selectedSatellite"
-          class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
-        >
-          <option
-            v-for="satellite in settings.trackedSatellites"
-            :key="satellite.noradId"
-            :value="satellite.name"
-          >
-            {{ satellite.name }} ({{ satellite.noradId }})
-          </option>
-        </select>
-      </div>
-    </div>
-
-    <!-- Compass - Larger -->
-    <div class="max-w-sm mx-auto mb-6">
-      <Compass ref="compassRef" />
-    </div>
-
-    <!-- Satellite Information - Compact -->
-    <div class="max-w-lg mx-auto mb-6">
-      <div class="card p-4">
-        <div class="grid grid-cols-2 gap-4 text-center">
-          <div>
-            <div class="text-xs text-space-300 mb-1">Azimuth</div>
-            <div class="text-lg font-mono text-primary-400">
-              {{ satelliteAzimuth }}°
-            </div>
-            <div class="text-xs text-space-400">
-              → {{ azimuthDelta }}°
-            </div>
-          </div>
-          <div>
-            <div class="text-xs text-space-300 mb-1">Elevation</div>
-            <div class="text-lg font-mono text-primary-400">
-              {{ satelliteElevation }}°
-            </div>
-            <div class="text-xs text-space-400">
-              ↑ {{ elevationDelta }}°
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Elevation Meter - Larger -->
-    <div class="max-w-lg mx-auto mb-6">
-      <ElevationMeter />
-    </div>
-
-    <!-- Range and Next Pass - Compact -->
-    <div class="max-w-lg mx-auto">
-      <div class="card p-4">
-        <div class="grid grid-cols-2 gap-4 text-center">
-          <div>
-            <div class="text-xs text-space-300 mb-1">Range</div>
-            <div class="text-sm font-mono text-primary-400">{{ satelliteRange }} km</div>
-          </div>
-          <div>
-            <div class="text-xs text-space-300 mb-1">Next Pass</div>
-            <div class="text-sm font-mono text-primary-400">{{ nextPassTime }}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-        <!-- Status - Enhanced -->
-        <ClientOnly>
-          <div class="max-w-lg mx-auto mt-6">
-            <div class="text-center text-xs text-space-400 space-y-1">
-              <div v-if="!locationPermission" class="text-orange-400 mb-1">
-                ⚠️ Location permission required
-              </div>
-              <div v-if="!orientationPermission" class="text-orange-400 mb-1">
-                ⚠️ Device orientation permission required
-              </div>
-              <div v-if="locationPermission && userLocation.accuracy > 0" class="text-blue-400">
-                📍 Location accuracy: ±{{ Math.round(userLocation.accuracy) }}m
-              </div>
-              <div v-if="locationPermission && userLocation.altitudeAccuracy > 0" class="text-blue-400">
-                🏔️ Altitude accuracy: ±{{ Math.round(userLocation.altitudeAccuracy) }}m
-              </div>
-              <div v-if="tleLoading" class="text-blue-400">
-                📡 Fetching TLE data...
-              </div>
-              <div v-if="isOffline" class="text-yellow-400">
-                📶 Using cached data (offline mode)
-              </div>
-              <div v-if="!hasTLEData(settings.trackedSatellites.find(s => s.name === selectedSatellite)?.noradId)" class="text-orange-400">
-                ⚠️ No TLE data for {{ selectedSatellite }}
-              </div>
-              <div v-if="locationPermission && orientationPermission && hasTLEData(settings.trackedSatellites.find(s => s.name === selectedSatellite)?.noradId)" class="text-green-400">
-                ✅ Ready for tracking with {{ cacheStatus === 'fresh' ? 'fresh' : 'cached' }} TLE data!
-              </div>
-              <div v-if="!credentials.username || !credentials.password" class="text-yellow-400">
-                ⚠️ Please configure Space-Track.org credentials in settings
-              </div>
-              <div v-if="credentials.username && credentials.password && getDataFreshness().age !== null" class="text-blue-400">
-                📊 TLE data: {{ getDataFreshness().age }} min old ({{ cacheStatus }})
-              </div>
-            </div>
-          </div>
-          <template #fallback>
-            <div class="max-w-lg mx-auto mt-6">
-              <div class="text-center text-xs text-space-400">
-                <div class="text-blue-400">🔄 Loading sensors...</div>
-              </div>
-            </div>
-          </template>
-        </ClientOnly>
-  </div>
+    <!-- Combined Satellite Data -->
+    <CombinedSatelliteData
+      :combined-data="combinedData"
+      :get-t-l-e-data="getTLEData"
+      :format-frequency="formatFrequency"
+    />
+  </NuxtLayout>
 </template>
 
 <script setup>
-import { useTLEData } from '~/composables/useTLEData.js'
-import { useSatelliteCalculations } from '~/composables/useSatelliteCalculations.js'
-import secureStorage from '~/utils/secureStorage.js'
+import { ref, onMounted, watch } from 'vue'
+import ObservationLocation from '~/components/common/ObservationLocation.vue'
+import CombinedSatelliteData from '~/components/common/CombinedSatelliteData.vue'
 
-// Composables
+// Import composables
 const {
-  tleData,
-  isLoading: tleLoading,
-  fetchTLEData,
+  settings,
+  loadSettings
+} = useSettings()
+
+const {
   getTLEData,
-  hasTLEData,
-  getDataFreshness,
-  initializeTLEData,
-  refreshTLEData,
-  isOffline,
-  cacheStatus
+  initializeTLEData
 } = useTLEData()
 
-const {
-  calculateSatellitePosition,
-  calculateNextPass,
-  getVisibilityStatus
-} = useSatelliteCalculations()
+// Reactive state
+const combinedData = ref({})
 
-// Reactive data
-const selectedSatellite = ref('')
-const satelliteAzimuth = ref(0)
-const satelliteElevation = ref(0)
-const azimuthDelta = ref(0)
-const elevationDelta = ref(0)
-const satelliteRange = ref(0)
-const nextPassTime = ref('Calculating...')
+// CTCSS parsing function
+const parseCTCSS = (description) => {
+  if (!description) return null
 
-// Settings - Load from secure storage
-const settings = ref({
-  trackedSatellites: [],
-  updateInterval: 5000,
-  distanceUnits: 'km'
-})
+  // Look for CTCSS/subtone patterns like "67.0 Hz", "67.0", "CTCSS 67.0", etc.
+  const ctcssPatterns = [
+    /(\d+\.?\d*)\s*Hz/i,
+    /CTCSS\s*(\d+\.?\d*)/i,
+    /subtone\s*(\d+\.?\d*)/i,
+    /(\d+\.?\d*)\s*CTCSS/i
+  ]
 
-// Credentials loaded from secure storage
-const credentials = ref({
-  username: '',
-  password: ''
-})
-
-// User location with precision
-const userLocation = ref({
-  latitude: 0,
-  longitude: 0,
-  altitude: 0,
-  accuracy: 0,
-  altitudeAccuracy: 0,
-  heading: 0,
-  speed: 0
-})
-
-// Compass reference
-const compassRef = ref(null)
-
-// Device orientation data
-const deviceOrientation = ref({
-  alpha: 0, // not used for compass (GPS heading used instead)
-  beta: 0,  // front-to-back tilt
-  gamma: 0  // left-to-right tilt
-})
-
-// Permissions
-const locationPermission = ref(false)
-const orientationPermission = ref(false)
-
-// Handle device orientation (for tilt only, not compass)
-const handleOrientation = (event) => {
-  deviceOrientation.value = {
-    alpha: event.alpha || 0,
-    beta: event.beta || 0,
-    gamma: event.gamma || 0
-  }
-
-  // Use GPS heading for azimuth, device tilt for elevation
-  const currentHeading = userLocation.value.heading || 0
-  azimuthDelta.value = Math.round(satelliteAzimuth.value - currentHeading)
-  elevationDelta.value = Math.round(satelliteElevation.value - deviceOrientation.value.beta)
-}
-
-// Handle geolocation with enhanced data
-const handleLocation = (position) => {
-  userLocation.value = {
-    latitude: position.coords.latitude,
-    longitude: position.coords.longitude,
-    altitude: position.coords.altitude || 0,
-    accuracy: position.coords.accuracy || 0,
-    altitudeAccuracy: position.coords.altitudeAccuracy || 0,
-    heading: position.coords.heading || 0,
-    speed: position.coords.speed || 0
-  }
-
-  console.log('Location updated:', userLocation.value)
-
-  // Update compass with GPS heading
-  if (compassRef.value && userLocation.value.heading !== null) {
-    compassRef.value.updateGPSHeading(userLocation.value.heading)
-  }
-
-  // Calculate satellite position with real location
-  calculateCurrentSatellitePosition()
-}
-
-// Calculate satellite position using real TLE data
-const calculateCurrentSatellitePosition = async () => {
-  if (!userLocation.value.latitude || !userLocation.value.longitude) {
-    console.warn('No user location available for satellite calculation')
-    return
-  }
-
-  // Find selected satellite
-  const selectedSat = settings.value.trackedSatellites.find(sat => sat.name === selectedSatellite.value)
-  if (!selectedSat) {
-    console.warn('Selected satellite not found')
-    return
-  }
-
-  // Check if we have TLE data for this satellite
-  if (!hasTLEData(selectedSat.noradId)) {
-    console.warn(`No TLE data available for ${selectedSat.name} (${selectedSat.noradId})`)
-
-    // Try to fetch TLE data if credentials are available
-    if (credentials.value.username && credentials.value.password) {
-      try {
-        await fetchTLEData([selectedSat], credentials.value.username, credentials.value.password)
-      } catch (error) {
-        console.error('Failed to fetch TLE data:', error)
-      }
+  for (const pattern of ctcssPatterns) {
+    const match = description.match(pattern)
+    if (match) {
+      return parseFloat(match[1])
     }
-    return
   }
 
+  return null
+}
+
+// Load stored transmitter data
+const loadStoredTransmitterData = async () => {
   try {
-    const tleData = getTLEData(selectedSat.noradId)
-    const observerLocation = {
-      latitude: userLocation.value.latitude,
-      longitude: userLocation.value.longitude,
-      altitude: userLocation.value.altitude
-    }
+    const transmitterData = await indexedDBStorage.getAllTransponderData()
+    console.log('🔍 Debug: Raw transmitter data from IndexedDB:', transmitterData)
+    console.log('🔍 Debug: Type of transmitter data:', typeof transmitterData)
+    console.log('🔍 Debug: Is array?', Array.isArray(transmitterData))
 
-    // Calculate satellite position
-    const position = calculateSatellitePosition(tleData, observerLocation)
-
-    if (position) {
-      satelliteAzimuth.value = position.azimuth
-      satelliteElevation.value = position.elevation
-      satelliteRange.value = settings.value.distanceUnits === 'miles' ? position.rangeMiles : position.rangeKm
-
-      // Calculate deltas using GPS heading for azimuth
-      const currentHeading = userLocation.value.heading || 0
-      azimuthDelta.value = Math.round(satelliteAzimuth.value - currentHeading)
-      elevationDelta.value = Math.round(satelliteElevation.value - deviceOrientation.value.beta)
-
-      // Calculate next pass
-      const nextPass = calculateNextPass(tleData, observerLocation)
-      if (nextPass) {
-        const passTime = new Date(nextPass.startTime)
-        nextPassTime.value = passTime.toUTCString().substring(17, 22) + ' UTC'
-      } else {
-        nextPassTime.value = 'No pass found'
-      }
-
-      console.log('Satellite position calculated:', position)
-    } else {
-      console.warn('Failed to calculate satellite position')
-    }
-  } catch (error) {
-    console.error('Satellite calculation error:', error)
-  }
-}
-
-// Request permissions with enhanced options
-const requestPermissions = async () => {
-  // Request geolocation with high accuracy
-  if (navigator.geolocation) {
-    const options = {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 30000
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        locationPermission.value = true
-        handleLocation(position)
-
-        // Start watching position for continuous updates
-        navigator.geolocation.watchPosition(
-          handleLocation,
-          (error) => console.error('Watch position error:', error),
-          options
-        )
-      },
-      (error) => {
-        console.error('Geolocation error:', error)
-        locationPermission.value = false
-
-        // Show specific error messages
-        switch(error.code) {
-          case error.PERMISSION_DENIED:
-            console.error('Location access denied by user')
-            break
-          case error.POSITION_UNAVAILABLE:
-            console.error('Location information unavailable')
-            break
-          case error.TIMEOUT:
-            console.error('Location request timed out')
-            break
+    // Convert array to object keyed by NORAD ID
+    const transmitterDataObj = {}
+    if (Array.isArray(transmitterData)) {
+      transmitterData.forEach(data => {
+        console.log('🔍 Debug: Processing array item:', data)
+        if (data.noradId) {
+          // Handle different data structures
+          if (Array.isArray(data.data)) {
+            // Newer format: {noradId: 25544, data: Array(38), timestamp: '...'}
+            transmitterDataObj[data.noradId] = data.data
+          } else if (data.data && data.data.transmitters) {
+            // Older format: {noradId: '25544', data: {transmitters: [...]}, timestamp: '...'}
+            transmitterDataObj[data.noradId] = data.data.transmitters
+          } else if (data.transmitters) {
+            // Fallback: direct transmitters property
+            transmitterDataObj[data.noradId] = data.transmitters
+          } else {
+            // Last resort: use the data as-is
+            transmitterDataObj[data.noradId] = data.data || data
+          }
         }
-      },
-      options
-    )
-  }
+      })
+    } else if (transmitterData && typeof transmitterData === 'object') {
+      console.log('🔍 Debug: Processing object keys:', Object.keys(transmitterData))
+      Object.keys(transmitterData).forEach(noradId => {
+        transmitterDataObj[noradId] = transmitterData[noradId]
+      })
+    }
 
-  // Request device orientation with enhanced permissions
-  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-    try {
-      const response = await DeviceOrientationEvent.requestPermission()
-      if (response === 'granted') {
-        orientationPermission.value = true
-        window.addEventListener('deviceorientation', handleOrientation)
-        console.log('Device orientation permission granted')
-      } else {
-        console.error('Device orientation permission denied')
-        orientationPermission.value = false
+    console.log('🔍 Debug: Transmitter data converted to object:', Object.keys(transmitterDataObj))
+    console.log('🔍 Debug: Sample transmitter data for ISS (25544):', transmitterDataObj['25544'])
+    console.log('🔍 Debug: First ISS transmitter:', transmitterDataObj['25544']?.[0])
+
+    // Analyze transmitter types for filtering
+    const allTransmitters = Object.values(transmitterDataObj).flat()
+    const transmitterTypes = new Set()
+    const transmitterModes = new Set()
+    const transmitterServices = new Set()
+
+    allTransmitters.forEach(transmitter => {
+      if (transmitter.description) {
+        const desc = transmitter.description.toLowerCase()
+        if (desc.includes('amateur') || desc.includes('ham')) transmitterTypes.add('amateur')
+        if (desc.includes('fm')) transmitterTypes.add('fm')
+        if (desc.includes('cw')) transmitterTypes.add('cw')
+        if (desc.includes('aprs')) transmitterTypes.add('aprs')
+        if (desc.includes('sstv')) transmitterTypes.add('sstv')
+        if (desc.includes('telemetry')) transmitterTypes.add('telemetry')
+        if (desc.includes('voice')) transmitterTypes.add('voice')
+        if (desc.includes('repeater')) transmitterTypes.add('repeater')
+        if (desc.includes('beacon')) transmitterTypes.add('beacon')
+        if (desc.includes('weather') || desc.includes('apt')) transmitterTypes.add('weather')
+        if (desc.includes('communication') || desc.includes('comm')) transmitterTypes.add('communication')
       }
-    } catch (error) {
-      console.error('Orientation permission error:', error)
-      orientationPermission.value = false
-    }
-  } else {
-    // For browsers that don't require permission
-    orientationPermission.value = true
-    window.addEventListener('deviceorientation', handleOrientation)
-    console.log('Device orientation available without permission')
-  }
-}
 
-// Load settings from secure storage
-const loadSettings = async () => {
-  try {
-    // Load general settings
-    const savedSettings = secureStorage.getSettings()
-    if (savedSettings) {
-      settings.value = { ...settings.value, ...savedSettings }
+      if (transmitter.mode) transmitterModes.add(transmitter.mode.toLowerCase())
+      if (transmitter.service) transmitterServices.add(transmitter.service.toLowerCase())
+    })
 
-      // Set first satellite as selected if none is selected and satellites exist
-      if (!selectedSatellite.value && settings.value.trackedSatellites.length > 0) {
-        selectedSatellite.value = settings.value.trackedSatellites[0].name
-      }
+    console.log('🔍 Debug: Available transmitter types:', Array.from(transmitterTypes))
+    console.log('🔍 Debug: Available transmitter modes:', Array.from(transmitterModes))
+    console.log('🔍 Debug: Available transmitter services:', Array.from(transmitterServices))
+
+    // Build combined data from tracked satellites
+    const combined = {}
+    if (settings.value.trackedSatellites) {
+      settings.value.trackedSatellites.forEach(satellite => {
+        if (satellite.noradId) {
+          const transmitters = transmitterDataObj[satellite.noradId] || []
+          console.log(`🔍 Debug: Transmitters for ${satellite.name} (${satellite.noradId}):`, transmitters)
+
+                 combined[satellite.noradId] = {
+                   satellite: {
+                     name: satellite.name,
+                     status: satellite.status || 'alive',
+                     names: satellite.names || satellite.name
+                   },
+                   timestamp: new Date().toISOString(),
+                   transmitters: filterTransmitters(transmitters)
+                 }
+        }
+      })
     }
 
-    // Load encrypted credentials
-    const storedCredentials = await secureStorage.getCredentials()
-    if (storedCredentials) {
-      credentials.value = storedCredentials
-      console.log('Credentials loaded securely')
-    }
+    combinedData.value = combined
+    console.log('🔍 Debug: Final combined data:', Object.keys(combinedData.value))
+    console.log('🔍 Debug: ISS combined data:', combinedData.value['25544'])
   } catch (error) {
-    console.error('Failed to load settings:', error)
+    console.error('Failed to load stored transmitter data:', error)
   }
 }
 
-// Navigation
-const goToSettings = () => {
-  navigateTo('/settings')
+// Filter transmitters based on settings
+const filterTransmitters = (transmitters) => {
+  if (!transmitters || !Array.isArray(transmitters)) return []
+
+  console.log('🔍 Debug: Filtering transmitters with settings:', settings.value.transmitterFilters)
+
+  return transmitters.filter(transmitter => {
+    if (!transmitter.description) return true
+
+    const desc = transmitter.description.toLowerCase()
+    const filters = settings.value.transmitterFilters || {}
+
+    console.log(`🔍 Debug: Checking transmitter "${transmitter.description}" against filters:`, filters)
+
+    // Check each filter type
+    if (desc.includes('amateur') || desc.includes('ham')) {
+      console.log('🔍 Debug: Found amateur/ham transmitter, filter enabled:', filters.amateur !== false)
+      return filters.amateur !== false
+    }
+    if (desc.includes('fm')) {
+      console.log('🔍 Debug: Found FM transmitter, filter enabled:', filters.fm !== false)
+      return filters.fm !== false
+    }
+    if (desc.includes('cw')) {
+      console.log('🔍 Debug: Found CW transmitter, filter enabled:', filters.cw !== false)
+      return filters.cw !== false
+    }
+    if (desc.includes('aprs')) {
+      console.log('🔍 Debug: Found APRS transmitter, filter enabled:', filters.aprs !== false)
+      return filters.aprs !== false
+    }
+    if (desc.includes('sstv')) {
+      console.log('🔍 Debug: Found SSTV transmitter, filter enabled:', filters.sstv !== false)
+      return filters.sstv !== false
+    }
+    if (desc.includes('telemetry')) {
+      console.log('🔍 Debug: Found telemetry transmitter, filter enabled:', filters.telemetry !== false)
+      return filters.telemetry !== false
+    }
+    if (desc.includes('voice')) {
+      console.log('🔍 Debug: Found voice transmitter, filter enabled:', filters.voice !== false)
+      return filters.voice !== false
+    }
+    if (desc.includes('repeater')) {
+      console.log('🔍 Debug: Found repeater transmitter, filter enabled:', filters.repeater !== false)
+      return filters.repeater !== false
+    }
+    if (desc.includes('beacon')) {
+      console.log('🔍 Debug: Found beacon transmitter, filter enabled:', filters.beacon !== false)
+      return filters.beacon !== false
+    }
+    if (desc.includes('weather') || desc.includes('apt')) {
+      console.log('🔍 Debug: Found weather transmitter, filter enabled:', filters.weather !== false)
+      return filters.weather !== false
+    }
+    if (desc.includes('communication') || desc.includes('comm')) {
+      console.log('🔍 Debug: Found communication transmitter, filter enabled:', filters.communication !== false)
+      return filters.communication !== false
+    }
+
+    // If no specific type matches, show it (default behavior)
+    console.log('🔍 Debug: No specific type match, showing transmitter by default')
+    return true
+  })
 }
 
-// Watch for satellite changes
-watch(selectedSatellite, () => {
-  calculateCurrentSatellitePosition()
-})
+const formatFrequency = (transmitter) => {
+  if (!transmitter) return 'Unknown'
 
+  // Try different frequency field names from SatNOGS API
+  let frequency = transmitter.downlink_low ||
+                 transmitter.uplink_low ||
+                 transmitter.downlink_high ||
+                 transmitter.uplink_high ||
+                 transmitter.frequency ||
+                 transmitter.downlink_frequency ||
+                 transmitter.uplink_frequency
+
+  if (!frequency) return 'Unknown'
+
+  // Handle different frequency formats
+  if (typeof frequency === 'number') {
+    if (frequency >= 1000000) {
+      return `${(frequency / 1000000).toFixed(3)} MHz`
+    } else if (frequency >= 1000) {
+      return `${(frequency / 1000).toFixed(0)} kHz`
+    } else {
+      return `${frequency} Hz`
+    }
+  }
+
+  // If it's already a string, return as-is
+  return frequency.toString()
+}
+
+// Watch for changes in transmitter filters and reload data
+watch(() => settings.value.transmitterFilters, async () => {
+  console.log('🔍 Debug: Transmitter filters changed, reloading data...')
+  await loadStoredTransmitterData()
+}, { deep: true })
+
+// Load data on mount
 onMounted(async () => {
   await loadSettings()
-  requestPermissions()
-
-  // Initialize TLE data (loads from cache or fetches fresh)
-  if (credentials.value.username && credentials.value.password) {
-    try {
-      await initializeTLEData(settings.value.trackedSatellites, credentials.value.username, credentials.value.password)
-    } catch (error) {
-      console.error('TLE data initialization failed:', error.message)
-    }
-  } else {
-    console.log('No Space-Track.org credentials provided. Please configure in settings.')
-  }
-
-  // Update satellite position every 5 seconds
-  setInterval(calculateCurrentSatellitePosition, 5000)
-
-  // Auto-refresh TLE data every 2 hours if credentials are available
-  if (credentials.value.username && credentials.value.password) {
-    setInterval(async () => {
-      const freshness = getDataFreshness()
-      if (freshness.needsRefresh) {
-        console.log('Auto-refreshing TLE data...')
-        try {
-          await refreshTLEData(settings.value.trackedSatellites, credentials.value.username, credentials.value.password)
-        } catch (error) {
-          console.error('Auto-refresh failed:', error)
-        }
-      }
-    }, 2 * 60 * 60 * 1000) // 2 hours
-  }
-})
-
-onUnmounted(() => {
-  window.removeEventListener('deviceorientation', handleOrientation)
-})
-
-// SEO
-useHead({
-  title: 'SatTrack - Handheld Yagi Antenna Tracker',
-  meta: [
-    { name: 'description', content: 'Track satellites with your handheld Yagi antenna using this PWA application' }
-  ]
+  console.log('🔍 Debug: Settings loaded:', settings.value.transmitterFilters)
+  await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
+  await loadStoredTransmitterData()
 })
 </script>
 
 <style scoped>
-/* Additional styles if needed */
+/* Custom styles if needed */
 </style>

@@ -16,6 +16,7 @@
     "unocss": "^66.5.3"
   },
   "dependencies": {
-    "satellite.js": "^6.0.1"
+    "satellite.js": "^6.0.1",
+    "tle.js": "^5.0.1"
   }
 }

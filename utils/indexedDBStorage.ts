@@ -937,6 +937,36 @@ class IndexedDBStorage {
   }
 
   /**
+   * Clear pass prediction data for a specific satellite
+   */
+  async clearPassPredictionsForSatellite(noradId: number): Promise<void> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.passPredictionStoreName], 'readwrite')
+      const store = transaction.objectStore(this.passPredictionStoreName)
+      const index = store.index('noradId')
+      const request = index.openCursor(IDBKeyRange.only(noradId))
+
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest).result
+        if (cursor) {
+          cursor.delete()
+          cursor.continue()
+        } else {
+          console.log(`Pass prediction data cleared for NORAD ID: ${noradId}`)
+          resolve()
+        }
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to clear pass prediction data for NORAD ID: ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
    * Close database connection
    */
   close(): void {

@@ -680,6 +680,51 @@ export const useIndexedDB = () => {
   }
 
   /**
+   * Clear pass prediction data for a specific satellite
+   */
+  const clearPassPredictionsForSatellite = async (noradId: number): Promise<void> => {
+    if (!db.value) {
+      await init()
+    }
+
+    return new Promise((resolve, reject) => {
+      try {
+        isLoading.value = true
+        error.value = null
+
+        const transaction = db.value!.transaction(['passPredictions'], 'readwrite')
+        const store = transaction.objectStore('passPredictions')
+        const index = store.index('noradId')
+        const request = index.openCursor(IDBKeyRange.only(noradId))
+
+        request.onsuccess = (event) => {
+          const cursor = (event.target as IDBRequest).result
+          if (cursor) {
+            cursor.delete()
+            cursor.continue()
+          } else {
+            console.log(`Pass prediction data cleared for NORAD ID: ${noradId}`)
+            isLoading.value = false
+            resolve()
+          }
+        }
+
+        request.onerror = () => {
+          error.value = request.error?.message || `Failed to clear pass prediction data for NORAD ID: ${noradId}`
+          console.error(`Pass prediction clear error for NORAD ID: ${noradId}:`, request.error)
+          isLoading.value = false
+          reject(request.error)
+        }
+      } catch (err) {
+        error.value = err instanceof Error ? err.message : `Failed to clear pass prediction data for NORAD ID: ${noradId}`
+        console.error(`Pass prediction clear error for NORAD ID: ${noradId}:`, err)
+        isLoading.value = false
+        reject(err)
+      }
+    })
+  }
+
+  /**
    * Store credentials
    */
   const storeCredentials = async (credentials: { username: string; password: string; satnogsToken?: string; n2yoApiKey?: string }): Promise<void> => {
@@ -768,6 +813,7 @@ export const useIndexedDB = () => {
     getPassPredictions,
     getAllPassPredictions,
     clearPassPredictions,
+    clearPassPredictionsForSatellite,
     storeCredentials,
     getCredentials,
     getStorageInfo,

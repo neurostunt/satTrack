@@ -13,7 +13,7 @@
       <div class="bg-space-800 border border-space-700 rounded-lg p-4">
         <h3 class="text-lg font-semibold text-primary-400 mb-4 flex items-center">
           🛰️ Pass Predictions
-          <span class="ml-2 text-sm text-space-300">({{ Object.keys(combinedData).length }} satellites)</span>
+          <span class="ml-2 text-sm text-space-300">({{ sortedPasses.length }} upcoming passes)</span>
         </h3>
 
         <!-- Loading State -->
@@ -34,13 +34,19 @@
             v-for="pass in sortedPasses"
             :key="`${pass.noradId}-${pass.startTime}`"
             class="bg-space-900 border border-space-600 rounded p-3"
-            :class="{ 'bg-space-800': isPassExpanded(pass.noradId, pass.startTime) }"
+            :class="{ 
+              'bg-space-800': isPassExpanded(pass.noradId, pass.startTime),
+              'passing-card': getPassStatus(pass.startTime, pass.endTime, pass.noradId) === 'passing'
+            }"
           >
             <!-- Clickable Header -->
             <div
               @click="togglePassData(pass.noradId, pass.startTime)"
               class="flex items-center justify-between mb-1 cursor-pointer rounded py-1 px-2 transition-all duration-300 ease-in-out hover:scale-[1.01] group"
-              :class="isPassExpanded(pass.noradId, pass.startTime) ? 'bg-space-800' : 'hover:bg-space-800'"
+              :class="[
+                isPassExpanded(pass.noradId, pass.startTime) ? 'bg-space-800' : 'hover:bg-space-800',
+                { 'passing-header': getPassStatus(pass.startTime, pass.endTime, pass.noradId) === 'passing' }
+              ]"
             >
               <div class="flex items-center gap-2 w-full">
                 <div class="flex flex-col w-full">
@@ -57,7 +63,7 @@
                   <div class="flex items-center gap-2 text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out -mt-2 pb-2">
                     <span>NORAD ID: {{ pass.noradId }}</span>
                     <span class="text-primary-400 font-medium">
-                      {{ formatTimeUntilPass(pass.startTime) }}
+                      {{ formatTimeUntilPass(pass.startTime, pass.endTime, pass.noradId) }}
                     </span>
                   </div>
                 </div>
@@ -123,7 +129,7 @@
                     </div>
                     <div class="flex justify-between">
                       <span class="text-space-400">Time Until Pass:</span>
-                      <span class="text-primary-400 font-medium">{{ formatTimeUntilPass(pass.startTime) }}</span>
+                      <span class="text-primary-400 font-medium">{{ formatTimeUntilPass(pass.startTime, pass.endTime, pass.noradId) }}</span>
                     </div>
                   </div>
                 </div>
@@ -228,59 +234,113 @@ const sortedPasses = computed(() => {
   console.log('🔄 passPredictions.value.size:', passPredictions.value.size)
 
   const allPasses = []
+  const currentTimeNow = currentTime.value
 
-  // Get all passes from all satellites
+  // Get all passes from satellites that have at least one upcoming pass
   passPredictions.value.forEach((passes, noradId) => {
     console.log(`🔄 Processing passes for NORAD ID: ${noradId}, count: ${passes.length}`)
 
-    // Find satellite name
-    const satellite = settings.value.trackedSatellites?.find(s => parseInt(s.noradId) === noradId)
-    const satelliteName = satellite?.name || satellite?.names || `Satellite ${noradId}`
-    console.log(`🔄 Satellite name for ${noradId}: ${satelliteName}`)
-
-    // Get transmitter count for this satellite
-    const transmitterCount = combinedData.value[noradId]?.transmitters?.length || 0
-    console.log(`🔄 Transmitter count for ${noradId}: ${transmitterCount}`)
-
-    // Add each pass with satellite info
-    passes.forEach((pass, index) => {
-      console.log(`🔄 Adding pass ${index} for ${noradId}:`, pass)
-      allPasses.push({
-        ...pass,
-        noradId,
-        satelliteName,
-        transmitterCount
+    // Special handling for geostationary satellites
+    const geostationarySatellites = [43700] // QO-100 and other GEO satellites
+    const isGeostationary = geostationarySatellites.includes(noradId)
+    
+    // Filter passes for this satellite - include passes that ended less than 10 seconds ago
+    let validPasses = passes
+    if (!isGeostationary) {
+      validPasses = passes.filter(pass => {
+        const timeSinceEnd = currentTimeNow - pass.endTime
+        return pass.endTime > currentTimeNow || timeSinceEnd < 10000 // Keep passes that are upcoming OR ended less than 10 seconds ago
       })
-    })
+    }
+    
+    // Only process satellites that have valid passes (upcoming or recently passed)
+    if (validPasses.length > 0) {
+      console.log(`🔄 Satellite ${noradId} has ${validPasses.length} valid passes`)
+
+      // Find satellite name
+      const satellite = settings.value.trackedSatellites?.find(s => parseInt(s.noradId) === noradId)
+      const satelliteName = satellite?.name || satellite?.names || `Satellite ${noradId}`
+      console.log(`🔄 Satellite name for ${noradId}: ${satelliteName}`)
+
+      // Get transmitter count for this satellite
+      const transmitterCount = combinedData.value[noradId]?.transmitters?.length || 0
+      console.log(`🔄 Transmitter count for ${noradId}: ${transmitterCount}`)
+
+      // Add each valid pass with satellite info
+      validPasses.forEach((pass, index) => {
+        console.log(`🔄 Adding pass ${index} for ${noradId}:`, pass)
+        allPasses.push({
+          ...pass,
+          noradId,
+          satelliteName,
+          transmitterCount
+        })
+      })
+    } else {
+      console.log(`🔄 Skipping satellite ${noradId} - no upcoming passes`)
+    }
   })
 
-  console.log(`🔄 Total passes collected: ${allPasses.length}`)
+  console.log(`🔄 Total upcoming passes collected: ${allPasses.length}`)
 
   // Sort by start time (earliest first)
   const sorted = allPasses.sort((a, b) => a.startTime - b.startTime)
-  console.log(`🔄 Sorted passes: ${sorted.length}`)
+  console.log(`🔄 Sorted upcoming passes: ${sorted.length}`)
 
   return sorted
 })
 
-// Helper function to format time until pass
-const formatTimeUntilPass = (startTime) => {
-  const timeUntil = startTime - currentTime.value
+// Reactive state for pass status tracking
+const passStatuses = ref(new Map()) // Track status of each pass: 'upcoming', 'passing', 'passed'
+const passedPasses = ref(new Map()) // Track when passes ended for auto-removal
 
-  if (timeUntil <= 0) {
-    return 'Passed'
+// Helper function to get pass status
+const getPassStatus = (startTime, endTime, noradId) => {
+  const geostationarySatellites = [43700] // QO-100 and other GEO satellites
+  const isGeostationary = geostationarySatellites.includes(noradId)
+  
+  if (isGeostationary) {
+    return 'stationary'
   }
-
-  const hours = Math.floor(timeUntil / (1000 * 60 * 60))
-  const minutes = Math.floor((timeUntil % (1000 * 60 * 60)) / (1000 * 60))
-  const seconds = Math.floor((timeUntil % (1000 * 60)) / 1000)
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`
-  } else if (minutes > 0) {
-    return `${minutes}m ${seconds}s`
+  
+  const now = currentTime.value
+  
+  if (now < startTime) {
+    return 'upcoming'
+  } else if (now >= startTime && now <= endTime) {
+    return 'passing'
   } else {
-    return `${seconds}s`
+    return 'passed'
+  }
+}
+
+// Helper function to format time until pass with different states
+const formatTimeUntilPass = (startTime, endTime, noradId) => {
+  const status = getPassStatus(startTime, endTime, noradId)
+  
+  switch (status) {
+    case 'stationary':
+      return 'Stationary'
+    case 'upcoming': {
+      const timeUntil = startTime - currentTime.value
+      const hours = Math.floor(timeUntil / (1000 * 60 * 60))
+      const minutes = Math.floor((timeUntil % (1000 * 60 * 60)) / (1000 * 60))
+      const seconds = Math.floor((timeUntil % (1000 * 60)) / 1000)
+
+      if (hours > 0) {
+        return `${hours}h ${minutes}m`
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds}s`
+      } else {
+        return `${seconds}s`
+      }
+    }
+    case 'passing':
+      return 'Passing'
+    case 'passed':
+      return 'Passed'
+    default:
+      return 'Unknown'
   }
 }
 
@@ -368,8 +428,25 @@ const loadPassPredictions = async () => {
       allStoredPasses.forEach((storedPass, index) => {
         console.log(`📊 Processing stored pass ${index}:`, storedPass)
         if (storedPass.noradId && storedPass.passes && Array.isArray(storedPass.passes)) {
-          console.log(`📊 Adding ${storedPass.passes.length} passes for NORAD ID: ${storedPass.noradId}`)
-          predictionsMap.set(storedPass.noradId, storedPass.passes)
+          // Filter out expired passes when loading from database
+          const currentTime = Date.now()
+          const geostationarySatellites = [43700] // QO-100 and other GEO satellites
+          const isGeostationary = geostationarySatellites.includes(storedPass.noradId)
+          
+          let validPasses = storedPass.passes
+          if (!isGeostationary) {
+            validPasses = storedPass.passes.filter(pass => pass.endTime > currentTime)
+            if (storedPass.passes.length > validPasses.length) {
+              console.log(`⏰ Filtered out ${storedPass.passes.length - validPasses.length} expired passes for NORAD ID: ${storedPass.noradId}`)
+            }
+          }
+          
+          if (validPasses.length > 0) {
+            console.log(`📊 Adding ${validPasses.length} valid passes for NORAD ID: ${storedPass.noradId}`)
+            predictionsMap.set(storedPass.noradId, validPasses)
+          } else {
+            console.log(`📊 No valid passes for NORAD ID: ${storedPass.noradId}`)
+          }
         } else {
           console.log(`⚠️ Skipping invalid stored pass ${index}:`, storedPass)
         }
@@ -690,6 +767,87 @@ const getStatusText = (status) => {
 // Real-time update for time until pass
 const timeUpdateInterval = ref(null)
 
+// Function to clean up expired passes from the current data
+const cleanupExpiredPasses = () => {
+  console.log('🧹 Cleaning up expired passes from current data...')
+  const currentTime = Date.now()
+  const geostationarySatellites = [43700] // QO-100 and other GEO satellites
+  
+  const updatedPredictions = new Map()
+  let totalRemoved = 0
+  let satellitesRemoved = 0
+  
+  passPredictions.value.forEach((passes, noradId) => {
+    const isGeostationary = geostationarySatellites.includes(noradId)
+    
+    if (isGeostationary) {
+      // Keep all passes for geostationary satellites
+      updatedPredictions.set(noradId, passes)
+    } else {
+      // Filter out expired passes
+      const validPasses = passes.filter(pass => pass.endTime > currentTime)
+      const removedCount = passes.length - validPasses.length
+      
+      if (removedCount > 0) {
+        console.log(`🧹 Removed ${removedCount} expired passes for NORAD ID: ${noradId}`)
+        totalRemoved += removedCount
+      }
+      
+      if (validPasses.length > 0) {
+        updatedPredictions.set(noradId, validPasses)
+      } else {
+        console.log(`🧹 Completely removed satellite ${noradId} - no upcoming passes`)
+        satellitesRemoved++
+      }
+    }
+  })
+  
+  if (totalRemoved > 0 || satellitesRemoved > 0) {
+    console.log(`🧹 Total expired passes removed: ${totalRemoved}, satellites removed: ${satellitesRemoved}`)
+    passPredictions.value = updatedPredictions
+  }
+}
+
+// Function to handle auto-removal of passed satellites after 10 seconds
+const handleAutoRemoval = () => {
+  const currentTime = Date.now()
+  const geostationarySatellites = [43700] // QO-100 and other GEO satellites
+  
+  // Check for passes that ended more than 10 seconds ago
+  const updatedPredictions = new Map()
+  let removedCount = 0
+  
+  passPredictions.value.forEach((passes, noradId) => {
+    const isGeostationary = geostationarySatellites.includes(noradId)
+    
+    if (isGeostationary) {
+      // Keep all passes for geostationary satellites
+      updatedPredictions.set(noradId, passes)
+    } else {
+      // Filter out passes that ended more than 10 seconds ago
+      const validPasses = passes.filter(pass => {
+        const timeSinceEnd = currentTime - pass.endTime
+        return timeSinceEnd < 10000 // Keep passes that ended less than 10 seconds ago
+      })
+      
+      const removedPasses = passes.length - validPasses.length
+      if (removedPasses > 0) {
+        console.log(`⏰ Auto-removed ${removedPasses} passes for NORAD ID: ${noradId} (ended ${Math.round((currentTime - passes[0]?.endTime) / 1000)}s ago)`)
+        removedCount += removedPasses
+      }
+      
+      if (validPasses.length > 0) {
+        updatedPredictions.set(noradId, validPasses)
+      }
+    }
+  })
+  
+  if (removedCount > 0) {
+    console.log(`⏰ Auto-removed ${removedCount} total passes`)
+    passPredictions.value = updatedPredictions
+  }
+}
+
 onMounted(async () => {
   console.log('🚀 Pass-predict page mounted, starting data loading...')
 
@@ -716,7 +874,18 @@ onMounted(async () => {
   // Start real-time updates for time until pass
   timeUpdateInterval.value = setInterval(() => {
     currentTime.value = Date.now()
+    
+    // Handle auto-removal of passed satellites (every second)
+    handleAutoRemoval()
+    
+    // Also cleanup expired passes every 30 seconds
+    if (Date.now() % 30000 < 1000) {
+      cleanupExpiredPasses()
+    }
   }, 1000)
+
+  // Initial cleanup of expired passes
+  cleanupExpiredPasses()
 
   console.log('✅ Pass-predict page initialization complete')
 })
@@ -730,5 +899,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* Custom styles if needed */
+/* Blinking animation for passing satellites */
+@keyframes blink {
+  0%, 50% { 
+    background-color: rgba(31, 41, 55, 0.8); /* bg-space-800 */
+  }
+  51%, 100% { 
+    background-color: rgba(31, 41, 55, 0.4); /* lighter version */
+  }
+}
+
+.passing-header {
+  animation: blink 1s infinite;
+}
+
+/* Passing state styling - only header blinking, no card background changes */
+.passing-card .text-primary-300 {
+  color: #10b981 !important; /* green-500 */
+}
 </style>

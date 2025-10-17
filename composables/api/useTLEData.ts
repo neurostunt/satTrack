@@ -77,7 +77,7 @@ export const useTLEData = () => {
   // Use composables
   const spaceTrack = useSpaceTrack()
   const storage = useSecureStorage()
-  const { calculatePassesForSatellites } = usePassPrediction()
+  const { calculatePassesForSatellites, clearExpiredPasses } = usePassPrediction()
   const { settings } = useSettings()
 
   /**
@@ -497,6 +497,10 @@ export const useTLEData = () => {
         message: `Calculating passes for ${satellitesWithTLE.length} satellites...`,
         progress: 'Processing orbital mechanics'
       }
+
+      // Clear expired passes from cache before calculating new ones
+      console.log('🧹 Clearing expired passes before calculating new predictions...')
+      await clearExpiredPasses()
 
       // Calculate passes for all satellites
       console.log(`🔄 About to calculate passes for ${satellitesWithTLE.length} satellites`)

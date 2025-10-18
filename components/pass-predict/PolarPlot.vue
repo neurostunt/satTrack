@@ -40,8 +40,8 @@
         :key="angle"
         :x1="center" 
         :y1="center"
-        :x2="center + radius * Math.sin(degreesToRadians(angle))"
-        :y2="center - radius * Math.cos(degreesToRadians(angle))"
+        :x2="center + radius * Math.sin(angle * Math.PI / 180)"
+        :y2="center - radius * Math.cos(angle * Math.PI / 180)"
         stroke="#475569"
         stroke-width="1"
         opacity="0.3"
@@ -139,20 +139,20 @@
           v-if="peakPoint"
           :cx="peakPoint.x" 
           :cy="peakPoint.y" 
-          r="6" 
-          fill="#f59e0b"
+          r="5" 
+          fill="#94a3b8"
           stroke="#ffffff"
-          stroke-width="2"
-          opacity="0.9"
+          stroke-width="1.5"
+          opacity="0.8"
         />
         <text
           v-if="peakPoint"
           :x="peakPoint.x"
-          :y="peakPoint.y - 12"
+          :y="peakPoint.y - 10"
           text-anchor="middle"
-          fill="#f59e0b"
-          font-size="10"
-          font-weight="bold"
+          fill="#94a3b8"
+          font-size="9"
+          font-weight="600"
         >Peak</text>
       </g>
 
@@ -257,18 +257,22 @@ const props = defineProps({
   }
 })
 
+// ============================================================================
 // Constants
+// ============================================================================
 const center = 200 // Center of SVG (400/2)
 const radius = 180 // Outer radius (horizon)
 
-/**
- * Convert degrees to radians
- */
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/** Convert degrees to radians */
 const degreesToRadians = (degrees) => {
   return (degrees * Math.PI) / 180
 }
 
-/**
+/** 
  * Convert elevation (0-90°) to radius on plot
  * 90° elevation = center (radius 0)
  * 0° elevation = outer edge (radius = max)
@@ -277,6 +281,41 @@ const elevationToRadius = (elevation) => {
   return radius * (1 - elevation / 90)
 }
 
+/**
+ * Convert azimuth/elevation to SVG coordinates
+ * Azimuth: 0° = North (top), 90° = East, 180° = South, 270° = West
+ * Elevation: 90° = center, 0° = horizon
+ */
+const polarToCartesian = (azimuth, elevation) => {
+  const r = elevationToRadius(elevation)
+  const angleRad = degreesToRadians(azimuth)
+  
+  return {
+    x: center + r * Math.sin(angleRad),
+    y: center - r * Math.cos(angleRad)
+  }
+}
+
+/** Calculate circle center through three points */
+const getCircleCenter = (p1, p2, p3) => {
+  const ax = p1.x, ay = p1.y
+  const bx = p2.x, by = p2.y
+  const cx = p3.x, cy = p3.y
+
+  const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+  
+  if (Math.abs(d) < 0.0001) return null // Points are collinear
+
+  const ux = ((ax * ax + ay * ay) * (by - cy) + 
+              (bx * bx + by * by) * (cy - ay) + 
+              (cx * cx + cy * cy) * (ay - by)) / d
+  
+  const uy = ((ax * ax + ay * ay) * (cx - bx) + 
+              (bx * bx + by * by) * (ax - cx) + 
+              (cx * cx + cy * cy) * (bx - ax)) / d
+
+  return { x: ux, y: uy }
+}
 
 /**
  * Generate SVG path with proper azimuth wraparound handling
@@ -333,42 +372,33 @@ const generatePathWithWraparound = (positions) => {
   return path || null
 }
 
-/**
- * Convert azimuth/elevation to SVG coordinates
- * Azimuth: 0° = North (top), 90° = East, 180° = South, 270° = West
- * Elevation: 90° = center, 0° = horizon
- */
-const polarToCartesian = (azimuth, elevation) => {
-  const r = elevationToRadius(elevation)
-  const angleRad = degreesToRadians(azimuth)
-  
-  return {
-    x: center + r * Math.sin(angleRad),
-    y: center - r * Math.cos(angleRad)
-  }
-}
+// ============================================================================
+// Computed Properties - Positions
+// ============================================================================
 
-/**
- * Current satellite position (x, y coordinates)
- */
+/** Current satellite position (x, y coordinates) */
 const currentPosition = computed(() => {
   if (!props.currentElevation || !props.currentAzimuth) return null
   return polarToCartesian(props.currentAzimuth, props.currentElevation)
 })
 
-/**
- * Predicted pass points (entry, peak, exit)
- */
+// ============================================================================
+// Computed Properties - Predicted Pass Points
+// ============================================================================
+
+/** Entry point (start azimuth at horizon) */
 const entryPoint = computed(() => {
   if (props.startAzimuth === null || props.startAzimuth === undefined) return null
   return polarToCartesian(props.startAzimuth, 0) // At horizon
 })
 
+/** Exit point (end azimuth at horizon) */
 const exitPoint = computed(() => {
   if (props.endAzimuth === null || props.endAzimuth === undefined) return null
-  return polarToCartesian(props.endAzimuth, 0) // At horizon
+  return polarToCartesian(props.endAzimuth, 0)
 })
 
+/** Peak point (max elevation at calculated azimuth) */
 const peakPoint = computed(() => {
   if (props.maxElevation === null || props.maxElevation === undefined) return null
   if (props.startAzimuth === null || props.endAzimuth === null) return null
@@ -388,34 +418,13 @@ const peakPoint = computed(() => {
   return polarToCartesian(peakAzimuth, props.maxElevation)
 })
 
-/**
- * Helper function: Calculate circle center through three points
- */
-const getCircleCenter = (p1, p2, p3) => {
-  const ax = p1.x, ay = p1.y
-  const bx = p2.x, by = p2.y
-  const cx = p3.x, cy = p3.y
-
-  const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
-  
-  if (Math.abs(d) < 0.0001) {
-    return null // Points are collinear
-  }
-
-  const ux = ((ax * ax + ay * ay) * (by - cy) + 
-              (bx * bx + by * by) * (cy - ay) + 
-              (cx * cx + cy * cy) * (ay - by)) / d
-  
-  const uy = ((ax * ax + ay * ay) * (cx - bx) + 
-              (bx * bx + by * by) * (ax - cx) + 
-              (cx * cx + cy * cy) * (bx - ax)) / d
-
-  return { x: ux, y: uy }
-}
+// ============================================================================
+// Computed Properties - Paths
+// ============================================================================
 
 /**
  * Predicted path arc - draws circular arc through entry → peak → exit
- * Uses true circular arc calculation like compass drawing
+ * Uses true circular arc calculation (like compass drawing)
  */
 const predictedPath = computed(() => {
   if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
@@ -466,18 +475,14 @@ const predictedPath = computed(() => {
   return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
 })
 
-/**
- * Generate SVG path for past positions (where satellite has been)
- */
+/** Past path (where satellite has been) - green line */
 const pastPath = computed(() => {
   if (!props.pastPositions || props.pastPositions.length < 2) return null
 
   return generatePathWithWraparound(props.pastPositions)
 })
 
-/**
- * Generate SVG path for future positions (next 60s from API)
- */
+/** Future path (next positions from API) - dashed green line */
 const futurePath = computed(() => {
   if (!props.futurePositions || props.futurePositions.length < 2) return null
 

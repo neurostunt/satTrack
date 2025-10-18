@@ -2,23 +2,44 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-10-10',
   devtools: { enabled: true },
   ssr: false, // Disable SSR globally to prevent hydration issues
+  imports: {
+    dirs: [
+      'composables/**'
+    ]
+  },
   modules: [
     '@vite-pwa/nuxt',
     '@unocss/nuxt'
   ],
+  vite: {
+    server: {
+      watch: {
+        usePolling: true, // Use polling to avoid EMFILE error on macOS
+        interval: 1000,
+        ignored: ['**/node_modules/**', '**/.git/**', '**/.nuxt/**', '**/.output/**']
+      }
+    }
+  },
+  nitro: {
+    experimental: {
+      watcher: {
+        usePolling: true
+      }
+    }
+  },
   pwa: {
     registerType: 'autoUpdate',
     workbox: {
-      navigateFallback: '/',
+      navigateFallback: undefined, // Disable navigate fallback to prevent route blocking
       globPatterns: ['**/*.{js,css,html,png,svg,ico}']
     },
     client: {
       installPrompt: true
     },
     devOptions: {
-      enabled: true,
+      enabled: false, // Disable PWA in dev to avoid service worker issues
       suppressWarnings: true,
-      navigateFallbackAllowlist: [/^\/$/],
+      navigateFallbackAllowlist: [/^\/.*/],
       type: 'module'
     },
     manifest: {

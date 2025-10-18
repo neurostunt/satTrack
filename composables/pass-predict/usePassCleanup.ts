@@ -3,7 +3,7 @@
  * Handles cleanup of expired and passed satellite passes
  */
 
-import { ref, type Ref } from 'vue'
+import type { Ref } from 'vue'
 
 export const usePassCleanup = (
   passPredictions: Ref<Map<number, any[]>>,

@@ -1,0 +1,74 @@
+---
+alwaysApply: true
+---
+
+# Satellite Pass Tracker - Nuxt 4
+
+## Project Overview
+Satellite pass visualization and tracking application for ham radio operators. Shows graphical representation of satellites during their pass over observer location. Built with Nuxt 4. PWA.
+
+## Tech Stack
+- Nuxt 4 (latest)
+- Vue 3 Composition API
+- PWA
+- TypeScript
+- UnoCSS (atomic CSS)
+- n2yo api for satellite postions and predictions (no calculations, just API)
+- star-track api for TLE data (just display TLE, no caclulations)
+- satnogs api for transponder data and frequencies
+- No mapping library - custom SVG/Canvas visualization
+
+## Code Style & Conventions
+
+### Vue/Nuxt Patterns
+- Use Composition API with `<script setup>` syntax
+- Prefer composables over mixins
+- Use auto-imports for components and composables
+- File naming: kebab-case for components, camelCase for composables
+- Components: `components/satellite-pass-view.vue`
+- Composables: `composables/useSatellitePass.ts`
+- Pages: `pages/index.vue`, `pages/passes/[satellite].vue`
+
+### TypeScript
+- Strict mode enabled
+- Always define types for function parameters and returns
+- Use interfaces for object shapes
+- Avoid `any` - use `unknown` if type is unclear
+- Define types for TLE data, pass predictions, satellite positions
+
+### UnoCSS Guidelines
+- Use atomic utility classes
+- Prefer UnoCSS shortcuts for repeated patterns
+- Define custom shortcuts in `uno.config.ts` for satellite-specific UI
+- Use attributify mode for cleaner templates when appropriate
+- Example: `bg-slate-900 text-emerald-400 flex items-center justify-center`
+
+### State Management
+- Use Nuxt's `useState` for global state
+- Keep active pass data in reactive state
+- Store observer location (lat, lng, altitude)
+- Track current visible satellites
+
+### API & Data Fetching
+- Use `$fetch` or `useFetch` for TLE data
+- Fetch from CelesTrak or Space-Track
+- Cache TLE data (update every 12-24 hours)
+- Handle network errors gracefully
+
+### Performance
+- Use `requestAnimationFrame` for smooth satellite movement animation
+- Update position calculations every 1-2 seconds during pass
+- Use `computed` for derived values (elevation, azimuth)
+- Debounce expensive calculations
+- Lazy load non-critical components
+
+### NY20 API
+- API LImits:  tle	1000, positions	1000, visualpasses	100, radiopasses	100, above	100
+- strategy for showing acuall postion of sattelite in pass-predict page when sattelite is in pass on graphical image with correct path drown. 
+
+- we need image with 2 concentric circles around the center (represents user postion). Path is drawn over image, with correct data (heading, ele). Top of the image represents north, and kocentric circles represent ele. 
+
+- Just make tactics for this having in mind that we also have n2yo API (Get satellite positions) limited to 1000 requests per hour. 
+
+
+

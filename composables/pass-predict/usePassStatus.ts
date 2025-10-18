@@ -3,8 +3,6 @@
  * Handles pass status determination and time formatting
  */
 
-import { ref, computed } from 'vue'
-
 export type PassStatus = 'upcoming' | 'passing' | 'passed' | 'stationary'
 
 export const usePassStatus = () => {

@@ -12,8 +12,8 @@ export interface N2YOPass {
   maxEl: number // N2YO uses maxEl, not maxElevation
   startAz: number // N2YO uses startAz, not startAzimuth
   endAz: number // N2YO uses endAz, not endAzimuth
-  startEl: number // N2YO uses startEl, not startElevation
-  endEl: number // N2YO uses endEl, not endElevation
+  // Note: radiopasses does NOT provide startEl/endEl
+  // We'll calculate these based on horizon/minElevation
 }
 
 export interface N2YOResponse {
@@ -46,7 +46,7 @@ export const useN2YO = () => {
   // API request tracking
   const requestCount = ref(0)
   const lastResetTime = ref(Date.now())
-  const REQUEST_LIMIT_PER_HOUR = 100 // N2YO limit for radiopasses endpoint
+  const REQUEST_LIMIT_PER_HOUR = 100 // N2YO limit for visualpasses endpoint
 
   /**
    * Check if we're within API rate limits
@@ -75,14 +75,15 @@ export const useN2YO = () => {
    * Generate cache key for N2YO request
    */
   const generateCacheKey = (
+    endpoint: 'radio' | 'visual',
     noradId: number, 
     observerLat: number, 
     observerLng: number, 
     observerAlt: number, 
     days: number, 
-    minElevation: number
+    param: number // minElevation for radio, minVisibility for visual
   ): string => {
-    return `n2yo-${noradId}-${observerLat}-${observerLng}-${observerAlt}-${days}-${minElevation}`
+    return `${endpoint}-${noradId}-${observerLat}-${observerLng}-${observerAlt}-${days}-${param}`
   }
 
   /**
@@ -117,7 +118,8 @@ export const useN2YO = () => {
   }
 
   /**
-   * Get radio passes from N2YO API
+   * Get radio passes from N2YO API (designed for radio amateur use)
+   * No optical visibility requirement - based on elevation only
    */
   const getRadioPasses = async (
     noradId: number,
@@ -132,13 +134,13 @@ export const useN2YO = () => {
       isLoading.value = true
       error.value = null
 
-      // Generate cache key
-      const cacheKey = generateCacheKey(noradId, observerLat, observerLng, observerAlt, days, minElevation)
+      // Generate cache key for radio passes
+      const cacheKey = generateCacheKey('radio', noradId, observerLat, observerLng, observerAlt, days, minElevation)
       
       // Check cache first
       const cachedData = getCachedData(cacheKey)
       if (cachedData) {
-        console.log(`📋 Returning cached N2YO data for NORAD ${noradId}`)
+        console.log(`📋 Returning cached N2YO radio passes data for NORAD ${noradId}`)
         return cachedData
       }
 
@@ -147,7 +149,7 @@ export const useN2YO = () => {
         throw new Error(`API rate limit exceeded. Maximum ${REQUEST_LIMIT_PER_HOUR} requests per hour. Please wait before making more requests.`)
       }
 
-      console.log(`🔄 Fetching fresh N2YO data for NORAD ${noradId}`)
+      console.log(`🔄 Fetching fresh N2YO radio passes data for NORAD ${noradId}`)
       console.log(`📊 API requests used: ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR}`)
 
       // Make API request
@@ -166,10 +168,10 @@ export const useN2YO = () => {
       })
 
       if (!response.success) {
-        throw new Error(response.message || 'N2YO API request failed')
+        throw new Error((response as any).message || 'N2YO radio passes API request failed')
       }
 
-      const n2yoData = response.data as N2YOResponse
+      const n2yoData = (response as any).data as N2YOResponse
 
       // Increment request counter after successful API call
       incrementRequestCount()
@@ -177,7 +179,7 @@ export const useN2YO = () => {
       // Cache the result
       setCachedData(cacheKey, n2yoData)
 
-      console.log(`✅ N2YO API success for NORAD ${noradId}:`, {
+      console.log(`✅ N2YO radio passes API success for NORAD ${noradId}:`, {
         passesCount: n2yoData.info.passescount,
         transactionsCount: n2yoData.info.transactionscount
       })
@@ -185,9 +187,88 @@ export const useN2YO = () => {
       return n2yoData
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'N2YO API request failed'
+      const errorMessage = err instanceof Error ? err.message : 'N2YO radio passes API request failed'
       error.value = errorMessage
-      console.error('N2YO API error:', err)
+      console.error('N2YO radio passes API error:', err)
+      throw err
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Get satellite positions from N2YO API
+   * Returns position data for specified number of seconds
+   * Used for real-time tracking during passes
+   * 
+   * @param noradId NORAD catalog ID
+   * @param observerLat Observer latitude
+   * @param observerLng Observer longitude
+   * @param observerAlt Observer altitude (meters)
+   * @param seconds Number of seconds (positions returned: 1 per second)
+   * @param apiKey N2YO API key
+   * @returns Array of position samples with azimuth, elevation, distance
+   */
+  const getSatellitePositions = async (
+    noradId: number,
+    observerLat: number,
+    observerLng: number,
+    observerAlt: number = 0,
+    seconds: number = 60,
+    apiKey: string
+  ): Promise<any[]> => {
+    try {
+      isLoading.value = true
+      error.value = null
+
+      // Check rate limit before making request
+      if (!checkRateLimit()) {
+        throw new Error(`API rate limit exceeded. Maximum ${REQUEST_LIMIT_PER_HOUR} requests per hour.`)
+      }
+
+      console.log(`📡 Fetching satellite positions for NORAD ${noradId} (${seconds}s)`)
+      console.log(`📊 API requests used: ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR}`)
+
+      const response = await $fetch('/api/n2yo', {
+        method: 'POST',
+        body: {
+          action: 'positions',
+          apiKey,
+          noradId,
+          observerLat,
+          observerLng,
+          observerAlt,
+          seconds
+        }
+      })
+
+      if (!response.success) {
+        throw new Error((response as any).message || 'N2YO positions API request failed')
+      }
+
+      const positionsData = (response as any).data
+      
+      // Increment request counter after successful API call
+      incrementRequestCount()
+
+      console.log(`✅ N2YO positions API success for NORAD ${noradId}:`, {
+        positionsCount: positionsData.positions?.length || 0
+      })
+
+      // Convert N2YO positions to our format
+      const positions = positionsData.positions.map((pos: any) => ({
+        timestamp: pos.timestamp * 1000, // Convert to milliseconds
+        azimuth: pos.azimuth,
+        elevation: pos.elevation,
+        distance: pos.distance || 0
+      }))
+
+      return positions
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'N2YO positions API request failed'
+      error.value = errorMessage
+      console.error('N2YO positions API error:', err)
       throw err
     } finally {
       isLoading.value = false
@@ -214,11 +295,11 @@ export const useN2YO = () => {
       })
 
       if (!response.success) {
-        throw new Error(response.message || 'N2YO TLE request failed')
+        throw new Error((response as any).message || 'N2YO TLE request failed')
       }
 
       console.log(`✅ N2YO TLE data retrieved for NORAD ${noradId}`)
-      return response.data
+      return (response as any).data
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'N2YO TLE request failed'
@@ -297,6 +378,7 @@ export const useN2YO = () => {
 
     // Methods
     getRadioPasses,
+    getSatellitePositions,
     getTLEData,
     testConnection,
     clearCache,

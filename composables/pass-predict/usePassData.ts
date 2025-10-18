@@ -3,8 +3,9 @@
  * Handles loading and managing pass prediction data
  */
 
-import { ref, type Ref } from 'vue'
+import type { Ref } from 'vue'
 import { useIndexedDB } from '../storage/useIndexedDB'
+import { usePassPrediction } from '../satellite/usePassPrediction'
 
 export const usePassData = (
   settings: Ref<any>,
@@ -17,7 +18,10 @@ export const usePassData = (
   const observerLocation = ref({ lat: 0, lng: 0, alt: 0 })
 
   // IndexedDB instance
-  const { getAllPassPredictions, getAllTransponderData } = useIndexedDB()
+  const { getAllPassPredictions, getAllTransponderData, clearPassPredictions } = useIndexedDB()
+
+  // Pass prediction composable
+  const { calculatePassesForSatellites } = usePassPrediction()
 
   /**
    * Load stored pass predictions from database
@@ -201,6 +205,88 @@ export const usePassData = (
     })
   }
 
+  /**
+   * Check if cached data is stale and needs refresh
+   */
+  const isDataStale = (): boolean => {
+    // Check if we have any cached data
+    if (passPredictions.value.size === 0) {
+      return true
+    }
+
+    // Check if any passes are very old (more than 2 hours)
+    const currentTime = Date.now()
+    const twoHoursAgo = currentTime - (2 * 60 * 60 * 1000)
+    
+    for (const passes of passPredictions.value.values()) {
+      if (passes.length > 0) {
+        // If the first pass is very old, data might be stale
+        const firstPass = passes[0]
+        if (firstPass.startTime < twoHoursAgo) {
+          return true
+        }
+      }
+    }
+
+    return false
+  }
+
+  /**
+   * Calculate fresh pass predictions using N2YO visual passes API
+   */
+  const calculateFreshPassPredictions = async () => {
+    try {
+      if (!settings.value.trackedSatellites || settings.value.trackedSatellites.length === 0) {
+        console.log('⚠️ No tracked satellites configured')
+        return
+      }
+
+      if (!settings.value.n2yoApiKey) {
+        console.log('⚠️ N2YO API key not configured')
+        return
+      }
+
+      console.log('🔄 Calculating fresh pass predictions using visual passes API...')
+      console.log('🛰️ Observer location:', observerLocation.value)
+      console.log('🛰️ Tracked satellites:', settings.value.trackedSatellites.length)
+
+      // Prepare satellites data
+      const satellites = settings.value.trackedSatellites.map((sat: any) => ({
+        noradId: parseInt(sat.noradId)
+      }))
+
+      // Calculate passes using visual passes API
+      const freshPasses = await calculatePassesForSatellites(
+        satellites,
+        observerLocation.value,
+        10, // minElevation
+        settings.value.n2yoApiKey
+      )
+
+      console.log('✅ Fresh pass predictions calculated:', freshPasses.size, 'satellites')
+      
+      // Update the pass predictions
+      passPredictions.value = freshPasses
+
+    } catch (error) {
+      console.error('❌ Failed to calculate fresh pass predictions:', error)
+    }
+  }
+
+  /**
+   * Clear pass predictions and force refresh
+   */
+  const clearAndRefreshPassPredictions = async () => {
+    try {
+      console.log('🔄 Clearing old pass predictions to force refresh with radio passes data...')
+      await clearPassPredictions()
+      passPredictions.value = new Map()
+      console.log('✅ Pass predictions cleared, will fetch fresh data on next load')
+    } catch (error) {
+      console.error('❌ Failed to clear pass predictions:', error)
+    }
+  }
+
   return {
     // State
     passPredictions,
@@ -210,6 +296,9 @@ export const usePassData = (
     // Methods
     loadPassPredictions,
     loadStoredTransmitterData,
-    filterTransmitters
+    filterTransmitters,
+    calculateFreshPassPredictions,
+    clearAndRefreshPassPredictions,
+    isDataStale
   }
 }

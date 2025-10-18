@@ -74,13 +74,27 @@ export default defineEventHandler(async (event: any) => {
 
         // Step 1: Login and save session cookie (like curl -c cookies.txt)
         console.log('Logging into Space-Track.org...')
-        const loginResponse = await fetch(`${baseUrl}/ajaxauth/login`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: `identity=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
-        })
+        const loginController = new AbortController()
+        const loginTimeout = setTimeout(() => loginController.abort(), 15000) // 15 second timeout
+        
+        let loginResponse
+        try {
+          loginResponse = await fetch(`${baseUrl}/ajaxauth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `identity=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
+            signal: loginController.signal
+          })
+          clearTimeout(loginTimeout)
+        } catch (error: any) {
+          clearTimeout(loginTimeout)
+          if (error.name === 'AbortError') {
+            throw new Error('Space-Track.org login timeout - endpoint took too long to respond')
+          }
+          throw error
+        }
 
         // Extract cookies from login response
         const setCookieHeader = loginResponse.headers.get('set-cookie')
@@ -99,11 +113,25 @@ export default defineEventHandler(async (event: any) => {
 
         // Step 2: Query using saved cookie (like curl -b cookies.txt)
         const noradIdString = noradIds.join(',')
-        const tleResponse = await fetch(`${baseUrl}/basicspacedata/query/class/tle_latest/NORAD_CAT_ID/${noradIdString}/format/json`, {
-          headers: {
-            'Cookie': cookies
+        const tleController = new AbortController()
+        const tleTimeout = setTimeout(() => tleController.abort(), 20000) // 20 second timeout for TLE data
+        
+        let tleResponse
+        try {
+          tleResponse = await fetch(`${baseUrl}/basicspacedata/query/class/tle_latest/NORAD_CAT_ID/${noradIdString}/format/json`, {
+            headers: {
+              'Cookie': cookies
+            },
+            signal: tleController.signal
+          })
+          clearTimeout(tleTimeout)
+        } catch (error: any) {
+          clearTimeout(tleTimeout)
+          if (error.name === 'AbortError') {
+            throw new Error('Space-Track.org TLE fetch timeout - endpoint took too long to respond')
           }
-        })
+          throw error
+        }
 
         if (!tleResponse.ok) {
           const errorText = await tleResponse.text()

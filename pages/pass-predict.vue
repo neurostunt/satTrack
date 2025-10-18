@@ -1,7 +1,7 @@
 <template>
   <NuxtLayout name="default" title="🛰️ Pass Predict" subtitle="Satellite Pass Prediction">
     <!-- Observation Location -->
-    <ObservationLocation
+    <CommonObservationLocation
       :latitude="settings.observationLocation?.latitude || 0"
       :longitude="settings.observationLocation?.longitude || 0"
       :altitude="settings.observationLocation?.altitude || 0"
@@ -9,7 +9,7 @@
     />
 
     <!-- Pass Prediction Data -->
-    <div v-if="combinedData && Object.keys(combinedData).length > 0" class="max-w-lg mx-auto mb-6">
+    <div v-if="passPredictions && passPredictions.size > 0" class="max-w-lg mx-auto mb-6">
       <div class="bg-space-800 border border-space-700 rounded-lg p-4">
         <h3 class="text-lg font-semibold text-primary-400 mb-4 flex items-center">
           🛰️ Pass Predictions
@@ -30,7 +30,7 @@
 
         <!-- Individual Pass Cards -->
         <div v-else class="space-y-4">
-          <PassCard
+          <PassPredictPassCard
             v-for="pass in sortedPasses"
             :key="`${pass.noradId}-${pass.startTime}`"
             :pass="pass"
@@ -50,7 +50,7 @@
 
     <!-- Individual Satellite Data (Hidden for now) -->
     <div v-if="false" class="max-w-lg mx-auto mb-6">
-      <PassPredictData
+      <CommonPassPredictData
         :combined-data="combinedData"
         :get-t-l-e-data="getTLEData"
         :format-frequency="formatFrequency"
@@ -60,19 +60,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
-import ObservationLocation from '~/components/common/ObservationLocation.vue'
-import PassPredictData from '~/components/common/PassPredictData.vue'
-import PassCard from '~/components/pass-predict/PassCard.vue'
-import { useSettings } from '~/composables/storage/useSettings'
-import { useTLEData } from '~/composables/api/useTLEData'
-import { usePassPrediction } from '~/composables/satellite/usePassPrediction'
-import { usePassStatus } from '~/composables/pass-predict/usePassStatus'
-import { usePassFiltering } from '~/composables/pass-predict/usePassFiltering'
-import { usePassCleanup } from '~/composables/pass-predict/usePassCleanup'
-import { usePassData } from '~/composables/pass-predict/usePassData'
-
-// Import composables
+// Nuxt 4 auto-imports:
+// - Vue functions (ref, onMounted, onUnmounted, computed, watch)
+// - Components from components/ directory
+// - Composables from composables/ directory
 const {
   settings,
   loadSettings
@@ -106,7 +97,10 @@ const {
   combinedData,
   observerLocation,
   loadPassPredictions,
-  loadStoredTransmitterData
+  loadStoredTransmitterData,
+  calculateFreshPassPredictions,
+  clearAndRefreshPassPredictions,
+  isDataStale
 } = usePassData(settings, getNextPassTime, formatPassTime)
 
 // Pass filtering composable
@@ -161,13 +155,18 @@ const getFormattedSatelliteName = (satellite, noradId) => {
 
 
 onMounted(async () => {
-  console.log('🚀 Pass-predict page mounted, starting data loading...')
-
   await loadSettings()
   await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
 
-  // Load stored pass predictions and transmitter data
+  // Load stored pass predictions first (from IndexedDB)
   await loadPassPredictions()
+  
+  // Only calculate fresh data if we have no cached data or it's stale
+  if (isDataStale()) {
+    await calculateFreshPassPredictions()
+  }
+
+  // Load stored transmitter data
   await loadStoredTransmitterData()
 
   // Start real-time updates for time until pass
@@ -185,8 +184,6 @@ onMounted(async () => {
 
   // Initial cleanup of expired passes
   cleanupExpiredPasses()
-
-  console.log('✅ Pass-predict page initialization complete')
 })
 
 // Cleanup interval on unmount

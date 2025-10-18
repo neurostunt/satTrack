@@ -61,7 +61,7 @@ export const usePassPrediction = () => {
   }
 
   /**
-   * Get passes from N2YO API and convert to our format
+   * Get passes from N2YO API and convert to our format (using radio passes for ham radio use)
    */
   const getPassesFromN2YO = async (
     noradId: number,
@@ -71,7 +71,7 @@ export const usePassPrediction = () => {
     apiKey: string
   ): Promise<PassPrediction[]> => {
     try {
-      console.log(`🛰️ Fetching N2YO passes for NORAD ID: ${noradId}`)
+      console.log(`🛰️ Fetching N2YO radio passes for NORAD ID: ${noradId}`)
       
       const n2yoResponse = await getRadioPasses(
         noradId,
@@ -92,17 +92,37 @@ export const usePassPrediction = () => {
         return []
       }
 
-      // Convert N2YO passes to our format
-      const allPasses: PassPrediction[] = n2yoResponse.passes.map(pass => ({
-        startTime: pass.startUTC * 1000, // Convert Unix timestamp to milliseconds
-        endTime: pass.endUTC * 1000,
-        duration: (pass.endUTC - pass.startUTC) * 1000, // Duration in milliseconds
-        maxElevation: pass.maxEl,
-        startAzimuth: pass.startAz,
-        endAzimuth: pass.endAz,
-        startElevation: pass.startEl,
-        endElevation: pass.endEl
-      }))
+      // Debug: Log the first pass to see what fields are available
+      if (n2yoResponse.passes.length > 0) {
+        const firstPass = n2yoResponse.passes[0]
+        if (firstPass) {
+          console.log(`🔍 First radio pass data for NORAD ${noradId}:`, firstPass)
+          console.log(`🔍 Available fields:`, Object.keys(firstPass))
+          console.log(`🔍 maxEl value:`, firstPass.maxEl)
+          console.log(`🔍 startAz value:`, firstPass.startAz)
+          console.log(`🔍 endAz value:`, firstPass.endAz)
+        }
+      }
+
+      // Convert N2YO radio passes to our format
+      // Note: radio passes do NOT include startEl/endEl (not needed for radio ops)
+      const allPasses: PassPrediction[] = n2yoResponse.passes.map(pass => {
+        console.log(`🔍 Processing radio pass:`, pass)
+        console.log(`🔍 maxEl: ${pass.maxEl}`)
+        
+        const maxElevation = pass.maxEl || 0
+        
+        return {
+          startTime: pass.startUTC * 1000, // Convert Unix timestamp to milliseconds
+          endTime: pass.endUTC * 1000,
+          duration: (pass.endUTC - pass.startUTC) * 1000, // Duration in milliseconds
+          maxElevation: maxElevation,
+          startAzimuth: pass.startAz || 0,
+          endAzimuth: pass.endAz || 0,
+          startElevation: 0, // Not provided by radio passes API (not needed)
+          endElevation: 0 // Not provided by radio passes API (not needed)
+        }
+      })
 
       // Filter out passes that have already ended
       const currentTime = Date.now()

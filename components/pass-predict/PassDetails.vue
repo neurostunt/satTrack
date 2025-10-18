@@ -20,14 +20,6 @@
         <span class="text-green-400 font-medium">{{ Math.round(pass.maxElevation) }}°</span>
       </div>
       <div class="flex justify-between">
-        <span class="text-space-400">Start Elevation:</span>
-        <span class="text-space-200">{{ Math.round(pass.startElevation) }}°</span>
-      </div>
-      <div class="flex justify-between">
-        <span class="text-space-400">End Elevation:</span>
-        <span class="text-space-200">{{ Math.round(pass.endElevation) }}°</span>
-      </div>
-      <div class="flex justify-between">
         <span class="text-space-400">Start Azimuth:</span>
         <span class="text-space-200">{{ Math.round(pass.startAzimuth) }}°</span>
       </div>

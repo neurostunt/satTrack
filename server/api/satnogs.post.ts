@@ -11,10 +11,12 @@ export default defineEventHandler(async (event: any) => {
     console.log('SatNOGS API called:', { method: 'POST', timestamp: new Date().toISOString() })
     console.log('Request body:', { token: token ? token.substring(0, 8) + '...' : 'none', action, ...params })
 
-    if (!token) {
+    // Only require token for specific actions that need authentication
+    const requiresAuth = ['transmitters', 'transmitter-details', 'combined-data', 'telemetry']
+    if (requiresAuth.includes(action) && !token) {
       throw createError({
         statusCode: 400,
-        statusMessage: 'SatNOGS API token is required'
+        statusMessage: 'SatNOGS API token is required for this action'
       })
     }
 
@@ -51,15 +53,9 @@ export default defineEventHandler(async (event: any) => {
             statusMessage: 'Search query is required'
           })
         }
-        // Check if query is numeric (NORAD ID) or text (satellite name)
-        if (/^\d+$/.test(searchQuery)) {
-          // Search by NORAD ID
-          url = `https://db.satnogs.org/api/satellites/?norad_cat_id=${searchQuery}`
-        } else {
-          // Search by satellite name - fetch more results and filter client-side
-          // The SatNOGS search parameter doesn't seem to work reliably
-          url = `https://db.satnogs.org/api/satellites/?limit=500`
-        }
+        // Always fetch 500 satellites and filter client-side for both numeric and text searches
+        // This enables partial NORAD ID matching (e.g., "255" matches 25544, 25546, etc.)
+        url = `https://db.satnogs.org/api/satellites/?limit=500`
         break
       case 'transmitters':
         // Fetch transmitters for a specific satellite using NORAD ID
@@ -87,25 +83,41 @@ export default defineEventHandler(async (event: any) => {
 
         console.log(`Fetching transmitters from: ${transmittersUrl}`)
 
-        const transmitterApiResponse = await fetch(transmittersUrl, {
-          headers: {
-            'Authorization': `Token ${token}`,
-            'User-Agent': 'SatTrack/1.0'
+        const transmitterController = new AbortController()
+        const transmitterTimeout = setTimeout(() => transmitterController.abort(), 15000) // 15 second timeout
+        
+        try {
+          const transmitterApiResponse = await fetch(transmittersUrl, {
+            headers: {
+              'Authorization': `Token ${token}`,
+              'User-Agent': 'SatTrack/1.0'
+            },
+            signal: transmitterController.signal
+          })
+          clearTimeout(transmitterTimeout)
+
+          if (!transmitterApiResponse.ok) {
+            throw new Error(`SatNOGS transmitters API error: ${transmitterApiResponse.status}`)
           }
-        })
 
-        if (!transmitterApiResponse.ok) {
-          throw new Error(`SatNOGS transmitters API error: ${transmitterApiResponse.status}`)
-        }
+          const transmitterApiData = await transmitterApiResponse.json()
+          console.log(`Found ${transmitterApiData.length} transmitters`)
 
-        const transmitterApiData = await transmitterApiResponse.json()
-        console.log(`Found ${transmitterApiData.length} transmitters`)
-
-        return {
-          success: true,
-          message: `Found ${transmitterApiData.length} transmitters`,
-          data: transmitterApiData,
-          action: 'transmitters'
+          return {
+            success: true,
+            message: `Found ${transmitterApiData.length} transmitters`,
+            data: transmitterApiData,
+            action: 'transmitters'
+          }
+        } catch (error: any) {
+          clearTimeout(transmitterTimeout)
+          if (error.name === 'AbortError') {
+            throw createError({
+              statusCode: 504,
+              statusMessage: 'SatNOGS API request timeout - transmitters endpoint took too long to respond'
+            })
+          }
+          throw error
         }
       case 'transmitter-details':
         const transmitterId = params.transmitterId
@@ -126,12 +138,29 @@ export default defineEventHandler(async (event: any) => {
           })
         }
         // First get satellite info to find SatNOGS ID
-        const satelliteResponse = await fetch(`https://db.satnogs.org/api/satellites/?norad_cat_id=${noradId}`, {
-          headers: {
-            'Authorization': `Token ${token}`,
-            'Content-Type': 'application/json'
+        const satController = new AbortController()
+        const satTimeout = setTimeout(() => satController.abort(), 15000)
+        
+        let satelliteResponse
+        try {
+          satelliteResponse = await fetch(`https://db.satnogs.org/api/satellites/?norad_cat_id=${noradId}`, {
+            headers: {
+              'Authorization': `Token ${token}`,
+              'Content-Type': 'application/json'
+            },
+            signal: satController.signal
+          })
+          clearTimeout(satTimeout)
+        } catch (error: any) {
+          clearTimeout(satTimeout)
+          if (error.name === 'AbortError') {
+            throw createError({
+              statusCode: 504,
+              statusMessage: 'SatNOGS API request timeout - satellite endpoint took too long to respond'
+            })
           }
-        })
+          throw error
+        }
 
         if (!satelliteResponse.ok) {
           throw createError({
@@ -152,23 +181,40 @@ export default defineEventHandler(async (event: any) => {
 
         // Get transmitters for this satellite
         // Try by satellite ID first, then by NORAD ID if satellite ID is null
+        const transController = new AbortController()
+        const transTimeout = setTimeout(() => transController.abort(), 15000)
+        
         let transmittersResponse
-        if (satnogsId) {
-          transmittersResponse = await fetch(`https://db.satnogs.org/api/transmitters/?sat_id=${satnogsId}`, {
-            headers: {
-              'Authorization': `Token ${token}`,
-              'Content-Type': 'application/json'
-            }
-          })
-        } else {
-          // Fallback: search transmitters by NORAD ID using the correct parameter
-          // Get all transmitters for this satellite (not just amateur radio)
-          transmittersResponse = await fetch(`https://db.satnogs.org/api/transmitters/?satellite__norad_cat_id=${noradId}`, {
-            headers: {
-              'Authorization': `Token ${token}`,
-              'Content-Type': 'application/json'
-            }
-          })
+        try {
+          if (satnogsId) {
+            transmittersResponse = await fetch(`https://db.satnogs.org/api/transmitters/?sat_id=${satnogsId}`, {
+              headers: {
+                'Authorization': `Token ${token}`,
+                'Content-Type': 'application/json'
+              },
+              signal: transController.signal
+            })
+          } else {
+            // Fallback: search transmitters by NORAD ID using the correct parameter
+            // Get all transmitters for this satellite (not just amateur radio)
+            transmittersResponse = await fetch(`https://db.satnogs.org/api/transmitters/?satellite__norad_cat_id=${noradId}`, {
+              headers: {
+                'Authorization': `Token ${token}`,
+                'Content-Type': 'application/json'
+              },
+              signal: transController.signal
+            })
+          }
+          clearTimeout(transTimeout)
+        } catch (error: any) {
+          clearTimeout(transTimeout)
+          if (error.name === 'AbortError') {
+            throw createError({
+              statusCode: 504,
+              statusMessage: 'SatNOGS API request timeout - transmitters endpoint took too long to respond'
+            })
+          }
+          throw error
         }
 
         if (!transmittersResponse.ok) {
@@ -210,14 +256,38 @@ export default defineEventHandler(async (event: any) => {
 
     console.log('Making request to:', url)
 
-    const response = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': `Token ${token}`,
-        'Content-Type': 'application/json',
-        'User-Agent': 'SatTrack/1.0'
+    // Build headers - only include Authorization if we have a token
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'SatTrack/1.0'
+    }
+    
+    if (token) {
+      headers['Authorization'] = `Token ${token}`
+    }
+
+    // Add timeout to fetch requests
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000) // 15 second timeout
+    
+    let response
+    try {
+      response = await fetch(url, {
+        method,
+        headers,
+        signal: controller.signal
+      })
+      clearTimeout(timeout)
+    } catch (error: any) {
+      clearTimeout(timeout)
+      if (error.name === 'AbortError') {
+        throw createError({
+          statusCode: 504,
+          statusMessage: 'SatNOGS API request timeout - endpoint took too long to respond'
+        })
       }
-    })
+      throw error
+    }
 
     console.log('SatNOGS API response status:', response.status)
 
@@ -232,15 +302,24 @@ export default defineEventHandler(async (event: any) => {
 
     let data = await response.json()
 
-    // Client-side filtering for search by name
-    if (action === 'search' && Array.isArray(data) && !/^\d+$/.test(params.query)) {
+    // Client-side filtering for search
+    if (action === 'search' && Array.isArray(data)) {
       const searchQuery = params.query.toLowerCase()
       const searchLimit = params.limit || 20
 
-      data = data.filter(satellite =>
-        satellite.name.toLowerCase().includes(searchQuery) ||
-        (satellite.names && satellite.names.toLowerCase().includes(searchQuery))
-      ).slice(0, searchLimit)
+      // If numeric search but got 500 results, filter by partial NORAD ID match
+      if (/^\d+$/.test(params.query) && data.length > 1) {
+        data = data.filter(satellite =>
+          satellite.norad_cat_id && satellite.norad_cat_id.toString().includes(params.query)
+        ).slice(0, searchLimit)
+      } 
+      // If text search, filter by name
+      else if (!/^\d+$/.test(params.query)) {
+        data = data.filter(satellite =>
+          satellite.name.toLowerCase().includes(searchQuery) ||
+          (satellite.names && satellite.names.toLowerCase().includes(searchQuery))
+        ).slice(0, searchLimit)
+      }
     }
 
     return {

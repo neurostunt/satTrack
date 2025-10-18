@@ -3,7 +3,7 @@
  * Handles filtering and sorting of satellite passes
  */
 
-import { computed, type Ref } from 'vue'
+import type { Ref } from 'vue'
 import type { PassStatus } from './usePassStatus'
 
 export interface PassData {

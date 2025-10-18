@@ -134,15 +134,28 @@ const pastPositions = computed(() => {
 })
 
 // Watch for card expansion and pass status
-watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing]) => {
+// IMPORTANT: Only track when BOTH conditions are met:
+// 1. Card is expanded (user clicked to view details)
+// 2. Satellite is actively passing (within pass window)
+watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing], [prevExpanded, prevPassing]) => {
   const shouldTrack = expanded && passing
+  const wasTracking = isTracking.value
   
-  if (shouldTrack && !isTracking.value) {
-    // Card is open and satellite is passing - start real-time tracking
+  if (shouldTrack && !wasTracking) {
+    // Card is open AND satellite is passing - start real-time tracking
     console.log(`🎯 Starting real-time tracking for ${props.pass.satelliteName}`)
+    console.log(`   ✓ Card expanded: ${expanded}`)
+    console.log(`   ✓ Satellite passing: ${passing}`)
+    console.log(`   → API calls will be made every 270 seconds (4.5 min)`)
     
     const settings = useSettings()
     await settings.loadSettings()
+    
+    // Validate settings before starting
+    if (!settings.settings.value.n2yoApiKey) {
+      console.warn(`⚠️ N2YO API key not configured - cannot start tracking`)
+      return
+    }
     
     await startTracking(
       props.pass.noradId,
@@ -151,16 +164,28 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
       settings.settings.value.observationLocation.altitude || 0,
       settings.settings.value.n2yoApiKey
     )
-  } else if (!shouldTrack && isTracking.value) {
-    // Card closed or pass ended - stop tracking
-    console.log(`🛑 Stopping tracking for ${props.pass.satelliteName}`)
+  } else if (!shouldTrack && wasTracking) {
+    // Card closed OR pass ended - stop tracking to save API calls
+    const reason = !expanded ? 'Card collapsed' : 'Pass ended'
+    console.log(`🛑 Stopping tracking for ${props.pass.satelliteName}: ${reason}`)
+    console.log(`   → Saving API quota (was making calls every 270s)`)
     stopTracking()
   }
-})
+  
+  // Debug logging for state changes without tracking changes
+  if (!shouldTrack && !wasTracking && (expanded !== prevExpanded || passing !== prevPassing)) {
+    if (!expanded) {
+      console.log(`💤 ${props.pass.satelliteName}: Card collapsed - no tracking`)
+    } else if (!passing) {
+      console.log(`⏳ ${props.pass.satelliteName}: Not yet passing - no tracking`)
+    }
+  }
+}, { immediate: false })
 
 // Cleanup when component is unmounted
 onUnmounted(() => {
   if (isTracking.value) {
+    console.log(`🧹 Component unmounted - stopping tracking for ${props.pass.satelliteName}`)
     stopTracking()
   }
 })

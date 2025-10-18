@@ -23,7 +23,7 @@ export const useSatellitePath = (
 
   /**
    * Get positions for "future path" drawing
-   * Returns next 60 seconds of positions from API buffer
+   * Returns next positions from API buffer (up to 300 seconds ahead)
    */
   const getFuturePositions = (
     futurePositions: SatellitePosition[]
@@ -31,6 +31,7 @@ export const useSatellitePath = (
     const now = Date.now()
     
     // Return only future positions (from now onwards)
+    // API provides up to 300 seconds of future data
     return futurePositions.filter(pos => pos.timestamp >= now)
   }
 
@@ -65,7 +66,7 @@ export const useSatellitePath = (
    */
   const getTimeUntilNextUpdate = (
     lastFetchTime: number,
-    updateInterval: number = 45000 // 45 seconds default
+    updateInterval: number = 270000 // 270 seconds (4.5 min) default - matches API fetch interval
   ): number => {
     const timeSinceLastFetch = Date.now() - lastFetchTime
     const timeRemaining = updateInterval - timeSinceLastFetch
@@ -97,9 +98,9 @@ export const useSatellitePath = (
    * Returns: N, NE, E, SE, S, SW, W, NW
    */
   const getCompassDirection = (azimuth: number): string => {
-    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const
     const index = Math.round(azimuth / 45) % 8
-    return directions[index]
+    return directions[index] || 'N'
   }
 
   return {

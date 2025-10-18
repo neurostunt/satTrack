@@ -46,7 +46,12 @@ export const useN2YO = () => {
   // API request tracking
   const requestCount = ref(0)
   const lastResetTime = ref(Date.now())
-  const REQUEST_LIMIT_PER_HOUR = 100 // N2YO limit for visualpasses endpoint
+  // N2YO API Limits (per hour):
+  // - positions: 1000 requests/hour
+  // - radiopasses: 100 requests/hour
+  // - visualpasses: 100 requests/hour
+  // - tle: 1000 requests/hour
+  const REQUEST_LIMIT_PER_HOUR = 1000 // Using positions endpoint limit (most restrictive for our use case)
 
   /**
    * Check if we're within API rate limits
@@ -227,7 +232,7 @@ export const useN2YO = () => {
       }
 
       console.log(`📡 Fetching satellite positions for NORAD ${noradId} (${seconds}s)`)
-      console.log(`📊 API requests used: ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR}`)
+      console.log(`📊 API requests used this hour: ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR} (positions endpoint)`)
 
       const response = await $fetch('/api/n2yo', {
         method: 'POST',

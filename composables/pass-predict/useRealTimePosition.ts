@@ -2,8 +2,12 @@
  * Real-Time Position Composable
  * Handles fetching and interpolating satellite positions during a pass
  * 
- * Strategy: Fetch 60-180s of positions at once, interpolate for smooth animation
- * API Usage: ~4 requests per 10-minute pass
+ * Strategy: Fetch 300s (5 min) of positions at once, interpolate for smooth animation
+ * API Usage: ~2 requests per 10-minute pass (85% reduction from 60s strategy)
+ * 
+ * N2YO API Limits:
+ * - 1000 requests per hour for positions endpoint
+ * - Maximum 300 seconds per request
  */
 
 import type { Ref } from 'vue'
@@ -35,7 +39,13 @@ export const useRealTimePosition = () => {
 
   /**
    * Start tracking a satellite during its pass
-   * Fetches positions every 60 seconds, animates smoothly between updates
+   * 
+   * ⚠️ IMPORTANT: Should only be called when:
+   * 1. User has expanded the pass card (actively viewing)
+   * 2. Satellite is currently passing (within pass window)
+   * 
+   * This prevents unnecessary API calls and saves rate limit quota.
+   * Fetches 300s of position data every 270 seconds (4.5 min).
    */
   const startTracking = async (
     noradId: number,
@@ -44,7 +54,22 @@ export const useRealTimePosition = () => {
     observerAlt: number,
     apiKey: string
   ) => {
+    // Prevent duplicate tracking
+    if (isTracking.value) {
+      console.warn(`⚠️ Already tracking NORAD ${noradId} - ignoring duplicate start request`)
+      return
+    }
+    
+    // Validate API key
+    if (!apiKey) {
+      console.error(`❌ Cannot start tracking: N2YO API key is missing`)
+      return
+    }
+    
     console.log(`🛰️ Starting real-time tracking for NORAD ${noradId}`)
+    console.log(`   📍 Observer: ${observerLat.toFixed(4)}°, ${observerLng.toFixed(4)}°`)
+    console.log(`   ⏱️ Fetch interval: 270s (4.5 min)`)
+    console.log(`   📊 API efficiency: ~13 calls/hour per satellite`)
     
     isTracking.value = true
     positionHistory.value = []
@@ -56,17 +81,29 @@ export const useRealTimePosition = () => {
     // Start animation loop for smooth interpolation
     startAnimation()
 
-    // Fetch new positions every 45 seconds (before running out of 60s buffer)
+    // Fetch new positions every 270 seconds (4.5 min) before running out of 300s buffer
+    // This gives us a 30s safety margin while maximizing API efficiency
     fetchIntervalId = setInterval(async () => {
       await fetchPositions(noradId, observerLat, observerLng, observerAlt, apiKey)
-    }, 45000) as unknown as number
+    }, 270000) as unknown as number // 270 seconds = 4.5 minutes
   }
 
   /**
    * Stop tracking (when pass ends or user closes visualization)
+   * 
+   * Called automatically when:
+   * - User collapses the pass card
+   * - Pass ends (satellite no longer visible)
+   * - Component is unmounted
    */
   const stopTracking = () => {
+    if (!isTracking.value) {
+      // Already stopped, nothing to do
+      return
+    }
+    
     console.log('🛑 Stopping real-time tracking')
+    console.log('   → Saving API quota (no more position fetches)')
     
     isTracking.value = false
     
@@ -90,7 +127,8 @@ export const useRealTimePosition = () => {
 
   /**
    * Fetch satellite positions from N2YO API
-   * Gets 60 seconds worth of positions (one position per second)
+   * Gets 300 seconds (5 minutes) worth of positions (one position per second)
+   * This maximizes API efficiency while staying within the 300s limit
    */
   const fetchPositions = async (
     noradId: number,
@@ -100,7 +138,7 @@ export const useRealTimePosition = () => {
     apiKey: string
   ) => {
     try {
-      console.log(`📡 Fetching positions for NORAD ${noradId}`)
+      console.log(`📡 Fetching positions for NORAD ${noradId} (300 seconds)`)
       
       const { getSatellitePositions } = useN2YO()
       
@@ -109,15 +147,26 @@ export const useRealTimePosition = () => {
         observerLat,
         observerLng,
         observerAlt,
-        60, // Get 60 seconds of positions
+        300, // Get 300 seconds (5 min) - maximum allowed by N2YO API
         apiKey
       )
 
-      console.log(`✅ Received ${positions.length} position samples`)
+      console.log(`✅ Received ${positions.length} position samples (${positions.length}s of data)`)
       
-      // Add to future positions buffer
-      futurePositions.value = positions
-      lastFetchTime.value = Date.now()
+      // Merge with existing buffer, removing any overlaps
+      // The animation loop moves consumed positions to history, so we combine remaining + new
+      const now = Date.now()
+      const existingFuture = futurePositions.value.filter(pos => pos.timestamp >= now)
+      
+      // Only add new positions that don't overlap with existing ones
+      const newPositions = positions.filter(pos => 
+        !existingFuture.some(existing => existing.timestamp === pos.timestamp)
+      )
+      
+      futurePositions.value = [...existingFuture, ...newPositions]
+      lastFetchTime.value = now
+      
+      console.log(`📊 Buffer status: ${existingFuture.length} existing + ${newPositions.length} new = ${futurePositions.value.length} total positions`)
 
     } catch (error) {
       console.error('❌ Failed to fetch satellite positions:', error)

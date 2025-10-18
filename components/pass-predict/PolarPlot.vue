@@ -211,6 +211,83 @@ const elevationToRadius = (elevation) => {
 }
 
 /**
+ * Interpolate azimuth between two angles, taking shortest path
+ * Handles 0°/360° wraparound correctly
+ */
+const interpolateAzimuth = (startAz, endAz, t) => {
+  let diff = endAz - startAz
+  
+  // Normalize difference to [-180, 180] to find shortest path
+  if (diff > 180) {
+    diff -= 360
+  } else if (diff < -180) {
+    diff += 360
+  }
+  
+  // Interpolate and normalize to [0, 360]
+  let azimuth = startAz + t * diff
+  if (azimuth < 0) azimuth += 360
+  if (azimuth >= 360) azimuth -= 360
+  
+  return azimuth
+}
+
+/**
+ * Generate SVG path with proper azimuth wraparound handling
+ * Splits path into segments when crossing 0°/360° boundary
+ */
+const generatePathWithWraparound = (positions) => {
+  if (!positions || positions.length < 2) return null
+  
+  const segments = []
+  let currentSegment = []
+  
+  for (let i = 0; i < positions.length; i++) {
+    const pos = positions[i]
+    currentSegment.push(pos)
+    
+    // Check if next position crosses 0°/360° boundary
+    if (i < positions.length - 1) {
+      const nextPos = positions[i + 1]
+      const azDiff = Math.abs(nextPos.azimuth - pos.azimuth)
+      
+      // If azimuth jumps more than 180°, we're crossing the boundary
+      if (azDiff > 180) {
+        // Finish current segment
+        segments.push([...currentSegment])
+        // Start new segment with next position
+        currentSegment = []
+      }
+    }
+  }
+  
+  // Add final segment
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment)
+  }
+  
+  // Convert segments to SVG paths
+  let path = ''
+  for (const segment of segments) {
+    if (segment.length < 2) continue
+    
+    const points = segment.map(pos => polarToCartesian(pos.azimuth, pos.elevation))
+    
+    if (path === '') {
+      path = `M ${points[0].x} ${points[0].y}`
+    } else {
+      path += ` M ${points[0].x} ${points[0].y}`
+    }
+    
+    for (let i = 1; i < points.length; i++) {
+      path += ` L ${points[i].x} ${points[i].y}`
+    }
+  }
+  
+  return path || null
+}
+
+/**
  * Convert azimuth/elevation to SVG coordinates
  * Azimuth: 0° = North (top), 90° = East, 180° = South, 270° = West
  * Elevation: 90° = center, 0° = horizon
@@ -262,14 +339,7 @@ const predictedPath = computed(() => {
     const t = i / samples // 0 to 1
     
     // Interpolate azimuth (handle wraparound at 0°/360°)
-    let azimuth
-    if (Math.abs(endAz - startAz) > 180) {
-      // Wraparound case
-      azimuth = startAz + t * (endAz - startAz + 360)
-      if (azimuth > 360) azimuth -= 360
-    } else {
-      azimuth = startAz + t * (endAz - startAz)
-    }
+    let azimuth = interpolateAzimuth(startAz, endAz, t)
     
     // Interpolate elevation (parabolic arc, peak at t=0.5)
     // Assumes elevation rises to max at midpoint, then descends
@@ -296,16 +366,7 @@ const predictedPath = computed(() => {
 const pastPath = computed(() => {
   if (!props.pastPositions || props.pastPositions.length < 2) return null
 
-  const points = props.pastPositions.map(pos => 
-    polarToCartesian(pos.azimuth, pos.elevation)
-  )
-
-  let path = `M ${points[0].x} ${points[0].y}`
-  for (let i = 1; i < points.length; i++) {
-    path += ` L ${points[i].x} ${points[i].y}`
-  }
-
-  return path
+  return generatePathWithWraparound(props.pastPositions)
 })
 
 /**
@@ -314,16 +375,7 @@ const pastPath = computed(() => {
 const futurePath = computed(() => {
   if (!props.futurePositions || props.futurePositions.length < 2) return null
 
-  const points = props.futurePositions.map(pos => 
-    polarToCartesian(pos.azimuth, pos.elevation)
-  )
-
-  let path = `M ${points[0].x} ${points[0].y}`
-  for (let i = 1; i < points.length; i++) {
-    path += ` L ${points[i].x} ${points[i].y}`
-  }
-
-  return path
+  return generatePathWithWraparound(props.futurePositions)
 })
 </script>
 

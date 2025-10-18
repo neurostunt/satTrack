@@ -12,7 +12,7 @@
 
     <!-- SVG Polar Plot -->
     <svg 
-      v-if="predictedPath || pastPath || futurePath || currentPosition"
+      v-if="pastPath || futurePath || currentPosition || entryPoint || exitPoint || peakPoint"
       :width="size" 
       :height="size" 
       viewBox="0 0 400 400"
@@ -57,7 +57,7 @@
       <text :x="center + 10" :y="center - elevationToRadius(30) + 5" fill="#64748b" font-size="10">30°</text>
       <text :x="center + 10" :y="center - elevationToRadius(60) + 5" fill="#64748b" font-size="10">60°</text>
 
-      <!-- Predicted path (from pass prediction data) -->
+      <!-- Predicted path arc (connects entry → peak → exit) -->
       <path
         v-if="predictedPath"
         :d="predictedPath"
@@ -65,8 +65,9 @@
         stroke="#38bdf8"
         stroke-width="2"
         stroke-dasharray="4,4"
-        opacity="0.4"
+        opacity="0.5"
       />
+
 
       <!-- Past path (where satellite has been) -->
       <path
@@ -88,6 +89,72 @@
         stroke-dasharray="6,3"
         opacity="0.7"
       />
+
+      <!-- Predicted pass points (entry, peak, exit) -->
+      <g v-if="entryPoint || exitPoint || peakPoint">
+        <!-- Entry point (start azimuth at horizon) -->
+        <circle 
+          v-if="entryPoint"
+          :cx="entryPoint.x" 
+          :cy="entryPoint.y" 
+          r="5" 
+          fill="#38bdf8"
+          stroke="#ffffff"
+          stroke-width="2"
+          opacity="0.7"
+        />
+        <text
+          v-if="entryPoint"
+          :x="entryPoint.x"
+          :y="entryPoint.y - 12"
+          text-anchor="middle"
+          fill="#38bdf8"
+          font-size="10"
+          font-weight="bold"
+        >Entry</text>
+        
+        <!-- Exit point (end azimuth at horizon) -->
+        <circle 
+          v-if="exitPoint"
+          :cx="exitPoint.x" 
+          :cy="exitPoint.y" 
+          r="5" 
+          fill="#38bdf8"
+          stroke="#ffffff"
+          stroke-width="2"
+          opacity="0.7"
+        />
+        <text
+          v-if="exitPoint"
+          :x="exitPoint.x"
+          :y="exitPoint.y - 12"
+          text-anchor="middle"
+          fill="#38bdf8"
+          font-size="10"
+          font-weight="bold"
+        >Exit</text>
+        
+        <!-- Peak point (max elevation) -->
+        <circle 
+          v-if="peakPoint"
+          :cx="peakPoint.x" 
+          :cy="peakPoint.y" 
+          r="6" 
+          fill="#f59e0b"
+          stroke="#ffffff"
+          stroke-width="2"
+          opacity="0.9"
+        />
+        <text
+          v-if="peakPoint"
+          :x="peakPoint.x"
+          :y="peakPoint.y - 12"
+          text-anchor="middle"
+          fill="#f59e0b"
+          font-size="10"
+          font-weight="bold"
+        >Peak</text>
+      </g>
 
       <!-- Current satellite position (pulsing dot) -->
       <g v-if="currentPosition">
@@ -171,18 +238,18 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
-  // Pass prediction data for predicted path
+  // Pass prediction data for showing entry/exit/peak points
   startAzimuth: {
     type: Number,
-    default: 0
+    default: null
   },
   endAzimuth: {
     type: Number,
-    default: 0
+    default: null
   },
   maxElevation: {
     type: Number,
-    default: 0
+    default: null
   },
   size: {
     type: Number,
@@ -210,27 +277,6 @@ const elevationToRadius = (elevation) => {
   return radius * (1 - elevation / 90)
 }
 
-/**
- * Interpolate azimuth between two angles, taking shortest path
- * Handles 0°/360° wraparound correctly
- */
-const interpolateAzimuth = (startAz, endAz, t) => {
-  let diff = endAz - startAz
-  
-  // Normalize difference to [-180, 180] to find shortest path
-  if (diff > 180) {
-    diff -= 360
-  } else if (diff < -180) {
-    diff += 360
-  }
-  
-  // Interpolate and normalize to [0, 360]
-  let azimuth = startAz + t * diff
-  if (azimuth < 0) azimuth += 360
-  if (azimuth >= 360) azimuth -= 360
-  
-  return azimuth
-}
 
 /**
  * Generate SVG path with proper azimuth wraparound handling
@@ -311,53 +357,113 @@ const currentPosition = computed(() => {
 })
 
 /**
- * Generate SVG path for predicted arc (from pass prediction)
- * Creates a smooth arc from start → max → end
+ * Predicted pass points (entry, peak, exit)
+ */
+const entryPoint = computed(() => {
+  if (props.startAzimuth === null || props.startAzimuth === undefined) return null
+  return polarToCartesian(props.startAzimuth, 0) // At horizon
+})
+
+const exitPoint = computed(() => {
+  if (props.endAzimuth === null || props.endAzimuth === undefined) return null
+  return polarToCartesian(props.endAzimuth, 0) // At horizon
+})
+
+const peakPoint = computed(() => {
+  if (props.maxElevation === null || props.maxElevation === undefined) return null
+  if (props.startAzimuth === null || props.endAzimuth === null) return null
+  
+  // Calculate peak azimuth (midpoint between start and end)
+  let peakAzimuth = (props.startAzimuth + props.endAzimuth) / 2
+  
+  // Handle wraparound: if the arc crosses 0°/360°, adjust the peak
+  if (Math.abs(props.endAzimuth - props.startAzimuth) > 180) {
+    if (props.endAzimuth > props.startAzimuth) {
+      peakAzimuth = ((props.startAzimuth + props.endAzimuth + 360) / 2) % 360
+    } else {
+      peakAzimuth = ((props.startAzimuth + props.endAzimuth - 360) / 2 + 360) % 360
+    }
+  }
+  
+  return polarToCartesian(peakAzimuth, props.maxElevation)
+})
+
+/**
+ * Helper function: Calculate circle center through three points
+ */
+const getCircleCenter = (p1, p2, p3) => {
+  const ax = p1.x, ay = p1.y
+  const bx = p2.x, by = p2.y
+  const cx = p3.x, cy = p3.y
+
+  const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
+  
+  if (Math.abs(d) < 0.0001) {
+    return null // Points are collinear
+  }
+
+  const ux = ((ax * ax + ay * ay) * (by - cy) + 
+              (bx * bx + by * by) * (cy - ay) + 
+              (cx * cx + cy * cy) * (ay - by)) / d
+  
+  const uy = ((ax * ax + ay * ay) * (cx - bx) + 
+              (bx * bx + by * by) * (ax - cx) + 
+              (cx * cx + cy * cy) * (bx - ax)) / d
+
+  return { x: ux, y: uy }
+}
+
+/**
+ * Predicted path arc - draws circular arc through entry → peak → exit
+ * Uses true circular arc calculation like compass drawing
  */
 const predictedPath = computed(() => {
-  // Validate required data
-  if (!props.maxElevation || props.maxElevation <= 0) return null
+  if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
   
-  // Check for valid azimuth data
-  const startAz = props.startAzimuth
-  const endAz = props.endAzimuth
+  const p1 = entryPoint.value
+  const p2 = peakPoint.value
+  const p3 = exitPoint.value
   
-  if (startAz === null || startAz === undefined || 
-      endAz === null || endAz === undefined ||
-      isNaN(startAz) || isNaN(endAz) ||
-      startAz < 0 || startAz > 360 ||
-      endAz < 0 || endAz > 360) {
-    console.warn(`⚠️ Invalid azimuth data for ${props.satelliteName}: startAz=${startAz}, endAz=${endAz}`)
-    return null
-  }
-
-  const points = []
+  // Calculate circle center through three points
+  const center = getCircleCenter(p1, p2, p3)
   
-  // Sample points along the predicted arc
-  const samples = 20
-  for (let i = 0; i <= samples; i++) {
-    const t = i / samples // 0 to 1
-    
-    // Interpolate azimuth (handle wraparound at 0°/360°)
-    let azimuth = interpolateAzimuth(startAz, endAz, t)
-    
-    // Interpolate elevation (parabolic arc, peak at t=0.5)
-    // Assumes elevation rises to max at midpoint, then descends
-    const elevation = props.maxElevation * Math.sin(t * Math.PI)
-    
-    const point = polarToCartesian(azimuth, elevation)
-    points.push(point)
-  }
-
-  // Create SVG path
-  if (points.length === 0) return null
-  
-  let path = `M ${points[0].x} ${points[0].y}`
-  for (let i = 1; i < points.length; i++) {
-    path += ` L ${points[i].x} ${points[i].y}`
+  if (!center) {
+    // Points are collinear - draw straight lines
+    return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y}`
   }
   
-  return path
+  // Calculate radius and angles
+  const radius = Math.hypot(p1.x - center.x, p1.y - center.y)
+  const angle1 = Math.atan2(p1.y - center.y, p1.x - center.x)
+  const angle2 = Math.atan2(p2.y - center.y, p2.x - center.x)
+  const angle3 = Math.atan2(p3.y - center.y, p3.x - center.x)
+  
+  // Determine arc direction (counter-clockwise or clockwise)
+  const isCounterClockwise = (a1, a2, a3) => {
+    let diff1 = a2 - a1
+    let diff2 = a3 - a2
+    
+    while (diff1 < 0) diff1 += 2 * Math.PI
+    while (diff2 < 0) diff2 += 2 * Math.PI
+    
+    return (diff1 + diff2) < 2 * Math.PI
+  }
+  
+  const ccw = isCounterClockwise(angle1, angle2, angle3)
+  
+  // For SVG, sweep-flag: 0 = counter-clockwise, 1 = clockwise
+  const sweepFlag = ccw ? 1 : 0
+  
+  // Check if we need the large arc (> 180 degrees)
+  let totalAngle = Math.abs(angle3 - angle1)
+  if (totalAngle > Math.PI) {
+    totalAngle = 2 * Math.PI - totalAngle
+  }
+  const largeArcFlag = totalAngle > Math.PI ? 1 : 0
+  
+  // Use SVG arc command (A) to draw perfect circular arc
+  // A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+  return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
 })
 
 /**

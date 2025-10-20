@@ -49,7 +49,15 @@ const loadSettings = async (): Promise<void> => {
   try {
     const storedSettings = await storage.getSettings()
     if (storedSettings) {
-      settings.value = { ...defaultSettings, ...storedSettings }
+      // Deep clone to ensure nested objects are mutable
+      settings.value = {
+        ...defaultSettings,
+        ...storedSettings,
+        observationLocation: {
+          ...defaultSettings.observationLocation,
+          ...storedSettings.observationLocation
+        }
+      }
     }
   } catch (error) {
     console.error('Failed to load settings:', error)

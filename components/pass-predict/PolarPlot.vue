@@ -3,10 +3,14 @@
     <!-- Title -->
     <div class="text-center mb-2">
       <h4 class="text-sm font-semibold text-primary-400">
-        {{ satelliteName }} - Live Position
+        {{ satelliteName }} - {{ isGeostationary ? 'Position' : 'Live Position' }}
       </h4>
-      <div class="text-xs text-space-400">
-        {{ currentElevation }}° elevation | {{ currentAzimuth }}° azimuth
+      <div class="text-xs text-space-400 font-mono">
+        <span>El: {{ currentElevation.toFixed(1).padStart(4, ' ') }}°</span>
+        <span class="mx-2">|</span>
+        <span>Az: {{ currentAzimuth.toFixed(1).padStart(5, ' ') }}°</span>
+        <span class="mx-2">|</span>
+        <span>{{ formattedDistance }}</span>
       </div>
     </div>
 
@@ -90,9 +94,9 @@
         opacity="0.7"
       />
 
-      <!-- Predicted pass points (entry, peak, exit) -->
+      <!-- Predicted pass points (entry, peak, exit) - not shown for geostationary -->
       <g v-if="entryPoint || exitPoint || peakPoint">
-        <!-- Entry point (start azimuth at horizon) -->
+        <!-- Entry point (start azimuth at horizon) - hidden for geostationary -->
         <circle 
           v-if="entryPoint"
           :cx="entryPoint.x" 
@@ -113,7 +117,7 @@
           font-weight="bold"
         >Entry</text>
         
-        <!-- Exit point (end azimuth at horizon) -->
+        <!-- Exit point (end azimuth at horizon) - hidden for geostationary -->
         <circle 
           v-if="exitPoint"
           :cx="exitPoint.x" 
@@ -134,7 +138,7 @@
           font-weight="bold"
         >Exit</text>
         
-        <!-- Peak point (max elevation) -->
+        <!-- Peak point (max elevation) - for geostationary, this is the only position -->
         <circle 
           v-if="peakPoint"
           :cx="peakPoint.x" 
@@ -153,7 +157,7 @@
           fill="#94a3b8"
           font-size="9"
           font-weight="600"
-        >Peak</text>
+        >{{ isGeostationary ? 'Position' : 'Peak' }}</text>
       </g>
 
       <!-- Current satellite position (pulsing dot) -->
@@ -229,6 +233,14 @@ const props = defineProps({
     type: Number,
     default: 0
   },
+  currentDistance: {
+    type: Number,
+    default: 0
+  },
+  distanceUnits: {
+    type: String,
+    default: 'km'
+  },
   // Path data
   pastPositions: {
     type: Array,
@@ -251,6 +263,14 @@ const props = defineProps({
     type: Number,
     default: null
   },
+  maxAzimuth: {
+    type: Number,
+    default: null
+  },
+  noradId: {
+    type: Number,
+    default: null
+  },
   size: {
     type: Number,
     default: 400
@@ -262,6 +282,36 @@ const props = defineProps({
 // ============================================================================
 const center = 200 // Center of SVG (400/2)
 const radius = 180 // Outer radius (horizon)
+
+// ============================================================================
+// Computed Properties - Geostationary Check
+// ============================================================================
+const isGeostationary = computed(() => {
+  // Detect geostationary based on pass characteristics
+  // If we have start and end azimuth, check if they're nearly the same
+  if (props.startAzimuth !== null && props.endAzimuth !== null) {
+    const azimuthDiff = Math.abs(props.startAzimuth - props.endAzimuth)
+    return azimuthDiff < 5 // Less than 5 degrees movement = geostationary
+  }
+  return false
+})
+
+// ============================================================================
+// Computed Properties - Distance Formatting
+// ============================================================================
+const formattedDistance = computed(() => {
+  let distance = props.currentDistance
+  let unit = 'km'
+  
+  // Convert to miles if needed
+  if (props.distanceUnits === 'miles') {
+    distance = distance * 0.621371 // km to miles conversion
+    unit = 'mi'
+  }
+  
+  // Format with fixed width (5 chars + space + 2 char unit)
+  return `${distance.toFixed(0).padStart(5, ' ')} ${unit}`
+})
 
 // ============================================================================
 // Utility Functions
@@ -388,31 +438,42 @@ const currentPosition = computed(() => {
 
 /** Entry point (start azimuth at horizon) */
 const entryPoint = computed(() => {
+  // Don't show entry point for geostationary satellites
+  if (isGeostationary.value) return null
   if (props.startAzimuth === null || props.startAzimuth === undefined) return null
   return polarToCartesian(props.startAzimuth, 0) // At horizon
 })
 
 /** Exit point (end azimuth at horizon) */
 const exitPoint = computed(() => {
+  // Don't show exit point for geostationary satellites
+  if (isGeostationary.value) return null
   if (props.endAzimuth === null || props.endAzimuth === undefined) return null
   return polarToCartesian(props.endAzimuth, 0)
 })
 
-/** Peak point (max elevation at calculated azimuth) */
+/** Peak point (max elevation at actual azimuth from API) */
 const peakPoint = computed(() => {
   if (props.maxElevation === null || props.maxElevation === undefined) return null
-  if (props.startAzimuth === null || props.endAzimuth === null) return null
   
-  // Calculate peak azimuth (midpoint between start and end)
-  let peakAzimuth = (props.startAzimuth + props.endAzimuth) / 2
-  
-  // Handle wraparound: if the arc crosses 0°/360°, adjust the peak
-  if (Math.abs(props.endAzimuth - props.startAzimuth) > 180) {
-    if (props.endAzimuth > props.startAzimuth) {
-      peakAzimuth = ((props.startAzimuth + props.endAzimuth + 360) / 2) % 360
-    } else {
-      peakAzimuth = ((props.startAzimuth + props.endAzimuth - 360) / 2 + 360) % 360
+  // Use actual maxAzimuth from API if available, otherwise calculate as fallback
+  let peakAzimuth
+  if (props.maxAzimuth !== null && props.maxAzimuth !== undefined) {
+    peakAzimuth = props.maxAzimuth
+  } else if (props.startAzimuth !== null && props.endAzimuth !== null) {
+    // Fallback: Calculate peak azimuth (midpoint between start and end)
+    peakAzimuth = (props.startAzimuth + props.endAzimuth) / 2
+    
+    // Handle wraparound: if the arc crosses 0°/360°, adjust the peak
+    if (Math.abs(props.endAzimuth - props.startAzimuth) > 180) {
+      if (props.endAzimuth > props.startAzimuth) {
+        peakAzimuth = ((props.startAzimuth + props.endAzimuth + 360) / 2) % 360
+      } else {
+        peakAzimuth = ((props.startAzimuth + props.endAzimuth - 360) / 2 + 360) % 360
+      }
     }
+  } else {
+    return null
   }
   
   return polarToCartesian(peakAzimuth, props.maxElevation)
@@ -425,8 +486,11 @@ const peakPoint = computed(() => {
 /**
  * Predicted path arc - draws circular arc through entry → peak → exit
  * Uses true circular arc calculation (like compass drawing)
+ * For geostationary satellites, returns null (no path needed)
  */
 const predictedPath = computed(() => {
+  // Don't show path for geostationary satellites (they don't move)
+  if (isGeostationary.value) return null
   if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
   
   const p1 = entryPoint.value

@@ -18,6 +18,7 @@ export interface PassPrediction {
   endTime: number
   duration: number
   maxElevation: number
+  maxAzimuth: number // Azimuth at maximum elevation
   startAzimuth: number
   endAzimuth: number
   startElevation: number
@@ -113,15 +114,17 @@ export const usePassPrediction = () => {
       // Note: radio passes do NOT include startEl/endEl (not needed for radio ops)
       const allPasses: PassPrediction[] = n2yoResponse.passes.map(pass => {
         console.log(`🔍 Processing radio pass:`, pass)
-        console.log(`🔍 maxEl: ${pass.maxEl}`)
+        console.log(`🔍 maxEl: ${pass.maxEl}, maxAz: ${pass.maxAz}`)
         
         const maxElevation = pass.maxEl || 0
+        const maxAzimuth = pass.maxAz || 0
         
         return {
           startTime: pass.startUTC * 1000, // Convert Unix timestamp to milliseconds
           endTime: pass.endUTC * 1000,
           duration: (pass.endUTC - pass.startUTC) * 1000, // Duration in milliseconds
           maxElevation: maxElevation,
+          maxAzimuth: maxAzimuth, // Actual azimuth at max elevation from API
           startAzimuth: pass.startAz || 0,
           endAzimuth: pass.endAz || 0,
           startElevation: 0, // Not provided by radio passes API (not needed)
@@ -300,11 +303,14 @@ export const usePassPrediction = () => {
   }
 
   /**
-   * Format pass time for display
+   * Format pass time for display (day/month + time)
    */
   const formatPassTime = (timestamp: number): string => {
     const date = new Date(timestamp)
-    return date.toLocaleString()
+    const day = date.getDate()
+    const month = date.toLocaleString('default', { month: 'short' })
+    const time = date.toLocaleTimeString()
+    return `${month} ${day}, ${time}`
   }
 
   /**
@@ -388,13 +394,17 @@ export const usePassPrediction = () => {
           const firstPass = passes[0]
           const observerLocation = firstPass.observerLocation
           
-          // Special handling for geostationary satellites
-          const geostationarySatellites = [43700] // QO-100 and other GEO satellites
-          const isGeostationary = geostationarySatellites.includes(noradId)
+          // Check if satellite is geostationary based on pass characteristics
+          const hasGeostationaryPass = passes.some((pass: any) => {
+            const azimuthDiff = Math.abs(pass.startAzimuth - pass.endAzimuth)
+            const duration = pass.endTime - pass.startTime
+            const durationHours = duration / (1000 * 60 * 60)
+            return azimuthDiff < 5 && durationHours > 12
+          })
           
           let futurePasses: any[]
           
-          if (isGeostationary) {
+          if (hasGeostationaryPass) {
             console.log(`🛰️ NORAD ID ${noradId} is geostationary - keeping all passes (stationary satellite)`)
             // For geostationary satellites, keep all passes as they don't "pass" in the traditional sense
             futurePasses = passes

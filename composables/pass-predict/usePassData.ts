@@ -50,11 +50,17 @@ export const usePassData = (
           if (storedPass.noradId && storedPass.passes && Array.isArray(storedPass.passes)) {
             // Filter out expired passes when loading from database
             const currentTime = Date.now()
-            const geostationarySatellites = [43700] // QO-100 and other GEO satellites
-            const isGeostationary = geostationarySatellites.includes(storedPass.noradId)
             
             let validPasses = storedPass.passes
-            if (!isGeostationary) {
+            // Check if ANY pass is geostationary (they all should be the same for a satellite)
+            const hasGeostationaryPass = storedPass.passes.some((pass: any) => {
+              const azimuthDiff = Math.abs(pass.startAzimuth - pass.endAzimuth)
+              const duration = pass.endTime - pass.startTime
+              const durationHours = duration / (1000 * 60 * 60)
+              return azimuthDiff < 5 && durationHours > 12
+            })
+            
+            if (!hasGeostationaryPass) {
               validPasses = storedPass.passes.filter((pass: any) => pass.endTime > currentTime)
             }
             

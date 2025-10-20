@@ -10,6 +10,7 @@ export interface N2YOPass {
   endUTC: number // Unix timestamp
   duration: number
   maxEl: number // N2YO uses maxEl, not maxElevation
+  maxAz: number // Azimuth at maximum elevation
   startAz: number // N2YO uses startAz, not startAzimuth
   endAz: number // N2YO uses endAz, not endAzimuth
   // Note: radiopasses does NOT provide startEl/endEl
@@ -260,13 +261,21 @@ export const useN2YO = () => {
         positionsCount: positionsData.positions?.length || 0
       })
 
+      // Debug: Log first position to see what fields are available
+      if (positionsData.positions && positionsData.positions.length > 0) {
+        console.log('🔍 First position sample:', positionsData.positions[0])
+        console.log('🔍 Available fields:', Object.keys(positionsData.positions[0]))
+      }
+
       // Convert N2YO positions to our format
       const positions = positionsData.positions.map((pos: any) => ({
         timestamp: pos.timestamp * 1000, // Convert to milliseconds
         azimuth: pos.azimuth,
         elevation: pos.elevation,
-        distance: pos.distance || 0
+        distance: pos.distance || pos.sataltitude || pos.range || 0
       }))
+      
+      console.log('🔍 Mapped first position:', positions[0])
 
       return positions
 

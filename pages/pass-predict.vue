@@ -35,7 +35,7 @@
             :key="`${pass.noradId}-${pass.startTime}`"
             :pass="pass"
             :is-expanded="isPassExpanded(pass.noradId, pass.startTime)"
-            :is-passing="getPassStatus(pass.startTime, pass.endTime, pass.noradId) === 'passing'"
+            :is-passing="getPassStatus(pass.startTime, pass.endTime, pass.noradId, pass) === 'passing'"
             :format-time-until-pass="formatTimeUntilPass"
             :get-pass-status="getPassStatus"
             :get-t-l-e-data="getTLEData"

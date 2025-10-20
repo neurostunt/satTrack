@@ -36,13 +36,17 @@ export const usePassFiltering = (
 
     // Get all passes from satellites that have at least one upcoming pass
     passPredictions.value.forEach((passes, noradId) => {
-      // Special handling for geostationary satellites
-      const geostationarySatellites = [43700] // QO-100 and other GEO satellites
-      const isGeostationary = geostationarySatellites.includes(noradId)
+      // Check if this satellite is geostationary based on pass characteristics
+      const hasGeostationaryPass = passes.some((pass: any) => {
+        const azimuthDiff = Math.abs(pass.startAzimuth - pass.endAzimuth)
+        const duration = pass.endTime - pass.startTime
+        const durationHours = duration / (1000 * 60 * 60)
+        return azimuthDiff < 5 && durationHours > 12
+      })
       
       // Filter passes for this satellite - include passes that ended less than 10 seconds ago
       let validPasses = passes
-      if (!isGeostationary) {
+      if (!hasGeostationaryPass) {
         validPasses = passes.filter(pass => {
           const timeSinceEnd = currentTimeNow - pass.endTime
           return pass.endTime > currentTimeNow || timeSinceEnd < 10000 // Keep passes that are upcoming OR ended less than 10 seconds ago

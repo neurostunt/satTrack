@@ -7,7 +7,7 @@ import type { Ref } from 'vue'
 
 export const usePassCleanup = (
   passPredictions: Ref<Map<number, any[]>>,
-  isGeostationary: (noradId: number) => boolean
+  isGeostationary: (pass: any) => boolean
 ) => {
   /**
    * Clean up expired passes from the current data
@@ -20,7 +20,10 @@ export const usePassCleanup = (
     let satellitesRemoved = 0
     
     passPredictions.value.forEach((passes, noradId) => {
-      if (isGeostationary(noradId)) {
+      // Check if ANY pass is geostationary
+      const hasGeostationaryPass = passes.some(pass => isGeostationary(pass))
+      
+      if (hasGeostationaryPass) {
         // Keep all passes for geostationary satellites
         updatedPredictions.set(noradId, passes)
       } else {
@@ -56,7 +59,10 @@ export const usePassCleanup = (
     let removedCount = 0
     
     passPredictions.value.forEach((passes, noradId) => {
-      if (isGeostationary(noradId)) {
+      // Check if ANY pass is geostationary
+      const hasGeostationaryPass = passes.some(pass => isGeostationary(pass))
+      
+      if (hasGeostationaryPass) {
         // Keep all passes for geostationary satellites
         updatedPredictions.set(noradId, passes)
       } else {

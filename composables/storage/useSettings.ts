@@ -110,7 +110,7 @@ const resetSettings = (): void => {
 // Export composable
 export const useSettings = () => {
   return {
-    settings: readonly(settings),
+    settings,
     isSettingsLoaded,
     loadSettings,
     saveSettings,

@@ -1,41 +1,64 @@
 <template>
   <!-- Pass Details -->
   <div class="mb-3">
-    <div class="text-sm text-space-300 mb-2">🛰️ Pass Details</div>
-    <div class="bg-space-800 border border-space-500 rounded p-2 text-xs">
-      <div class="grid grid-cols-2 gap-x-4 gap-y-1">
-        <!-- Column 1 -->
-        <div class="flex justify-between">
-          <span class="text-space-400">Start Time:</span>
-          <span class="text-space-200">{{ formatPassTime(pass.startTime) }}</span>
-        </div>
-        <!-- Column 2 -->
-        <div class="flex justify-between">
-          <span class="text-space-400">End Time:</span>
-          <span class="text-space-200">{{ formatPassTime(pass.endTime) }}</span>
-        </div>
-        <!-- Column 1 -->
-        <div class="flex justify-between">
-          <span class="text-space-400">Duration:</span>
-          <span class="text-space-200">{{ formatPassDuration(pass.duration) }}</span>
-        </div>
-        <!-- Column 2 -->
-        <div class="flex justify-between">
-          <span class="text-space-400">Max Elevation:</span>
-          <span class="text-green-400 font-medium">{{ Math.round(pass.maxElevation) }}°</span>
-        </div>
-        <!-- Column 1 -->
-        <div class="flex justify-between">
-          <span class="text-space-400">Start Azimuth:</span>
-          <span class="text-space-200">{{ Math.round(pass.startAzimuth) }}°</span>
-        </div>
-        <!-- Column 2 -->
-        <div class="flex justify-between">
-          <span class="text-space-400">End Azimuth:</span>
-          <span class="text-space-200">{{ Math.round(pass.endAzimuth) }}°</span>
+    <div 
+      class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
+      @click="togglePassDetails"
+    >
+      <span>🛰️ Pass Details</span>
+      <svg 
+        class="w-4 h-4 transition-transform duration-300" 
+        :class="{ 'rotate-180': showPassDetails }"
+        fill="none" 
+        stroke="currentColor" 
+        viewBox="0 0 24 24"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+      </svg>
+    </div>
+    <Transition
+      enter-active-class="transition-all duration-300 ease-out"
+      leave-active-class="transition-all duration-200 ease-in"
+      enter-from-class="transform scale-y-0 opacity-0 origin-top"
+      enter-to-class="transform scale-y-100 opacity-100 origin-top"
+      leave-from-class="transform scale-y-100 opacity-100 origin-top"
+      leave-to-class="transform scale-y-0 opacity-0 origin-top"
+    >
+      <div v-if="showPassDetails" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
+        <div class="grid grid-cols-2 gap-x-4 gap-y-1">
+          <!-- Column 1 -->
+          <div class="flex justify-between">
+            <span class="text-space-400">Start Time:</span>
+            <span class="text-space-200">{{ formatPassTime(pass.startTime) }}</span>
+          </div>
+          <!-- Column 2 -->
+          <div class="flex justify-between">
+            <span class="text-space-400">End Time:</span>
+            <span class="text-space-200">{{ formatPassTime(pass.endTime) }}</span>
+          </div>
+          <!-- Column 1 -->
+          <div class="flex justify-between">
+            <span class="text-space-400">Duration:</span>
+            <span class="text-space-200">{{ formatPassDuration(pass.duration) }}</span>
+          </div>
+          <!-- Column 2 -->
+          <div class="flex justify-between">
+            <span class="text-space-400">Max Elevation:</span>
+            <span class="text-green-400 font-medium">{{ Math.round(pass.maxElevation) }}°</span>
+          </div>
+          <!-- Column 1 -->
+          <div class="flex justify-between">
+            <span class="text-space-400">Start Azimuth:</span>
+            <span class="text-space-200">{{ Math.round(pass.startAzimuth) }}°</span>
+          </div>
+          <!-- Column 2 -->
+          <div class="flex justify-between">
+            <span class="text-space-400">End Azimuth:</span>
+            <span class="text-space-200">{{ Math.round(pass.endAzimuth) }}°</span>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </div>
 
   <!-- Transmitter Count -->
@@ -44,7 +67,7 @@
       class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
       @click="toggleTransmitters"
     >
-      <span>📡 Available Transmitters</span>
+      <span>📡 Available Transmitters: {{ pass.transmitterCount }}</span>
       <svg 
         class="w-4 h-4 transition-transform duration-300" 
         :class="{ 'rotate-180': showTransmitters }"
@@ -55,24 +78,16 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
       </svg>
     </div>
-    <div class="bg-space-800 border border-space-500 rounded p-2 text-xs">
-      <div 
-        class="text-space-200 cursor-pointer hover:text-primary-400 transition-colors"
-        @click="toggleTransmitters"
-      >
-        {{ pass.transmitterCount }} transmitter{{ pass.transmitterCount !== 1 ? 's' : '' }} available
-      </div>
-      
-      <!-- Expandable transmitter list -->
-      <Transition
-        enter-active-class="transition-all duration-300 ease-out"
-        leave-active-class="transition-all duration-200 ease-in"
-        enter-from-class="max-h-0 opacity-0"
-        enter-to-class="max-h-[1000px] opacity-100"
-        leave-from-class="max-h-[1000px] opacity-100"
-        leave-to-class="max-h-0 opacity-0"
-      >
-        <div v-if="showTransmitters && transmitters.length > 0" class="mt-2 space-y-2 overflow-hidden">
+    <Transition
+      enter-active-class="transition-all duration-300 ease-out"
+      leave-active-class="transition-all duration-200 ease-in"
+      enter-from-class="transform scale-y-0 opacity-0 origin-top"
+      enter-to-class="transform scale-y-100 opacity-100 origin-top"
+      leave-from-class="transform scale-y-100 opacity-100 origin-top"
+      leave-to-class="transform scale-y-0 opacity-0 origin-top"
+    >
+      <div v-if="showTransmitters" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
+        <div v-if="transmitters.length > 0" class="space-y-2">
           <div 
             v-for="(transmitter, index) in transmitters" 
             :key="index"
@@ -98,8 +113,8 @@
             </div>
           </div>
         </div>
-      </Transition>
-    </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -127,6 +142,9 @@ const props = defineProps({
   }
 })
 
+// State for pass details expansion
+const showPassDetails = ref(false)
+
 // State for transmitter expansion
 const showTransmitters = ref(false)
 
@@ -135,6 +153,11 @@ const transmitters = computed(() => {
   const satData = props.getSatelliteData(props.pass.noradId)
   return satData?.transmitters || []
 })
+
+// Toggle pass details
+const togglePassDetails = () => {
+  showPassDetails.value = !showPassDetails.value
+}
 
 // Toggle transmitter list
 const toggleTransmitters = () => {

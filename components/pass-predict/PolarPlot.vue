@@ -2,9 +2,7 @@
   <div class="polar-plot-container">
     <!-- Title -->
     <div class="text-center mb-2">
-      <h4 class="text-sm font-semibold text-primary-400">
-        {{ satelliteName }} - {{ isGeostationary ? 'Position' : 'Live Position' }}
-      </h4>
+   
       <div class="text-xs text-space-400 font-mono">
         <span>El: {{ currentElevation.toFixed(1).padStart(4, ' ') }}°</span>
         <span class="mx-2">|</span>

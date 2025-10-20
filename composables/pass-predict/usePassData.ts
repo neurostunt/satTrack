@@ -34,9 +34,9 @@ export const usePassData = (
 
       // Get observer location from settings
       observerLocation.value = {
-        lat: settings.value.observerLatitude || 0,
-        lng: settings.value.observerLongitude || 0,
-        alt: settings.value.observerAltitude || 0
+        lat: settings.value.observationLocation?.latitude || 0,
+        lng: settings.value.observationLocation?.longitude || 0,
+        alt: settings.value.observationLocation?.altitude || 0
       }
 
       // Load all stored pass predictions

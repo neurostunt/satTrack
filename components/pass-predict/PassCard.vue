@@ -55,6 +55,9 @@
           :format-pass-time="formatPassTime"
           :format-pass-duration="formatPassDuration"
           :format-time-until-pass="formatTimeUntilPass"
+          :is-passing="isPassing"
+          :is-geostationary="isGeostationarySatellite"
+          :radial-velocity="radialVelocity"
         />
       </div>
     </Transition>
@@ -113,6 +116,7 @@ const {
   positionHistory,
   futurePositions,
   isTracking,
+  radialVelocity,
   startTracking,
   stopTracking
 } = useRealTimePosition()

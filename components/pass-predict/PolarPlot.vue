@@ -1,8 +1,7 @@
 <template>
   <div class="polar-plot-container">
-    <!-- Title -->
-    <div class="text-center mb-2">
-   
+    <!-- Live Position Info -->
+    <div class="text-center mb-2 mt-3">
       <div class="text-xs text-space-400 font-mono">
         <span>El: {{ currentElevation.toFixed(1).padStart(4, ' ') }}°</span>
         <span class="mx-2">|</span>
@@ -15,10 +14,8 @@
     <!-- SVG Polar Plot -->
     <svg 
       v-if="pastPath || futurePath || currentPosition || entryPoint || exitPoint || peakPoint"
-      :width="size" 
-      :height="size" 
       viewBox="0 0 400 400"
-      class="mx-auto"
+      class="mx-auto w-full max-w-[400px] h-auto"
     >
       <!-- Background -->
       <circle :cx="center" :cy="center" :r="radius" fill="#0f172a" stroke="#334155" stroke-width="1" />
@@ -555,6 +552,8 @@ const futurePath = computed(() => {
 <style scoped>
 .polar-plot-container {
   @apply bg-space-900 border border-space-600 rounded-lg p-4;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 /* Pulsing animation for current satellite position */

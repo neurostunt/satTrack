@@ -101,11 +101,27 @@
             </div>
             <div v-if="transmitter.downlink_low" class="flex justify-between">
               <span class="text-space-400">Downlink:</span>
-              <span class="text-space-200">{{ formatFrequency(transmitter.downlink_low) }}</span>
+              <div class="text-right font-mono">
+                <span v-if="getShiftedFrequency(transmitter.downlink_low)" class="text-orange-400 font-medium">
+                  {{ getShiftedFrequency(transmitter.downlink_low) }}
+                </span>
+                <span v-else class="text-space-200">{{ formatFrequency(transmitter.downlink_low) }}</span>
+                <span v-if="getShiftedFrequency(transmitter.downlink_low)" class="text-space-400 text-[11px] ml-1">
+                  ({{ formatFrequency(transmitter.downlink_low) }})
+                </span>
+              </div>
             </div>
             <div v-if="transmitter.uplink_low" class="flex justify-between">
               <span class="text-space-400">Uplink:</span>
-              <span class="text-space-200">{{ formatFrequency(transmitter.uplink_low) }}</span>
+              <div class="text-right font-mono">
+                <span v-if="getShiftedFrequency(transmitter.uplink_low)" class="text-orange-400 font-medium">
+                  {{ getShiftedFrequency(transmitter.uplink_low) }}
+                </span>
+                <span v-else class="text-space-200">{{ formatFrequency(transmitter.uplink_low) }}</span>
+                <span v-if="getShiftedFrequency(transmitter.uplink_low)" class="text-space-400 text-[11px] ml-1">
+                  ({{ formatFrequency(transmitter.uplink_low) }})
+                </span>
+              </div>
             </div>
             <div v-if="transmitter.mode" class="flex justify-between">
               <span class="text-space-400">Mode:</span>
@@ -119,6 +135,8 @@
 </template>
 
 <script setup>
+import { calculateDopplerShift, formatDopplerShift } from '~/utils/dopplerCalculations'
+
 const props = defineProps({
   pass: {
     type: Object,
@@ -139,6 +157,18 @@ const props = defineProps({
   formatTimeUntilPass: {
     type: Function,
     required: true
+  },
+  isPassing: {
+    type: Boolean,
+    default: false
+  },
+  isGeostationary: {
+    type: Boolean,
+    default: false
+  },
+  radialVelocity: {
+    type: Number,
+    default: 0
   }
 })
 
@@ -148,10 +178,13 @@ const showPassDetails = ref(false)
 // State for transmitter expansion
 const showTransmitters = ref(false)
 
-// Get transmitters from satellite data
+// Get transmitters from satellite data (filter out dead ones)
 const transmitters = computed(() => {
   const satData = props.getSatelliteData(props.pass.noradId)
-  return satData?.transmitters || []
+  const allTransmitters = satData?.transmitters || []
+  
+  // Filter out dead transmitters
+  return allTransmitters.filter(t => t.alive !== false)
 })
 
 // Toggle pass details
@@ -169,11 +202,22 @@ const formatFrequency = (frequency) => {
   if (!frequency) return 'Unknown'
   
   if (frequency >= 1000000) {
-    return `${(frequency / 1000000).toFixed(3)} MHz`
+    return `${(frequency / 1000000).toFixed(6)} MHz`
   } else if (frequency >= 1000) {
-    return `${(frequency / 1000).toFixed(0)} kHz`
+    return `${(frequency / 1000).toFixed(3)} kHz`
   } else {
     return `${frequency} Hz`
   }
+}
+
+// Get Doppler-shifted frequency for display
+const getShiftedFrequency = (frequency) => {
+  // Only calculate if satellite is passing (not stationary) and we have radial velocity
+  if (!props.isPassing || props.isGeostationary || !props.radialVelocity || !frequency) {
+    return null
+  }
+  
+  const doppler = calculateDopplerShift(frequency, props.radialVelocity)
+  return formatFrequency(doppler.shiftedFrequency)
 }
 </script>

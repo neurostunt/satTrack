@@ -272,7 +272,10 @@ export const useN2YO = () => {
         timestamp: pos.timestamp * 1000, // Convert to milliseconds
         azimuth: pos.azimuth,
         elevation: pos.elevation,
-        distance: pos.distance || pos.sataltitude || pos.range || 0
+        satLatitude: pos.satlatitude,
+        satLongitude: pos.satlongitude,
+        satAltitude: pos.sataltitude,
+        distance: 0 // Will be calculated from coordinates
       }))
       
       console.log('🔍 Mapped first position:', positions[0])

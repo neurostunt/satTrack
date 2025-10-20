@@ -11,12 +11,16 @@
  */
 
 import type { Ref } from 'vue'
+import { calculateDistance, calculateRadialVelocity } from '~/utils/dopplerCalculations'
 
 export interface SatellitePosition {
   timestamp: number // Unix timestamp in milliseconds
   azimuth: number // Degrees (0-360)
   elevation: number // Degrees (0-90)
   distance: number // Distance to satellite (km)
+  satLatitude: number // Satellite latitude
+  satLongitude: number // Satellite longitude
+  satAltitude: number // Satellite altitude above Earth (km)
 }
 
 export const useRealTimePosition = () => {
@@ -32,6 +36,12 @@ export const useRealTimePosition = () => {
   // Tracking state
   const isTracking = ref(false)
   const lastFetchTime = ref(0)
+  
+  // Radial velocity (km/s)
+  const radialVelocity = ref<number>(0)
+  
+  // Observer location (stored for distance calculations)
+  const observerLocation = ref<{ lat: number; lng: number; alt: number } | null>(null)
   
   // Animation frame ID for cleanup
   let animationFrameId: number | null = null
@@ -74,6 +84,14 @@ export const useRealTimePosition = () => {
     isTracking.value = true
     positionHistory.value = []
     futurePositions.value = []
+    radialVelocity.value = 0
+    
+    // Store observer location for distance calculations
+    observerLocation.value = {
+      lat: observerLat,
+      lng: observerLng,
+      alt: observerAlt
+    }
 
     // Fetch initial positions
     await fetchPositions(noradId, observerLat, observerLng, observerAlt, apiKey)
@@ -123,6 +141,8 @@ export const useRealTimePosition = () => {
     currentPosition.value = null
     positionHistory.value = []
     futurePositions.value = []
+    radialVelocity.value = 0
+    observerLocation.value = null
   }
 
   /**
@@ -152,6 +172,20 @@ export const useRealTimePosition = () => {
       )
 
       console.log(`✅ Received ${positions.length} position samples (${positions.length}s of data)`)
+      
+      // Calculate distance for each position
+      if (observerLocation.value) {
+        positions.forEach(pos => {
+          pos.distance = calculateDistance(
+            observerLocation.value!.lat,
+            observerLocation.value!.lng,
+            observerLocation.value!.alt,
+            pos.satLatitude,
+            pos.satLongitude,
+            pos.satAltitude
+          )
+        })
+      }
       
       // Merge with existing buffer, removing any overlaps
       // The animation loop moves consumed positions to history, so we combine remaining + new
@@ -189,6 +223,18 @@ export const useRealTimePosition = () => {
         const closestPosition = futurePositions.value.find(pos => pos.timestamp >= now)
         
         if (closestPosition) {
+          // Calculate radial velocity if we have a previous position
+          if (currentPosition.value && currentPosition.value.distance > 0 && closestPosition.distance > 0) {
+            const timeDiffSeconds = (closestPosition.timestamp - currentPosition.value.timestamp) / 1000
+            if (timeDiffSeconds > 0) {
+              radialVelocity.value = calculateRadialVelocity(
+                currentPosition.value.distance,
+                closestPosition.distance,
+                timeDiffSeconds
+              )
+            }
+          }
+          
           // Update current position
           currentPosition.value = closestPosition
           
@@ -225,7 +271,10 @@ export const useRealTimePosition = () => {
       timestamp: pos1.timestamp + (pos2.timestamp - pos1.timestamp) * t,
       azimuth: pos1.azimuth + (pos2.azimuth - pos1.azimuth) * t,
       elevation: pos1.elevation + (pos2.elevation - pos1.elevation) * t,
-      distance: pos1.distance + (pos2.distance - pos1.distance) * t
+      distance: pos1.distance + (pos2.distance - pos1.distance) * t,
+      satLatitude: pos1.satLatitude + (pos2.satLatitude - pos1.satLatitude) * t,
+      satLongitude: pos1.satLongitude + (pos2.satLongitude - pos1.satLongitude) * t,
+      satAltitude: pos1.satAltitude + (pos2.satAltitude - pos1.satAltitude) * t
     }
   }
 
@@ -235,6 +284,7 @@ export const useRealTimePosition = () => {
     positionHistory,
     futurePositions,
     isTracking,
+    radialVelocity,
     
     // Methods
     startTracking,

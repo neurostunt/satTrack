@@ -26,7 +26,7 @@ const defaultSettings: StorageSettings = {
   },
   gridSquare: 'KN04FXQL',
   useGPS: true,
-  minElevation: 5.0,
+  minElevation: 20,
   distanceUnits: 'km',
   compassType: 'magnetic',
   autoUpdateTLE: false,

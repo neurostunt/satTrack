@@ -56,15 +56,40 @@
               />
             </div>
           </div>
-          <div class="mt-1">
-            <label class="block text-xs font-medium text-space-300 mb-1">Altitude (meters)</label>
-            <input
-              v-model.number="settings.observationLocation.altitude"
-              type="number"
-              step="1"
-              class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none"
-              placeholder="0"
-            />
+          <div class="mt-2 grid grid-cols-[1fr_auto] gap-2">
+            <div>
+              <label class="block text-xs font-medium text-space-300 mb-1">Altitude (meters)</label>
+              <input
+                v-model.number="settings.observationLocation.altitude"
+                type="number"
+                step="1"
+                class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none"
+                placeholder="0"
+              />
+            </div>
+            <div class="flex items-end">
+              <button
+                @click="getAltitudeFromCoordinates"
+                :disabled="isFetchingAltitude || !settings.observationLocation?.latitude || !settings.observationLocation?.longitude"
+                class="bg-blue-600 hover:bg-blue-700 disabled:bg-space-600 disabled:cursor-not-allowed text-white text-xs font-medium py-1 px-3 rounded transition-colors duration-200 flex items-center gap-1 whitespace-nowrap h-[26px]"
+                title="Fetch altitude from coordinates"
+              >
+                <svg v-if="isFetchingAltitude" class="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <svg v-else class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                </svg>
+                <span>{{ isFetchingAltitude ? 'Fetching...' : 'Get Altitude' }}</span>
+              </button>
+            </div>
+          </div>
+          <div v-if="altitudeError" class="text-red-400 text-xs mt-1">
+            {{ altitudeError }}
+          </div>
+          <div v-if="altitudeSuccess" class="text-green-400 text-xs mt-1">
+            {{ altitudeSuccess }}
           </div>
           <div class="text-xs text-space-500 mt-1">
             Used for accurate pass predictions and elevation calculations
@@ -113,13 +138,18 @@
         </div>
 
         <!-- Auto-update TLE -->
-        <div class="flex items-center justify-between">
-          <label class="text-sm text-space-300">Auto-update TLE data</label>
-          <input
-            v-model="autoUpdateTLE"
-            type="checkbox"
-            class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
-          />
+        <div>
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-space-300">Auto-update pass predictions</label>
+            <input
+              v-model="autoUpdateTLE"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
+            />
+          </div>
+          <div class="text-xs text-space-500 mt-1">
+            Automatically refresh pass predictions every 2 hours
+          </div>
         </div>
 
         <!-- Sound alerts -->
@@ -152,112 +182,6 @@
           />
         </div>
 
-        <!-- Transmitter Filters -->
-        <div class="border-t border-space-600 pt-4 mt-4">
-          <h4 class="text-sm font-semibold text-primary-400 mb-3">📡 Transmitter Filters</h4>
-          <div class="grid grid-cols-2 gap-2 text-xs">
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.amateur"
-                @change="updateTransmitterFilter('amateur', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">Amateur Radio</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.fm"
-                @change="updateTransmitterFilter('fm', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">FM</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.cw"
-                @change="updateTransmitterFilter('cw', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">CW</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.aprs"
-                @change="updateTransmitterFilter('aprs', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">APRS</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.sstv"
-                @change="updateTransmitterFilter('sstv', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">SSTV</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.telemetry"
-                @change="updateTransmitterFilter('telemetry', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">Telemetry</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.voice"
-                @change="updateTransmitterFilter('voice', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">Voice</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.repeater"
-                @change="updateTransmitterFilter('repeater', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">Repeater</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.beacon"
-                @change="updateTransmitterFilter('beacon', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">Beacon</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.weather"
-                @change="updateTransmitterFilter('weather', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">Weather</label>
-            </div>
-            <div class="flex items-center">
-              <input
-                :checked="settings.transmitterFilters.communication"
-                @change="updateTransmitterFilter('communication', $event.target.checked)"
-                type="checkbox"
-                class="w-3 h-3 text-primary-600 bg-space-800 border-space-600 rounded focus:ring-primary-500 focus:ring-1 mr-2"
-              />
-              <label class="text-space-300">Communication</label>
-            </div>
-          </div>
-        </div>
-
         <!-- Save Settings Button -->
         <div class="border-t border-space-600 pt-4 mt-4">
           <button
@@ -281,7 +205,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 // Props
 const props = defineProps({
@@ -306,6 +230,11 @@ defineEmits(['save-settings'])
 const isGettingLocation = ref(false)
 const locationError = ref('')
 const locationSuccess = ref('')
+
+// Reactive state for altitude fetching
+const isFetchingAltitude = ref(false)
+const altitudeError = ref('')
+const altitudeSuccess = ref('')
 
 // Computed properties for form fields
 const distanceUnits = computed({
@@ -410,16 +339,85 @@ const getLocationFromGPS = async () => {
   } finally {
     isGettingLocation.value = false
   }
+
+  // After successfully getting GPS location, also fetch altitude
+  if (locationSuccess.value) {
+    // Small delay to let the UI update
+    setTimeout(() => {
+      getAltitudeFromCoordinates()
+    }, 500)
+  }
 }
 
-// Helper function to update transmitter filter
-const updateTransmitterFilter = (filterName, checked) => {
-  props.updateSettings({
-    transmitterFilters: {
-      ...props.settings.transmitterFilters,
-      [filterName]: checked
+// Fetch altitude from Open-Elevation API
+const getAltitudeFromCoordinates = async () => {
+  if (!props.settings.observationLocation?.latitude || !props.settings.observationLocation?.longitude) {
+    altitudeError.value = 'Please enter latitude and longitude first'
+    setTimeout(() => {
+      altitudeError.value = ''
+    }, 3000)
+    return
+  }
+
+  isFetchingAltitude.value = true
+  altitudeError.value = ''
+  altitudeSuccess.value = ''
+
+  try {
+    const lat = props.settings.observationLocation.latitude
+    const lng = props.settings.observationLocation.longitude
+
+    console.log(`🏔️ Fetching altitude for coordinates: ${lat}, ${lng}`)
+
+    const response = await fetch(
+      `https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`,
+      {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        }
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`API returned status ${response.status}`)
     }
-  })
+
+    const data = await response.json()
+
+    if (data.results && data.results.length > 0) {
+      const altitude = Math.round(data.results[0].elevation)
+
+      // Update settings with fetched altitude
+      props.updateSettings({
+        observationLocation: {
+          ...props.settings.observationLocation,
+          altitude: altitude
+        }
+      })
+
+      altitudeSuccess.value = `Altitude updated: ${altitude}m above sea level`
+      console.log(`✅ Altitude fetched successfully: ${altitude}m`)
+
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        altitudeSuccess.value = ''
+      }, 3000)
+    } else {
+      throw new Error('No elevation data found for these coordinates')
+    }
+
+  } catch (error) {
+    console.error('Altitude fetch error:', error)
+    altitudeError.value = error.message || 'Failed to fetch altitude. Please try again or enter manually.'
+
+    // Clear error message after 5 seconds
+    setTimeout(() => {
+      altitudeError.value = ''
+    }, 5000)
+  } finally {
+    isFetchingAltitude.value = false
+  }
 }
 </script>
 

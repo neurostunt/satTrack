@@ -120,6 +120,8 @@ const { cleanupExpiredPasses, handleAutoRemoval } = usePassCleanup(
 
 // Reactive state
 const expandedSatellites = ref(new Set()) // Track which satellites are expanded
+const timeUpdateInterval = ref(null)
+const backgroundRefreshInterval = ref(null)
 
 // Collapsible functionality for individual passes
 const isPassExpanded = (noradId, startTime) => {
@@ -158,19 +160,14 @@ onMounted(async () => {
   await loadSettings()
   await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
 
-  // Load stored pass predictions first (from IndexedDB)
+  // Load stored pass predictions from IndexedDB (no API calls)
   await loadPassPredictions()
-  
-  // Only calculate fresh data if we have no cached data or it's stale
-  if (isDataStale()) {
-    await calculateFreshPassPredictions()
-  }
 
   // Load stored transmitter data
   await loadStoredTransmitterData()
 
   // Start real-time updates for time until pass
-  const timeUpdateInterval = setInterval(() => {
+  timeUpdateInterval.value = setInterval(() => {
     updateCurrentTime()
     
     // Handle auto-removal of passed satellites (every second)
@@ -182,13 +179,41 @@ onMounted(async () => {
     }
   }, 1000)
 
+  // Background refresh: Check for stale data every 2 hours
+  // Only enabled if autoUpdateTLE is checked in settings
+  if (settings.value.autoUpdateTLE) {
+    console.log('✅ Auto-update TLE enabled - Starting 2-hour background refresh interval')
+    
+    backgroundRefreshInterval.value = setInterval(async () => {
+      console.log('🔄 Background refresh: Checking if data needs refresh...')
+      
+      // Only refresh if we have existing data that's stale
+      if (passPredictions.value.size > 0 && isDataStale()) {
+        console.log('🔄 Data is stale, fetching fresh pass predictions...')
+        await calculateFreshPassPredictions()
+        await loadStoredTransmitterData()
+      } else if (passPredictions.value.size === 0) {
+        console.log('ℹ️ No cached data, skipping auto-refresh. Fetch data from Settings page.')
+      } else {
+        console.log('✅ Data is still fresh, no refresh needed')
+      }
+    }, 2 * 60 * 60 * 1000) // 2 hours in milliseconds
+  } else {
+    console.log('⏸️ Auto-update TLE disabled - Background refresh will not run')
+  }
+
   // Initial cleanup of expired passes
   cleanupExpiredPasses()
 })
 
 // Cleanup interval on unmount
 onUnmounted(() => {
-  // Interval cleanup is handled by the composables
+  if (timeUpdateInterval.value) {
+    clearInterval(timeUpdateInterval.value)
+  }
+  if (backgroundRefreshInterval.value) {
+    clearInterval(backgroundRefreshInterval.value)
+  }
 })
 </script>
 

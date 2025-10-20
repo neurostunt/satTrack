@@ -259,7 +259,7 @@ export const usePassData = (
       const freshPasses = await calculatePassesForSatellites(
         satellites,
         observerLocation.value,
-        10, // minElevation
+        settings.value.minElevation || 20, // Use configured minElevation, default to 20
         settings.value.n2yoApiKey
       )
 

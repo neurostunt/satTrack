@@ -84,11 +84,16 @@ export const usePassPrediction = () => {
       )
 
       console.log(`🔍 N2YO Response for NORAD ${noradId}:`, n2yoResponse)
+      console.log(`🔍 Response keys:`, Object.keys(n2yoResponse || {}))
+      console.log(`🔍 Response.passes type:`, typeof n2yoResponse?.passes)
+      console.log(`🔍 Response.passes isArray:`, Array.isArray(n2yoResponse?.passes))
+      console.log(`🔍 Response.passes length:`, n2yoResponse?.passes?.length)
+      console.log(`🔍 Response.info:`, n2yoResponse?.info)
 
       // Check if response has the expected structure
       if (!n2yoResponse || !n2yoResponse.passes || !Array.isArray(n2yoResponse.passes)) {
         console.warn(`⚠️ Invalid N2YO response structure for NORAD ID: ${noradId}`)
-        console.warn('Response:', n2yoResponse)
+        console.warn('Response:', JSON.stringify(n2yoResponse, null, 2))
         return []
       }
 

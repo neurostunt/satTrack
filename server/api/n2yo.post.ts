@@ -10,8 +10,8 @@ export default defineEventHandler(async (event) => {
 
     if (!apiKey) {
       throw createError({
-        statusCode: 400,
-        statusMessage: 'N2YO API key is required'
+        status: 400,
+        statusText: 'N2YO API key is required'
       })
     }
 
@@ -24,8 +24,8 @@ export default defineEventHandler(async (event) => {
         
         if (!radioNoradId || !radioLat || !radioLng) {
           throw createError({
-            statusCode: 400,
-            statusMessage: 'Missing required parameters: noradId, observerLat, observerLng'
+            status: 400,
+            statusText: 'Missing required parameters: noradId, observerLat, observerLng'
           })
         }
 
@@ -37,8 +37,8 @@ export default defineEventHandler(async (event) => {
         
         if (!tleNoradId) {
           throw createError({
-            statusCode: 400,
-            statusMessage: 'Missing required parameter: noradId'
+            status: 400,
+            statusText: 'Missing required parameter: noradId'
           })
         }
 
@@ -50,8 +50,8 @@ export default defineEventHandler(async (event) => {
         
         if (!posNoradId || !posLat || !posLng) {
           throw createError({
-            statusCode: 400,
-            statusMessage: 'Missing required parameters: noradId, observerLat, observerLng'
+            status: 400,
+            statusText: 'Missing required parameters: noradId, observerLat, observerLng'
           })
         }
 
@@ -65,8 +65,8 @@ export default defineEventHandler(async (event) => {
 
       default:
         throw createError({
-          statusCode: 400,
-          statusMessage: `Unknown action: ${action}. Supported actions: radiopasses, tle, positions, above, test`
+          status: 400,
+          statusText: `Unknown action: ${action}. Supported actions: radiopasses, tle, positions, above, test`
         })
     }
 
@@ -86,8 +86,8 @@ export default defineEventHandler(async (event) => {
       clearTimeout(timeout)
       if (error.name === 'AbortError') {
         throw createError({
-          statusCode: 504,
-          statusMessage: 'N2YO API request timeout - endpoint took too long to respond'
+          status: 504,
+          statusText: 'N2YO API request timeout - endpoint took too long to respond'
         })
       }
       throw error
@@ -98,8 +98,8 @@ export default defineEventHandler(async (event) => {
       console.error(`🛰️ N2YO API error: ${response.status}`, errorText)
       
       throw createError({
-        statusCode: response.status,
-        statusMessage: `N2YO API error: ${response.status} ${response.statusText}`
+        status: response.status,
+        statusText: `N2YO API error: ${response.status} ${response.statusText}`
       })
     }
 
@@ -109,14 +109,14 @@ export default defineEventHandler(async (event) => {
     if (responseData.error) {
       console.error('🛰️ N2YO API response error:', responseData.error)
       throw createError({
-        statusCode: 400,
-        statusMessage: `N2YO API error: ${responseData.error}`
+        status: 400,
+        statusText: `N2YO API error: ${responseData.error}`
       })
     }
 
     console.log(`🛰️ N2YO API success: ${action}`, {
       transactionsCount: responseData.info?.transactionscount,
-      passesCount: responseData.passescount || 'N/A'
+      passesCount: responseData.info?.passescount || responseData.passes?.length || 'N/A'
     })
 
     return {
@@ -129,13 +129,13 @@ export default defineEventHandler(async (event) => {
   } catch (error) {
     console.error('🛰️ N2YO API proxy error:', error)
     
-    if ((error as any).statusCode) {
+    if ((error as any).status) {
       throw error
     }
 
     throw createError({
-      statusCode: 500,
-      statusMessage: `N2YO API proxy error: ${(error as any).message}`
+      status: 500,
+      statusText: `N2YO API proxy error: ${(error as any).message}`
     })
   }
 })

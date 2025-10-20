@@ -8,6 +8,14 @@
       @save-settings="saveSettings"
     />
 
+    <!-- Tracking Settings -->
+    <AdditionalSettings
+      :settings="settings"
+      :is-saving-settings="isSavingSettings"
+      :update-settings="updateSettings"
+      @save-settings="saveSettings"
+    />
+
     <!-- Satellite Management -->
     <SatelliteManagement
       :settings="settings"
@@ -36,14 +44,6 @@
       @clear-all-data="clearAllData"
     />
 
-    <!-- Additional Settings -->
-    <AdditionalSettings
-      :settings="settings"
-      :is-saving-settings="isSavingSettings"
-      :update-settings="updateSettings"
-      @save-settings="saveSettings"
-    />
-
     <!-- Combined Data Display -->
     <CombinedDataDisplay
       :combined-data="combinedData"
@@ -64,6 +64,7 @@ import { useSettings } from '~/composables/storage/useSettings'
 import { useTLEData } from '~/composables/api/useTLEData'
 import { useSatelliteSearch } from '~/composables/api/useSatelliteSearch'
 import { useIndexedDB } from '~/composables/storage/useIndexedDB'
+import { usePassPrediction } from '~/composables/satellite/usePassPrediction'
 
 // Import composables
 const {
@@ -86,13 +87,18 @@ const {
 } = useSatelliteSearch()
 
 const {
+  calculatePassesForSatellites
+} = usePassPrediction()
+
+const {
   storeTransponderData,
   getStorageInfo,
   storeCredentials,
   getCredentials,
   clearTLEData: clearIndexedDBTLEData,
   clearTransmitterData: clearIndexedDBTransmitterData,
-  clearAll: clearIndexedDBAllData
+  clearAll: clearIndexedDBAllData,
+  storePassPredictions
 } = useIndexedDB()
 
 // Local search state
@@ -275,6 +281,7 @@ const fetchAllData = async () => {
   try {
     await fetchTrackedSatellitesTLEData()
     await fetchTrackedSatellitesTransmitterData()
+    await fetchTrackedSatellitesPassPredictions()
   } catch (error) {
     console.error('Failed to fetch data:', error)
   } finally {
@@ -398,6 +405,69 @@ const fetchTrackedSatellitesTransmitterData = async () => {
       message: `Transmitter data fetch failed: ${error.message}`,
       progress: ''
     }
+  }
+}
+
+const fetchTrackedSatellitesPassPredictions = async () => {
+  console.log('Fetching pass predictions for tracked satellites:', settings.value.trackedSatellites)
+
+  const satellites = settings.value.trackedSatellites
+    .filter(sat => sat.noradId)
+    .map(sat => ({ noradId: parseInt(sat.noradId) }))
+
+  console.log('Filtered satellites for pass predictions:', satellites)
+
+  if (satellites.length === 0) {
+    console.log('No valid satellites found for pass predictions')
+    return
+  }
+
+  // Check if we have observer location
+  if (!settings.value.observationLocation?.latitude || !settings.value.observationLocation?.longitude) {
+    console.warn('⚠️ Observer location not configured, skipping pass predictions')
+    return
+  }
+
+  // Check if we have N2YO API key
+  if (!settings.value.n2yoApiKey) {
+    console.warn('⚠️ N2YO API key not configured, skipping pass predictions')
+    return
+  }
+
+  const observerLocation = {
+    lat: settings.value.observationLocation.latitude,
+    lng: settings.value.observationLocation.longitude,
+    alt: settings.value.observationLocation.altitude || 0
+  }
+
+  try {
+    console.log('🛰️ Calculating pass predictions using N2YO API...')
+    console.log('🛰️ Observer location:', observerLocation)
+    console.log('🛰️ Satellites:', satellites.length)
+    console.log('🛰️ Min Elevation:', settings.value.minElevation || 20)
+
+    const freshPasses = await calculatePassesForSatellites(
+      satellites,
+      observerLocation,
+      settings.value.minElevation || 20, // Use configured minElevation, default to 20
+      settings.value.n2yoApiKey
+    )
+
+    console.log('✅ Pass predictions calculated:', freshPasses.size, 'satellites')
+
+    // Store each satellite's passes in IndexedDB
+    for (const [noradId, passes] of freshPasses.entries()) {
+      try {
+        await storePassPredictions(noradId, passes, observerLocation)
+        console.log(`✅ Stored ${passes.length} passes for NORAD ID: ${noradId}`)
+      } catch (error) {
+        console.error(`❌ Failed to store passes for NORAD ID: ${noradId}`, error)
+      }
+    }
+
+    console.log('✅ All pass predictions stored successfully')
+  } catch (error) {
+    console.error('❌ Failed to fetch pass predictions:', error)
   }
 }
 

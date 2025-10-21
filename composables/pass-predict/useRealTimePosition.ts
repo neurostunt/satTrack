@@ -12,6 +12,7 @@
 
 import type { Ref } from 'vue'
 import { calculateDistance, calculateRadialVelocity } from '~/utils/dopplerCalculations'
+import { useN2YO } from '../api/useN2YO'
 
 export interface SatellitePosition {
   timestamp: number // Unix timestamp in milliseconds
@@ -22,6 +23,16 @@ export interface SatellitePosition {
   satLongitude: number // Satellite longitude
   satAltitude: number // Satellite altitude above Earth (km)
 }
+
+// Module-level cache for position data (shared across component instances)
+interface PositionCache {
+  noradId: number
+  positions: SatellitePosition[]
+  fetchTime: number
+  observerLocation: { lat: number; lng: number; alt: number }
+}
+
+const positionCache = new Map<number, PositionCache>()
 
 export const useRealTimePosition = () => {
   // Current real-time position
@@ -137,12 +148,12 @@ export const useRealTimePosition = () => {
       fetchIntervalId = null
     }
 
-    // Clear position data
+    // Clear position data (but keep cache for reuse)
     currentPosition.value = null
     positionHistory.value = []
-    futurePositions.value = []
+    futurePositions.value = [] // Will be repopulated from cache if reopened
     radialVelocity.value = 0
-    observerLocation.value = null
+    // Don't clear observerLocation - keep for next time
   }
 
   /**
@@ -158,6 +169,42 @@ export const useRealTimePosition = () => {
     apiKey: string
   ) => {
     try {
+      const now = Date.now()
+      
+      // Check cache first
+      const cached = positionCache.get(noradId)
+      if (cached) {
+        const cacheAge = (now - cached.fetchTime) / 1000 // seconds
+        const hasFutureData = cached.positions.some(pos => pos.timestamp > now)
+        
+        // Use cache if:
+        // 1. It still has future position data
+        // 2. Observer location hasn't changed significantly
+        const locationMatch = 
+          Math.abs(cached.observerLocation.lat - observerLat) < 0.01 &&
+          Math.abs(cached.observerLocation.lng - observerLng) < 0.01
+        
+        if (hasFutureData && locationMatch) {
+          // Filter cached positions to only include future ones from current time
+          const futurePositionsFromCache = cached.positions.filter(pos => pos.timestamp >= now)
+          
+          console.log(`✅ Using cached positions for NORAD ${noradId} (age: ${Math.round(cacheAge)}s, ${futurePositionsFromCache.length} future positions from current time)`)
+          
+          // Merge with any existing buffer
+          const existingFuture = futurePositions.value.filter(pos => pos.timestamp >= now)
+          const newPositions = futurePositionsFromCache.filter(pos => 
+            !existingFuture.some(existing => existing.timestamp === pos.timestamp)
+          )
+          
+          futurePositions.value = [...existingFuture, ...newPositions].sort((a, b) => a.timestamp - b.timestamp)
+          
+          console.log(`📊 Loaded ${futurePositionsFromCache.length} positions from cache (filtered to current time)`)
+          return // Skip API call
+        } else {
+          console.log(`🔄 Cache invalid for NORAD ${noradId} (expired or location changed), fetching fresh data`)
+        }
+      }
+      
       console.log(`📡 Fetching positions for NORAD ${noradId} (300 seconds)`)
       
       const { getSatellitePositions } = useN2YO()
@@ -175,7 +222,7 @@ export const useRealTimePosition = () => {
       
       // Calculate distance for each position
       if (observerLocation.value) {
-        positions.forEach(pos => {
+        positions.forEach((pos: SatellitePosition) => {
           pos.distance = calculateDistance(
             observerLocation.value!.lat,
             observerLocation.value!.lng,
@@ -189,18 +236,31 @@ export const useRealTimePosition = () => {
       
       // Merge with existing buffer, removing any overlaps
       // The animation loop moves consumed positions to history, so we combine remaining + new
-      const now = Date.now()
-      const existingFuture = futurePositions.value.filter(pos => pos.timestamp >= now)
+      const currentTime = Date.now()
+      const existingFuture = futurePositions.value.filter((pos: SatellitePosition) => pos.timestamp >= currentTime)
       
       // Only add new positions that don't overlap with existing ones
-      const newPositions = positions.filter(pos => 
-        !existingFuture.some(existing => existing.timestamp === pos.timestamp)
+      const newPositions = positions.filter((pos: SatellitePosition) => 
+        !existingFuture.some((existing: SatellitePosition) => existing.timestamp === pos.timestamp)
       )
       
       futurePositions.value = [...existingFuture, ...newPositions]
-      lastFetchTime.value = now
+      lastFetchTime.value = currentTime
+      
+      // Store in cache for reuse
+      positionCache.set(noradId, {
+        noradId,
+        positions: positions,
+        fetchTime: currentTime,
+        observerLocation: {
+          lat: observerLat,
+          lng: observerLng,
+          alt: observerAlt
+        }
+      })
       
       console.log(`📊 Buffer status: ${existingFuture.length} existing + ${newPositions.length} new = ${futurePositions.value.length} total positions`)
+      console.log(`💾 Cached ${positions.length} positions for NORAD ${noradId}`)
 
     } catch (error) {
       console.error('❌ Failed to fetch satellite positions:', error)

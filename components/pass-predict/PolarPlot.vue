@@ -13,48 +13,12 @@
 
     <!-- SVG Polar Plot -->
     <svg
-      v-if="pastPath || futurePath || currentPosition || entryPoint || exitPoint || peakPoint"
+      v-if="isGeostationary || pastPath || futurePath || currentPosition || entryPoint || exitPoint || peakPoint"
       viewBox="0 0 400 400"
       class="mx-auto block w-full max-w-[400px] h-auto"
     >
-      <!-- Background -->
-      <circle :cx="center" :cy="center" :r="radius" fill="#0f172a" stroke="#334155" stroke-width="1" />
-
-      <!-- Elevation circles (0°, 30°, 60° from horizon) -->
-      <circle
-        v-for="el in [30, 60]"
-        :key="el"
-        :cx="center"
-        :cy="center"
-        :r="elevationToRadius(el)"
-        fill="none"
-        stroke="#475569"
-        stroke-width="1"
-        stroke-dasharray="4,4"
-      />
-
-      <!-- Cardinal direction lines (N, E, S, W) -->
-      <line
-        v-for="angle in [0, 90, 180, 270]"
-        :key="angle"
-        :x1="center"
-        :y1="center"
-        :x2="center + radius * Math.sin(angle * Math.PI / 180)"
-        :y2="center - radius * Math.cos(angle * Math.PI / 180)"
-        stroke="#475569"
-        stroke-width="1"
-        opacity="0.3"
-      />
-
-      <!-- Compass labels -->
-      <text :x="center" :y="20" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="bold">N</text>
-      <text :x="380" :y="center + 5" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="bold">E</text>
-      <text :x="center" :y="390" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="bold">S</text>
-      <text :x="20" :y="center + 5" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="bold">W</text>
-
-      <!-- Elevation labels -->
-      <text :x="center + 10" :y="center - elevationToRadius(30) + 5" fill="#64748b" font-size="10">30°</text>
-      <text :x="center + 10" :y="center - elevationToRadius(60) + 5" fill="#64748b" font-size="10">60°</text>
+      <!-- Preloaded Background Elements -->
+      <g v-html="backgroundSVG"></g>
 
       <!-- Predicted path arc (connects entry → peak → exit) -->
       <path
@@ -184,10 +148,6 @@
         >🛰️</text>
       </g>
 
-      <!-- Horizon marker -->
-      <text :x="center" :y="center + radius + 15" text-anchor="middle" fill="#64748b" font-size="10">
-        Horizon (0°)
-      </text>
     </svg>
 
     <!-- Fallback message when no valid path data -->
@@ -278,6 +238,9 @@ const props = defineProps({
 const center = 200 // Center of SVG (400/2)
 const radius = 180 // Outer radius (horizon)
 
+// Use preloaded background composable
+const { backgroundSVG, elevationToRadius } = usePolarPlotBackground()
+
 // ============================================================================
 // Computed Properties - Geostationary Check
 // ============================================================================
@@ -286,7 +249,16 @@ const isGeostationary = computed(() => {
   // If we have start and end azimuth, check if they're nearly the same
   if (props.startAzimuth !== null && props.endAzimuth !== null) {
     const azimuthDiff = Math.abs(props.startAzimuth - props.endAzimuth)
-    return azimuthDiff < 5 // Less than 5 degrees movement = geostationary
+    const result = azimuthDiff < 5 // Less than 5 degrees movement = geostationary
+
+    // Debug logging for geostationary detection
+    if (result) {
+      console.log(`🛰️ Geostationary satellite detected: ${props.satelliteName}`)
+      console.log(`   Start azimuth: ${props.startAzimuth}°, End azimuth: ${props.endAzimuth}°`)
+      console.log(`   Azimuth difference: ${azimuthDiff}°`)
+    }
+
+    return result
   }
   return false
 })
@@ -315,15 +287,6 @@ const formattedDistance = computed(() => {
 /** Convert degrees to radians */
 const degreesToRadians = (degrees) => {
   return (degrees * Math.PI) / 180
-}
-
-/**
- * Convert elevation (0-90°) to radius on plot
- * 90° elevation = center (radius 0)
- * 0° elevation = outer edge (radius = max)
- */
-const elevationToRadius = (elevation) => {
-  return radius * (1 - elevation / 90)
 }
 
 /**

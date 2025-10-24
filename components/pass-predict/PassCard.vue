@@ -147,9 +147,9 @@ const geostationaryPosition = ref(null)
 const showVisualization = computed(() => {
   if (!props.isExpanded) return false
 
-  // For geostationary: only show if we have position and it's above horizon
+  // For geostationary: show immediately when expanded, position will load asynchronously
   if (isGeostationarySatellite.value) {
-    return geostationaryPosition.value && geostationaryPosition.value.elevation > 0
+    return true
   }
 
   // For regular satellites: always show when expanded
@@ -180,7 +180,8 @@ const fetchGeostationaryPosition = async () => {
 
     if (positions && positions.length > 0) {
       geostationaryPosition.value = positions[0]
-      console.log(`✅ Geostationary position:`, positions[0])
+      console.log(`✅ Geostationary position loaded:`, positions[0])
+      console.log(`   Elevation: ${positions[0].elevation.toFixed(1)}°, Azimuth: ${positions[0].azimuth.toFixed(1)}°`)
     }
   } catch (error) {
     console.error(`❌ Failed to fetch geostationary position:`, error)
@@ -227,7 +228,10 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
     // Card closed OR pass ended - stop tracking to save API calls
     const reason = !expanded ? 'Card collapsed' : 'Pass ended'
     console.log(`🛑 Stopping tracking for ${props.pass.satelliteName}: ${reason}`)
-    console.log(`   → Saving API quota (was making calls every 270s)`)
+    console.log(`   → Saving API quota (was making calls every 240s)`)
+    console.log(`   📊 Debug: expanded=${expanded}, passing=${passing}`)
+    console.log(`   📊 Debug: pass times: start=${new Date(props.pass.startTime).toLocaleTimeString()}, end=${new Date(props.pass.endTime).toLocaleTimeString()}`)
+    console.log(`   📊 Debug: current time: ${new Date().toLocaleTimeString()}`)
     stopTracking()
   }
 

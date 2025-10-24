@@ -1,16 +1,16 @@
 <template>
   <!-- Pass Details -->
   <div class="mb-3">
-    <div 
+    <div
       class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
       @click="togglePassDetails"
     >
       <span>🛰️ Pass Details</span>
-      <svg 
-        class="w-4 h-4 transition-transform duration-300" 
+      <svg
+        class="w-4 h-4 transition-transform duration-300"
         :class="{ 'rotate-180': showPassDetails }"
-        fill="none" 
-        stroke="currentColor" 
+        fill="none"
+        stroke="currentColor"
         viewBox="0 0 24 24"
       >
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -24,7 +24,7 @@
       leave-from-class="transform scale-y-100 opacity-100 origin-top"
       leave-to-class="transform scale-y-0 opacity-0 origin-top"
     >
-      <div v-if="showPassDetails" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
+      <div v-if="showPassDetails && isParentExpanded" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
         <div class="grid grid-cols-2 gap-x-4 gap-y-1">
           <!-- Column 1 -->
           <div class="flex justify-between">
@@ -63,16 +63,16 @@
 
   <!-- Transmitter Count -->
   <div v-if="pass.transmitterCount > 0" class="mb-3">
-    <div 
+    <div
       class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
       @click="toggleTransmitters"
     >
       <span>📡 Available Transmitters: {{ pass.transmitterCount }}</span>
-      <svg 
-        class="w-4 h-4 transition-transform duration-300" 
+      <svg
+        class="w-4 h-4 transition-transform duration-300"
         :class="{ 'rotate-180': showTransmitters }"
-        fill="none" 
-        stroke="currentColor" 
+        fill="none"
+        stroke="currentColor"
         viewBox="0 0 24 24"
       >
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -86,10 +86,10 @@
       leave-from-class="transform scale-y-100 opacity-100 origin-top"
       leave-to-class="transform scale-y-0 opacity-0 origin-top"
     >
-      <div v-if="showTransmitters" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
+      <div v-if="showTransmitters && isParentExpanded" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
         <div v-if="transmitters.length > 0" class="space-y-2">
-          <div 
-            v-for="(transmitter, index) in transmitters" 
+          <div
+            v-for="(transmitter, index) in transmitters"
             :key="index"
             class="border-t border-space-600 pt-2 space-y-1"
           >
@@ -169,6 +169,10 @@ const props = defineProps({
   radialVelocity: {
     type: Number,
     default: 0
+  },
+  isParentExpanded: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -182,7 +186,7 @@ const showTransmitters = ref(false)
 const transmitters = computed(() => {
   const satData = props.getSatelliteData(props.pass.noradId)
   const allTransmitters = satData?.transmitters || []
-  
+
   // Filter out dead transmitters
   return allTransmitters.filter(t => t.alive !== false)
 })
@@ -200,7 +204,7 @@ const toggleTransmitters = () => {
 // Format frequency
 const formatFrequency = (frequency) => {
   if (!frequency) return 'Unknown'
-  
+
   if (frequency >= 1000000) {
     return `${(frequency / 1000000).toFixed(6)} MHz`
   } else if (frequency >= 1000) {
@@ -216,7 +220,7 @@ const getShiftedFrequency = (frequency) => {
   if (!props.isPassing || props.isGeostationary || !props.radialVelocity || !frequency) {
     return null
   }
-  
+
   const doppler = calculateDopplerShift(frequency, props.radialVelocity)
   return formatFrequency(doppler.shiftedFrequency)
 }

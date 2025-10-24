@@ -1,7 +1,7 @@
 <template>
   <div
     class="bg-space-900 border border-space-600 rounded p-3"
-    :class="{ 
+    :class="{
       'bg-space-800': isExpanded,
       'passing-card': isPassing
     }"
@@ -19,15 +19,15 @@
     <!-- Collapsible Content -->
     <Transition
       name="slide-down"
-      enter-active-class="transition-all duration-700 ease-out"
-      leave-active-class="transition-all duration-500 ease-in"
-      enter-from-class="max-h-0 opacity-0"
-      enter-to-class="max-h-[2000px] opacity-100"
-      leave-from-class="max-h-[2000px] opacity-100"
-      leave-to-class="max-h-0 opacity-0"
+      enter-active-class="transition-all duration-300 ease-out"
+      leave-active-class="transition-all duration-200 ease-in"
+      enter-from-class="opacity-0 transform scale-y-0 origin-top"
+      enter-to-class="opacity-100 transform scale-y-100 origin-top"
+      leave-from-class="opacity-100 transform scale-y-100 origin-top"
+      leave-to-class="opacity-0 transform scale-y-0 origin-top"
     >
       <div
-        v-show="isExpanded"
+        v-if="isExpanded"
         class="overflow-hidden"
       >
         <!-- Real-time Position Visualization (shown when passing) -->
@@ -58,6 +58,7 @@
           :is-passing="isPassing"
           :is-geostationary="isGeostationarySatellite"
           :radial-velocity="radialVelocity"
+          :is-parent-expanded="isExpanded"
         />
       </div>
     </Transition>
@@ -145,12 +146,12 @@ const geostationaryPosition = ref(null)
 // Computed: Should we show the visualization?
 const showVisualization = computed(() => {
   if (!props.isExpanded) return false
-  
+
   // For geostationary: only show if we have position and it's above horizon
   if (isGeostationarySatellite.value) {
     return geostationaryPosition.value && geostationaryPosition.value.elevation > 0
   }
-  
+
   // For regular satellites: always show when expanded
   return true
 })
@@ -163,11 +164,11 @@ const pastPositions = computed(() => {
 // Fetch geostationary satellite position (once)
 const fetchGeostationaryPosition = async () => {
   if (!settings.value.n2yoApiKey) return
-  
+
   try {
     console.log(`🛰️ Fetching geostationary position for ${props.pass.satelliteName}`)
     const { getSatellitePositions } = useN2YO()
-    
+
     const positions = await getSatellitePositions(
       props.pass.noradId,
       settings.value.observationLocation.latitude,
@@ -176,7 +177,7 @@ const fetchGeostationaryPosition = async () => {
       1, // Just 1 second (current position)
       settings.value.n2yoApiKey
     )
-    
+
     if (positions && positions.length > 0) {
       geostationaryPosition.value = positions[0]
       console.log(`✅ Geostationary position:`, positions[0])
@@ -198,23 +199,23 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
     }
     return // Don't use regular tracking for geostationary
   }
-  
+
   const shouldTrack = expanded && passing
   const wasTracking = isTracking.value
-  
+
   if (shouldTrack && !wasTracking) {
     // Card is open AND satellite is passing - start real-time tracking
     console.log(`🎯 Starting real-time tracking for ${props.pass.satelliteName}`)
     console.log(`   ✓ Card expanded: ${expanded}`)
     console.log(`   ✓ Satellite passing: ${passing}`)
     console.log(`   → API calls will be made every 270 seconds (4.5 min)`)
-    
+
     // Validate settings before starting
     if (!settings.value.n2yoApiKey) {
       console.warn(`⚠️ N2YO API key not configured - cannot start tracking`)
       return
     }
-    
+
     await startTracking(
       props.pass.noradId,
       settings.value.observationLocation.latitude,
@@ -229,7 +230,7 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
     console.log(`   → Saving API quota (was making calls every 270s)`)
     stopTracking()
   }
-  
+
   // Debug logging for state changes without tracking changes
   if (!shouldTrack && !wasTracking && (expanded !== prevExpanded || passing !== prevPassing)) {
     if (!expanded) {

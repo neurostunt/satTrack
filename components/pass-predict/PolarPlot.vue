@@ -12,32 +12,32 @@
     </div>
 
     <!-- SVG Polar Plot -->
-    <svg 
+    <svg
       v-if="pastPath || futurePath || currentPosition || entryPoint || exitPoint || peakPoint"
       viewBox="0 0 400 400"
-      class="mx-auto w-full max-w-[400px] h-auto"
+      class="mx-auto block w-full max-w-[400px] h-auto"
     >
       <!-- Background -->
       <circle :cx="center" :cy="center" :r="radius" fill="#0f172a" stroke="#334155" stroke-width="1" />
-      
+
       <!-- Elevation circles (0°, 30°, 60° from horizon) -->
-      <circle 
-        v-for="el in [30, 60]" 
+      <circle
+        v-for="el in [30, 60]"
         :key="el"
-        :cx="center" 
-        :cy="center" 
-        :r="elevationToRadius(el)" 
-        fill="none" 
-        stroke="#475569" 
-        stroke-width="1" 
+        :cx="center"
+        :cy="center"
+        :r="elevationToRadius(el)"
+        fill="none"
+        stroke="#475569"
+        stroke-width="1"
         stroke-dasharray="4,4"
       />
-      
+
       <!-- Cardinal direction lines (N, E, S, W) -->
-      <line 
-        v-for="angle in [0, 90, 180, 270]" 
+      <line
+        v-for="angle in [0, 90, 180, 270]"
         :key="angle"
-        :x1="center" 
+        :x1="center"
         :y1="center"
         :x2="center + radius * Math.sin(angle * Math.PI / 180)"
         :y2="center - radius * Math.cos(angle * Math.PI / 180)"
@@ -92,11 +92,11 @@
       <!-- Predicted pass points (entry, peak, exit) - not shown for geostationary -->
       <g v-if="entryPoint || exitPoint || peakPoint">
         <!-- Entry point (start azimuth at horizon) - hidden for geostationary -->
-        <circle 
+        <circle
           v-if="entryPoint"
-          :cx="entryPoint.x" 
-          :cy="entryPoint.y" 
-          r="5" 
+          :cx="entryPoint.x"
+          :cy="entryPoint.y"
+          r="5"
           fill="#38bdf8"
           stroke="#ffffff"
           stroke-width="2"
@@ -111,13 +111,13 @@
           font-size="10"
           font-weight="bold"
         >Entry</text>
-        
+
         <!-- Exit point (end azimuth at horizon) - hidden for geostationary -->
-        <circle 
+        <circle
           v-if="exitPoint"
-          :cx="exitPoint.x" 
-          :cy="exitPoint.y" 
-          r="5" 
+          :cx="exitPoint.x"
+          :cy="exitPoint.y"
+          r="5"
           fill="#38bdf8"
           stroke="#ffffff"
           stroke-width="2"
@@ -132,13 +132,13 @@
           font-size="10"
           font-weight="bold"
         >Exit</text>
-        
+
         <!-- Peak point (max elevation) - for geostationary, this is the only position -->
-        <circle 
+        <circle
           v-if="peakPoint"
-          :cx="peakPoint.x" 
-          :cy="peakPoint.y" 
-          r="5" 
+          :cx="peakPoint.x"
+          :cy="peakPoint.y"
+          r="5"
           fill="#94a3b8"
           stroke="#ffffff"
           stroke-width="1.5"
@@ -191,7 +191,7 @@
     </svg>
 
     <!-- Fallback message when no valid path data -->
-    <div 
+    <div
       v-else
       class="flex items-center justify-center h-64 bg-space-800 border border-space-600 rounded-lg"
     >
@@ -297,13 +297,13 @@ const isGeostationary = computed(() => {
 const formattedDistance = computed(() => {
   let distance = props.currentDistance
   let unit = 'km'
-  
+
   // Convert to miles if needed
   if (props.distanceUnits === 'miles') {
     distance = distance * 0.621371 // km to miles conversion
     unit = 'mi'
   }
-  
+
   // Format with fixed width (5 chars + space + 2 char unit)
   return `${distance.toFixed(0).padStart(5, ' ')} ${unit}`
 })
@@ -317,7 +317,7 @@ const degreesToRadians = (degrees) => {
   return (degrees * Math.PI) / 180
 }
 
-/** 
+/**
  * Convert elevation (0-90°) to radius on plot
  * 90° elevation = center (radius 0)
  * 0° elevation = outer edge (radius = max)
@@ -334,7 +334,7 @@ const elevationToRadius = (elevation) => {
 const polarToCartesian = (azimuth, elevation) => {
   const r = elevationToRadius(elevation)
   const angleRad = degreesToRadians(azimuth)
-  
+
   return {
     x: center + r * Math.sin(angleRad),
     y: center - r * Math.cos(angleRad)
@@ -348,15 +348,15 @@ const getCircleCenter = (p1, p2, p3) => {
   const cx = p3.x, cy = p3.y
 
   const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
-  
+
   if (Math.abs(d) < 0.0001) return null // Points are collinear
 
-  const ux = ((ax * ax + ay * ay) * (by - cy) + 
-              (bx * bx + by * by) * (cy - ay) + 
+  const ux = ((ax * ax + ay * ay) * (by - cy) +
+              (bx * bx + by * by) * (cy - ay) +
               (cx * cx + cy * cy) * (ay - by)) / d
-  
-  const uy = ((ax * ax + ay * ay) * (cx - bx) + 
-              (bx * bx + by * by) * (ax - cx) + 
+
+  const uy = ((ax * ax + ay * ay) * (cx - bx) +
+              (bx * bx + by * by) * (ax - cx) +
               (cx * cx + cy * cy) * (bx - ax)) / d
 
   return { x: ux, y: uy }
@@ -368,19 +368,19 @@ const getCircleCenter = (p1, p2, p3) => {
  */
 const generatePathWithWraparound = (positions) => {
   if (!positions || positions.length < 2) return null
-  
+
   const segments = []
   let currentSegment = []
-  
+
   for (let i = 0; i < positions.length; i++) {
     const pos = positions[i]
     currentSegment.push(pos)
-    
+
     // Check if next position crosses 0°/360° boundary
     if (i < positions.length - 1) {
       const nextPos = positions[i + 1]
       const azDiff = Math.abs(nextPos.azimuth - pos.azimuth)
-      
+
       // If azimuth jumps more than 180°, we're crossing the boundary
       if (azDiff > 180) {
         // Finish current segment
@@ -390,30 +390,30 @@ const generatePathWithWraparound = (positions) => {
       }
     }
   }
-  
+
   // Add final segment
   if (currentSegment.length > 0) {
     segments.push(currentSegment)
   }
-  
+
   // Convert segments to SVG paths
   let path = ''
   for (const segment of segments) {
     if (segment.length < 2) continue
-    
+
     const points = segment.map(pos => polarToCartesian(pos.azimuth, pos.elevation))
-    
+
     if (path === '') {
       path = `M ${points[0].x} ${points[0].y}`
     } else {
       path += ` M ${points[0].x} ${points[0].y}`
     }
-    
+
     for (let i = 1; i < points.length; i++) {
       path += ` L ${points[i].x} ${points[i].y}`
     }
   }
-  
+
   return path || null
 }
 
@@ -450,7 +450,7 @@ const exitPoint = computed(() => {
 /** Peak point (max elevation at actual azimuth from API) */
 const peakPoint = computed(() => {
   if (props.maxElevation === null || props.maxElevation === undefined) return null
-  
+
   // Use actual maxAzimuth from API if available, otherwise calculate as fallback
   let peakAzimuth
   if (props.maxAzimuth !== null && props.maxAzimuth !== undefined) {
@@ -458,7 +458,7 @@ const peakPoint = computed(() => {
   } else if (props.startAzimuth !== null && props.endAzimuth !== null) {
     // Fallback: Calculate peak azimuth (midpoint between start and end)
     peakAzimuth = (props.startAzimuth + props.endAzimuth) / 2
-    
+
     // Handle wraparound: if the arc crosses 0°/360°, adjust the peak
     if (Math.abs(props.endAzimuth - props.startAzimuth) > 180) {
       if (props.endAzimuth > props.startAzimuth) {
@@ -470,7 +470,7 @@ const peakPoint = computed(() => {
   } else {
     return null
   }
-  
+
   return polarToCartesian(peakAzimuth, props.maxElevation)
 })
 
@@ -487,48 +487,48 @@ const predictedPath = computed(() => {
   // Don't show path for geostationary satellites (they don't move)
   if (isGeostationary.value) return null
   if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
-  
+
   const p1 = entryPoint.value
   const p2 = peakPoint.value
   const p3 = exitPoint.value
-  
+
   // Calculate circle center through three points
   const center = getCircleCenter(p1, p2, p3)
-  
+
   if (!center) {
     // Points are collinear - draw straight lines
     return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y}`
   }
-  
+
   // Calculate radius and angles
   const radius = Math.hypot(p1.x - center.x, p1.y - center.y)
   const angle1 = Math.atan2(p1.y - center.y, p1.x - center.x)
   const angle2 = Math.atan2(p2.y - center.y, p2.x - center.x)
   const angle3 = Math.atan2(p3.y - center.y, p3.x - center.x)
-  
+
   // Determine arc direction (counter-clockwise or clockwise)
   const isCounterClockwise = (a1, a2, a3) => {
     let diff1 = a2 - a1
     let diff2 = a3 - a2
-    
+
     while (diff1 < 0) diff1 += 2 * Math.PI
     while (diff2 < 0) diff2 += 2 * Math.PI
-    
+
     return (diff1 + diff2) < 2 * Math.PI
   }
-  
+
   const ccw = isCounterClockwise(angle1, angle2, angle3)
-  
+
   // For SVG, sweep-flag: 0 = counter-clockwise, 1 = clockwise
   const sweepFlag = ccw ? 1 : 0
-  
+
   // Check if we need the large arc (> 180 degrees)
   let totalAngle = Math.abs(angle3 - angle1)
   if (totalAngle > Math.PI) {
     totalAngle = 2 * Math.PI - totalAngle
   }
   const largeArcFlag = totalAngle > Math.PI ? 1 : 0
-  
+
   // Use SVG arc command (A) to draw perfect circular arc
   // A rx ry x-axis-rotation large-arc-flag sweep-flag x y
   return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
@@ -554,6 +554,9 @@ const futurePath = computed(() => {
   @apply bg-space-900 border border-space-600 rounded-lg p-4;
   max-width: 100%;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 /* Pulsing animation for current satellite position */

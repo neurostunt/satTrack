@@ -26,17 +26,15 @@ export const useSatelliteSearch = () => {
       return []
     }
 
-    if (!token) {
-      error.value = 'SatNOGS API token is required for search'
-      searchResults.value = []
-      return []
-    }
-
+    // Note: SatNOGS API doesn't require authentication for search operations
     isLoading.value = true
     error.value = null
 
     try {
-      satnogs.setToken(token)
+      // Token is optional - only set if provided
+      if (token) {
+        satnogs.setToken(token)
+      }
       const results = await satnogs.searchSatellites(query.trim(), limit)
 
       searchResults.value = results

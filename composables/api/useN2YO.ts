@@ -33,26 +33,27 @@ export interface CachedN2YOData {
   cacheKey: string
 }
 
+// Shared API request tracking (outside composable so it's shared across all instances)
+const requestCount = ref(0)
+const lastResetTime = ref(Date.now())
+
+// N2YO API Limits (per hour):
+// - positions: 1000 requests/hour
+// - radiopasses: 100 requests/hour
+// - visualpasses: 100 requests/hour
+// - tle: 1000 requests/hour
+const REQUEST_LIMIT_PER_HOUR = 1000 // Using positions endpoint limit (most restrictive for our use case)
+
 export const useN2YO = () => {
   // Reactive state
   const isLoading = ref<boolean>(false)
   const error = ref<string | null>(null)
-  
+
   // Cache duration: 61 minutes (as requested)
   const CACHE_DURATION = 61 * 60 * 1000 // 61 minutes in milliseconds
-  
+
   // Cache storage
   const cache = ref<Map<string, CachedN2YOData>>(new Map())
-
-  // API request tracking
-  const requestCount = ref(0)
-  const lastResetTime = ref(Date.now())
-  // N2YO API Limits (per hour):
-  // - positions: 1000 requests/hour
-  // - radiopasses: 100 requests/hour
-  // - visualpasses: 100 requests/hour
-  // - tle: 1000 requests/hour
-  const REQUEST_LIMIT_PER_HOUR = 1000 // Using positions endpoint limit (most restrictive for our use case)
 
   /**
    * Check if we're within API rate limits
@@ -60,13 +61,13 @@ export const useN2YO = () => {
   const checkRateLimit = (): boolean => {
     const now = Date.now()
     const oneHour = 60 * 60 * 1000
-    
+
     // Reset counter if more than an hour has passed
     if (now - lastResetTime.value > oneHour) {
       requestCount.value = 0
       lastResetTime.value = now
     }
-    
+
     return requestCount.value < REQUEST_LIMIT_PER_HOUR
   }
 
@@ -82,11 +83,11 @@ export const useN2YO = () => {
    */
   const generateCacheKey = (
     endpoint: 'radio' | 'visual',
-    noradId: number, 
-    observerLat: number, 
-    observerLng: number, 
-    observerAlt: number, 
-    days: number, 
+    noradId: number,
+    observerLat: number,
+    observerLng: number,
+    observerAlt: number,
+    days: number,
     param: number // minElevation for radio, minVisibility for visual
   ): string => {
     return `${endpoint}-${noradId}-${observerLat}-${observerLng}-${observerAlt}-${days}-${param}`
@@ -142,7 +143,7 @@ export const useN2YO = () => {
 
       // Generate cache key for radio passes
       const cacheKey = generateCacheKey('radio', noradId, observerLat, observerLng, observerAlt, days, minElevation)
-      
+
       // Check cache first
       const cachedData = getCachedData(cacheKey)
       if (cachedData) {
@@ -206,7 +207,7 @@ export const useN2YO = () => {
    * Get satellite positions from N2YO API
    * Returns position data for specified number of seconds
    * Used for real-time tracking during passes
-   * 
+   *
    * @param noradId NORAD catalog ID
    * @param observerLat Observer latitude
    * @param observerLng Observer longitude
@@ -233,7 +234,7 @@ export const useN2YO = () => {
       }
 
       console.log(`📡 Fetching satellite positions for NORAD ${noradId} (${seconds}s)`)
-      console.log(`📊 API requests used this hour: ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR} (positions endpoint)`)
+      console.log(`📊 API requests used this hour (before): ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR} (positions endpoint)`)
 
       const response = await $fetch('/api/n2yo', {
         method: 'POST',
@@ -253,9 +254,10 @@ export const useN2YO = () => {
       }
 
       const positionsData = (response as any).data
-      
+
       // Increment request counter after successful API call
       incrementRequestCount()
+      console.log(`📊 API requests used this hour (after): ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR} (positions endpoint)`)
 
       console.log(`✅ N2YO positions API success for NORAD ${noradId}:`, {
         positionsCount: positionsData.positions?.length || 0
@@ -277,7 +279,7 @@ export const useN2YO = () => {
         satAltitude: pos.sataltitude,
         distance: 0 // Will be calculated from coordinates
       }))
-      
+
       console.log('🔍 Mapped first position:', positions[0])
 
       return positions
@@ -348,7 +350,7 @@ export const useN2YO = () => {
 
       const success = response.success
       console.log(success ? '✅ N2YO API connection successful' : '❌ N2YO API connection failed')
-      
+
       return success
 
     } catch (err) {

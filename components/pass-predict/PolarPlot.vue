@@ -13,7 +13,7 @@
 
     <!-- SVG Polar Plot -->
     <svg
-      v-if="isGeostationary || pastPath || futurePath || currentPosition || entryPoint || exitPoint || peakPoint"
+      v-if="isGeostationary || futurePath || currentPosition || entryPoint || exitPoint || peakPoint"
       viewBox="0 0 400 400"
       class="mx-auto block w-full max-w-[400px] h-auto"
     >
@@ -29,17 +29,6 @@
         stroke-width="2"
         stroke-dasharray="4,4"
         opacity="0.5"
-      />
-
-
-      <!-- Past path (where satellite has been) -->
-      <path
-        v-if="pastPath"
-        :d="pastPath"
-        fill="none"
-        stroke="#10b981"
-        stroke-width="3"
-        stroke-linecap="round"
       />
 
       <!-- Future path (next 60s from API) -->
@@ -249,16 +238,7 @@ const isGeostationary = computed(() => {
   // If we have start and end azimuth, check if they're nearly the same
   if (props.startAzimuth !== null && props.endAzimuth !== null) {
     const azimuthDiff = Math.abs(props.startAzimuth - props.endAzimuth)
-    const result = azimuthDiff < 5 // Less than 5 degrees movement = geostationary
-
-    // Debug logging for geostationary detection
-    if (result) {
-      console.log(`🛰️ Geostationary satellite detected: ${props.satelliteName}`)
-      console.log(`   Start azimuth: ${props.startAzimuth}°, End azimuth: ${props.endAzimuth}°`)
-      console.log(`   Azimuth difference: ${azimuthDiff}°`)
-    }
-
-    return result
+    return azimuthDiff < 5 // Less than 5 degrees movement = geostationary
   }
   return false
 })
@@ -495,13 +475,6 @@ const predictedPath = computed(() => {
   // Use SVG arc command (A) to draw perfect circular arc
   // A rx ry x-axis-rotation large-arc-flag sweep-flag x y
   return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
-})
-
-/** Past path (where satellite has been) - green line */
-const pastPath = computed(() => {
-  if (!props.pastPositions || props.pastPositions.length < 2) return null
-
-  return generatePathWithWraparound(props.pastPositions)
 })
 
 /** Future path (next positions from API) - dashed green line */

@@ -178,7 +178,7 @@
 </template>
 
 <script setup>
-import { useSatnogsData } from '~/composables/api/useSatnogsData'
+import { useSatnogs } from '~/composables/api/useSatnogs'
 
 const props = defineProps({
   satelliteData: {
@@ -199,7 +199,7 @@ const props = defineProps({
   }
 })
 
-const { getTransponderFrequencies, formatFrequency } = useSatnogsData()
+const { getTransponderFrequencies, formatFrequency } = useSatnogs()
 
 // Compute transponder frequencies
 const transponderFrequencies = computed(() => {

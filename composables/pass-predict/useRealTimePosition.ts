@@ -57,6 +57,7 @@ export const useRealTimePosition = () => {
   // Animation frame ID for cleanup
   let animationFrameId: number | null = null
   let fetchIntervalId: number | null = null
+  let isFetching = ref(false) // Prevent duplicate fetches
 
   /**
    * Start tracking a satellite during its pass
@@ -87,10 +88,6 @@ export const useRealTimePosition = () => {
       return
     }
 
-    console.log(`🛰️ Starting real-time tracking for NORAD ${noradId}`)
-    console.log(`   📍 Observer: ${observerLat.toFixed(4)}°, ${observerLng.toFixed(4)}°`)
-    console.log(`   ⏱️ Fetch interval: 240s (4 min)`)
-    console.log(`   📊 API efficiency: ~15 calls/hour per satellite`)
 
     isTracking.value = true
     positionHistory.value = []
@@ -108,13 +105,7 @@ export const useRealTimePosition = () => {
     await fetchPositions(noradId, observerLat, observerLng, observerAlt, apiKey)
 
     // Start animation loop for smooth interpolation
-    startAnimation()
-
-    // Fetch new positions every 240 seconds (4 min) before running out of 300s buffer
-    // This gives us a 60s safety margin to prevent buffer exhaustion
-    fetchIntervalId = setInterval(async () => {
-      await fetchPositions(noradId, observerLat, observerLng, observerAlt, apiKey)
-    }, 240000) as unknown as number // 240 seconds = 4 minutes
+    startAnimation(noradId, observerLat, observerLng, observerAlt, apiKey)
   }
 
   /**
@@ -131,8 +122,6 @@ export const useRealTimePosition = () => {
       return
     }
 
-    console.log('🛑 Stopping real-time tracking')
-    console.log('   → Saving API quota (no more position fetches)')
 
     isTracking.value = false
 
@@ -142,11 +131,8 @@ export const useRealTimePosition = () => {
       animationFrameId = null
     }
 
-    // Clear fetch interval
-    if (fetchIntervalId !== null) {
-      clearInterval(fetchIntervalId)
-      fetchIntervalId = null
-    }
+    // Reset fetching state
+    isFetching.value = false
 
     // Clear position data (but keep cache for reuse)
     currentPosition.value = null
@@ -168,7 +154,13 @@ export const useRealTimePosition = () => {
     observerAlt: number,
     apiKey: string
   ) => {
+    // Prevent duplicate fetches
+    if (isFetching.value) {
+      return
+    }
+
     try {
+      isFetching.value = true
       const now = Date.now()
 
       // Check cache first
@@ -188,8 +180,6 @@ export const useRealTimePosition = () => {
           // Filter cached positions to only include future ones from current time
           const futurePositionsFromCache = cached.positions.filter(pos => pos.timestamp >= now)
 
-          console.log(`✅ Using cached positions for NORAD ${noradId} (age: ${Math.round(cacheAge)}s, ${futurePositionsFromCache.length} future positions from current time)`)
-
           // Merge with any existing buffer
           const existingFuture = futurePositions.value.filter(pos => pos.timestamp >= now)
           const newPositions = futurePositionsFromCache.filter(pos =>
@@ -198,14 +188,9 @@ export const useRealTimePosition = () => {
 
           futurePositions.value = [...existingFuture, ...newPositions].sort((a, b) => a.timestamp - b.timestamp)
 
-          console.log(`📊 Loaded ${futurePositionsFromCache.length} positions from cache (filtered to current time)`)
           return // Skip API call
-        } else {
-          console.log(`🔄 Cache invalid for NORAD ${noradId} (expired or location changed), fetching fresh data`)
         }
       }
-
-      console.log(`📡 Fetching positions for NORAD ${noradId} (300 seconds)`)
 
       const { getSatellitePositions } = useN2YO()
 
@@ -218,7 +203,6 @@ export const useRealTimePosition = () => {
         apiKey
       )
 
-      console.log(`✅ Received ${positions.length} position samples (${positions.length}s of data)`)
 
       // Calculate distance for each position
       if (observerLocation.value) {
@@ -244,7 +228,8 @@ export const useRealTimePosition = () => {
         !existingFuture.some((existing: SatellitePosition) => existing.timestamp === pos.timestamp)
       )
 
-      futurePositions.value = [...existingFuture, ...newPositions]
+      // Merge and sort by timestamp to ensure proper ordering
+      futurePositions.value = [...existingFuture, ...newPositions].sort((a, b) => a.timestamp - b.timestamp)
       lastFetchTime.value = currentTime
 
       // Store in cache for reuse
@@ -259,67 +244,112 @@ export const useRealTimePosition = () => {
         }
       })
 
-      console.log(`📊 Buffer status: ${existingFuture.length} existing + ${newPositions.length} new = ${futurePositions.value.length} total positions`)
-      console.log(`💾 Cached ${positions.length} positions for NORAD ${noradId}`)
 
     } catch (error) {
       console.error('❌ Failed to fetch satellite positions:', error)
+    } finally {
+      isFetching.value = false
     }
   }
 
   /**
    * Animation loop - updates current position smoothly
    * Runs at 60fps for smooth visualization
+   * Automatically fetches more positions when buffer gets low
    */
-  const startAnimation = () => {
+  const startAnimation = (
+    noradId: number,
+    observerLat: number,
+    observerLng: number,
+    observerAlt: number,
+    apiKey: string
+  ) => {
     const animate = () => {
       if (!isTracking.value) return
 
       const now = Date.now()
 
+      // Check buffer status and fetch more positions if running low or exhausted
+      // Fetch when less than 90 seconds of data remain OR buffer is exhausted
+      if (futurePositions.value.length > 0 && !isFetching.value) {
+        const latestPosition = futurePositions.value[futurePositions.value.length - 1]
+        if (latestPosition) {
+          const timeRemaining = (latestPosition.timestamp - now) / 1000 // seconds
+
+          // Fetch if buffer is low (< 90s) OR already exhausted (< 0s)
+          if (timeRemaining < 90) {
+            fetchPositions(noradId, observerLat, observerLng, observerAlt, apiKey)
+          }
+        }
+      } else if (futurePositions.value.length === 0 && !isFetching.value && currentPosition.value) {
+        // Buffer completely empty but we have a last position - fetch immediately
+        fetchPositions(noradId, observerLat, observerLng, observerAlt, apiKey)
+      }
+
       // Find the current position from future positions buffer
       if (futurePositions.value.length > 0) {
-        // Find position closest to current time
-        const closestPosition = futurePositions.value.find(pos => pos.timestamp >= now)
+        // Find position closest to current time (or interpolate between two positions)
+        const futureIdx = futurePositions.value.findIndex(pos => pos.timestamp >= now)
 
-        if (closestPosition) {
-          // Calculate radial velocity if we have a previous position
-          if (currentPosition.value && currentPosition.value.distance > 0 && closestPosition.distance > 0) {
-            const timeDiffSeconds = (closestPosition.timestamp - currentPosition.value.timestamp) / 1000
-            if (timeDiffSeconds > 0) {
-              radialVelocity.value = calculateRadialVelocity(
-                currentPosition.value.distance,
-                closestPosition.distance,
-                timeDiffSeconds
-              )
+        if (futureIdx >= 0) {
+          const futurePos = futurePositions.value[futureIdx]
+
+          if (!futurePos) return
+
+          // Interpolate between previous and current position for smoother animation
+          if (futureIdx > 0) {
+            const prevPos = futurePositions.value[futureIdx - 1]
+
+            if (prevPos) {
+              const timeDiff = futurePos.timestamp - prevPos.timestamp
+              const timeProgress = (now - prevPos.timestamp) / timeDiff
+
+              // Interpolate for smooth movement
+              const interpolatedPos = interpolatePosition(prevPos, futurePos, timeProgress)
+
+              // Calculate radial velocity
+              if (currentPosition.value && currentPosition.value.distance > 0 && interpolatedPos.distance > 0) {
+                const timeDiffSeconds = (interpolatedPos.timestamp - currentPosition.value.timestamp) / 1000
+                if (timeDiffSeconds > 0) {
+                  radialVelocity.value = calculateRadialVelocity(
+                    currentPosition.value.distance,
+                    interpolatedPos.distance,
+                    timeDiffSeconds
+                  )
+                }
+              }
+
+              currentPosition.value = interpolatedPos
+            } else {
+              // Fallback if prevPos is undefined
+              currentPosition.value = futurePos
             }
+          } else {
+            // First position, no interpolation
+            currentPosition.value = futurePos
           }
 
-          // Update current position
-          currentPosition.value = closestPosition
-
-          // Move consumed positions to history
-          const consumedPositions = futurePositions.value.filter(pos => pos.timestamp < now)
+          // Move consumed positions to history (only move fully consumed ones)
+          const consumedPositions = futurePositions.value.filter(pos => pos.timestamp < (now - 1000))
           if (consumedPositions.length > 0) {
             positionHistory.value.push(...consumedPositions)
-            futurePositions.value = futurePositions.value.filter(pos => pos.timestamp >= now)
+            futurePositions.value = futurePositions.value.filter(pos => pos.timestamp >= (now - 1000))
 
             // Keep only last 5 minutes of history (300 positions max)
             const fiveMinutesAgo = now - (5 * 60 * 1000)
             positionHistory.value = positionHistory.value.filter(pos => pos.timestamp > fiveMinutesAgo)
           }
         } else {
-          // No future positions available - check if we're running out of buffer
+          // All positions are in the past, hold the last known position while fetching
           const lastPosition = futurePositions.value[futurePositions.value.length - 1]
-          if (lastPosition && (now - lastPosition.timestamp) > 10000) { // 10 seconds after last position
-            console.warn(`⚠️ Position buffer exhausted, waiting for next fetch...`)
-            console.log(`   Last position: ${new Date(lastPosition.timestamp).toLocaleTimeString()}`)
-            console.log(`   Current time: ${new Date(now).toLocaleTimeString()}`)
+          if (lastPosition) {
+            currentPosition.value = lastPosition
+            // Note: Fetch is triggered above, so we're just holding position temporarily
           }
         }
-      } else {
-        // No positions in buffer at all - this shouldn't happen during normal operation
-        console.warn(`⚠️ No position data available, animation may appear stuck`)
+      } else if (currentPosition.value) {
+        // No positions in buffer but we have a last position - keep showing it
+        // Fetch is triggered above
       }
 
       // Continue animation

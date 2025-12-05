@@ -129,9 +129,10 @@
         </div>
 
         <!-- No Token Warning -->
-        <div v-if="!settings.satnogsToken" class="mt-2 text-yellow-400 text-xs">
+        <!-- Note: SatNOGS token is optional - search works without authentication -->
+        <!-- <div v-if="!settings.satnogsToken" class="mt-2 text-yellow-400 text-xs">
           ⚠️ SatNOGS API token required for satellite search. Please add your token above.
-        </div>
+        </div> -->
       </div>
 
       <!-- Tracked Satellites List -->

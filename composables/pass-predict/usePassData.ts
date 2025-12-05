@@ -50,7 +50,7 @@ export const usePassData = (
           if (storedPass.noradId && storedPass.passes && Array.isArray(storedPass.passes)) {
             // Filter out expired passes when loading from database
             const currentTime = Date.now()
-            
+
             let validPasses = storedPass.passes
             // Check if ANY pass is geostationary (they all should be the same for a satellite)
             const hasGeostationaryPass = storedPass.passes.some((pass: any) => {
@@ -59,11 +59,17 @@ export const usePassData = (
               const durationHours = duration / (1000 * 60 * 60)
               return azimuthDiff < 5 && durationHours > 12
             })
-            
+
             if (!hasGeostationaryPass) {
               validPasses = storedPass.passes.filter((pass: any) => pass.endTime > currentTime)
             }
-            
+
+            // Filter out passes with max elevation below minimum elevation setting
+            const minElevation = settings.value?.minElevation || 20
+            validPasses = validPasses.filter((pass: any) => {
+              return pass.maxElevation >= minElevation
+            })
+
             if (validPasses.length > 0) {
               predictionsMap.set(storedPass.noradId, validPasses)
             }
@@ -223,7 +229,7 @@ export const usePassData = (
     // Check if any passes are very old (more than 2 hours)
     const currentTime = Date.now()
     const twoHoursAgo = currentTime - (2 * 60 * 60 * 1000)
-    
+
     for (const passes of passPredictions.value.values()) {
       if (passes.length > 0) {
         // If the first pass is very old, data might be stale
@@ -270,7 +276,7 @@ export const usePassData = (
       )
 
       console.log('✅ Fresh pass predictions calculated:', freshPasses.size, 'satellites')
-      
+
       // Update the pass predictions
       passPredictions.value = freshPasses
 
@@ -298,7 +304,7 @@ export const usePassData = (
     passPredictions,
     combinedData,
     observerLocation,
-    
+
     // Methods
     loadPassPredictions,
     loadStoredTransmitterData,

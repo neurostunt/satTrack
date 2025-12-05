@@ -2,6 +2,26 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-10-10',
   devtools: { enabled: true },
   ssr: false, // Disable SSR globally to prevent hydration issues
+
+  // Runtime configuration - accessible via useRuntimeConfig()
+  runtimeConfig: {
+    // Public keys (exposed to client-side)
+    // Note: These are from .env file which is gitignored, so it's safe to expose
+    public: {
+      // API Keys
+      n2yoApiKey: process.env.N2YO_API_KEY || '',
+      satnogsToken: process.env.SATNOGS_API_TOKEN || '',
+
+      // Space-Track credentials (from gitignored .env file)
+      spaceTrackUsername: process.env.SPACE_TRACK_USERNAME || '',
+      spaceTrackPassword: process.env.SPACE_TRACK_PASSWORD || '',
+
+      // API Base URLs
+      n2yoBaseUrl: process.env.N2YO_BASE_URL || 'https://api.n2yo.com/rest/v1/satellite',
+      spaceTrackBaseUrl: process.env.SPACE_TRACK_BASE_URL || 'https://www.space-track.org',
+      satnogsBaseUrl: process.env.SATNOGS_BASE_URL || 'https://db.satnogs.org/api'
+    }
+  },
   imports: {
     dirs: [
       'composables/**'
@@ -17,13 +37,6 @@ export default defineNuxtConfig({
         usePolling: true, // Use polling to avoid EMFILE error on macOS
         interval: 1000,
         ignored: ['**/node_modules/**', '**/.git/**', '**/.nuxt/**', '**/.output/**']
-      }
-    }
-  },
-  nitro: {
-    experimental: {
-      watcher: {
-        usePolling: true
       }
     }
   },

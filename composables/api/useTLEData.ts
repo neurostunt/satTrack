@@ -148,11 +148,8 @@ export const useTLEData = () => {
   /**
    * Fetch TLE data from SatNOGS as backup
    */
-  const fetchTLEDataFromSatNOGS = async (satellites: Satellite[], satnogsToken: string): Promise<TLEData[]> => {
-    if (!satnogsToken) {
-      throw new Error('SatNOGS API token is required for backup TLE data')
-    }
-
+  const fetchTLEDataFromSatNOGS = async (satellites: Satellite[], satnogsToken: string | null = null): Promise<TLEData[]> => {
+    // Note: SatNOGS API doesn't require authentication for TLE read operations
     const tleData: Record<number, TLEData> = {}
     const noradIds = satellites.map(sat => sat.noradId)
 
@@ -167,7 +164,7 @@ export const useTLEData = () => {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
-            token: satnogsToken,
+            // token removed - not needed for read-only TLE operations
             action: 'tle',
             noradId: noradId
           })
@@ -197,7 +194,54 @@ export const useTLEData = () => {
   }
 
   /**
-   * Fetch TLE data for tracked satellites with hybrid approach (Space-Track primary, SatNOGS backup)
+   * Fetch TLE data from CelesTrak as tertiary backup
+   */
+  const fetchTLEDataFromCelesTrak = async (satellites: Satellite[]): Promise<TLEData[]> => {
+    const tleData: Record<number, TLEData> = {}
+    const noradIds = satellites.map(sat => sat.noradId)
+
+    console.log('Fetching TLE data from CelesTrak backup for NORAD IDs:', noradIds)
+
+    // Fetch TLE data for each satellite from CelesTrak
+    for (const noradId of noradIds) {
+      try {
+        const response = await fetch('/api/celestrak', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'tle',
+            noradId: noradId
+          })
+        })
+
+        const data = await response.json()
+
+        if (data.success && data.data) {
+          const tleRecord = data.data
+          tleData[noradId] = {
+            noradId: noradId,
+            line1: tleRecord.tle1,
+            line2: tleRecord.tle2,
+            timestamp: Date.now(),
+            source: 'celestrak' as const
+          }
+          console.log(`✓ CelesTrak TLE data fetched for NORAD ${noradId}`)
+        } else {
+          console.warn(`✗ No CelesTrak TLE data found for NORAD ${noradId}`)
+        }
+      } catch (error) {
+        console.error(`✗ Error fetching CelesTrak TLE data for NORAD ${noradId}:`, error)
+      }
+    }
+
+    return Object.values(tleData)
+  }
+
+  /**
+   * Fetch TLE data for tracked satellites with multi-source fallback
+   * Priority: Space-Track.org → SatNOGS DB → CelesTrak
    */
   const fetchTLEData = async (satellites: Satellite[], username: string, password: string, satnogsToken: string | null = null, forceRefresh: boolean = false): Promise<void> => {
     if (!satellites || satellites.length === 0) {
@@ -252,48 +296,99 @@ export const useTLEData = () => {
         } catch (spaceTrackError) {
           console.warn('Space-Track.org failed, trying SatNOGS backup:', (spaceTrackError as Error).message)
 
-          // Fallback to SatNOGS if Space-Track fails
-          if (satnogsToken) {
+          // Fallback to SatNOGS if Space-Track fails (no token required)
+          try {
+            rawTLEData = await fetchTLEDataFromSatNOGS(satellites, satnogsToken)
+            dataSource = 'satnogs'
+            console.log('✓ TLE data successfully fetched from SatNOGS backup')
+          } catch (satnogsError) {
+            console.warn('Both Space-Track.org and SatNOGS failed, trying CelesTrak...', (satnogsError as Error).message)
+
+            // Tertiary fallback to CelesTrak
             try {
-              rawTLEData = await fetchTLEDataFromSatNOGS(satellites, satnogsToken)
-              dataSource = 'satnogs'
-              console.log('✓ TLE data successfully fetched from SatNOGS backup')
-            } catch (satnogsError) {
-              console.error('Both Space-Track.org and SatNOGS failed:', (satnogsError as Error).message)
-              throw new Error(`TLE data fetch failed from both sources. Space-Track: ${(spaceTrackError as Error).message}, SatNOGS: ${(satnogsError as Error).message}`)
+              rawTLEData = await fetchTLEDataFromCelesTrak(satellites)
+              dataSource = 'celestrak'
+              console.log('✓ TLE data successfully fetched from CelesTrak tertiary backup')
+            } catch (celestrakError) {
+              console.error('All three sources failed:', (celestrakError as Error).message)
+              throw new Error(`TLE data fetch failed from all sources. Space-Track: ${(spaceTrackError as Error).message}, SatNOGS: ${(satnogsError as Error).message}, CelesTrak: ${(celestrakError as Error).message}`)
             }
-          } else {
-            throw new Error(`Space-Track.org failed and no SatNOGS token provided for backup: ${(spaceTrackError as Error).message}`)
           }
         }
-      } else if (satnogsToken) {
-        // If no Space-Track credentials, try SatNOGS directly
+      } else {
+        // If no Space-Track credentials, use SatNOGS directly (no token required)
         console.log('No Space-Track credentials, fetching TLE data from SatNOGS...')
         rawTLEData = await fetchTLEDataFromSatNOGS(satellites, satnogsToken)
         dataSource = 'satnogs'
         console.log('✓ TLE data successfully fetched from SatNOGS')
-      } else {
-        throw new Error('Either Space-Track.org credentials or SatNOGS token is required')
       }
 
       // Process and store TLE data
       const processedData: Record<number, TLEData> = {}
       rawTLEData.forEach(tle => {
-        // Handle different data formats from Space-Track vs SatNOGS
-        const noradId = (tle as any).NORAD_CAT_ID || (tle as any).norad_cat_id
+        // Handle different data formats from Space-Track vs SatNOGS vs CelesTrak
+        const noradId = (tle as any).NORAD_CAT_ID || (tle as any).norad_cat_id || (tle as any).noradId
         const name = (tle as any).OBJECT_NAME || (tle as any).tle0 || `Satellite ${noradId}`
         const tle1 = (tle as any).TLE_LINE1 || (tle as any).tle1
         const tle2 = (tle as any).TLE_LINE2 || (tle as any).tle2
         const epoch = (tle as any).EPOCH || (tle as any).updated
+
+        if (!noradId || !tle1 || !tle2) {
+          console.warn('⚠️ Skipping incomplete TLE data:', { noradId, hasLine1: !!tle1, hasLine2: !!tle2 })
+          return
+        }
 
         processedData[noradId] = {
           noradId: noradId,
           line1: tle1,
           line2: tle2,
           timestamp: Date.now(),
-          source: dataSource as 'space-track' | 'satnogs' | 'manual'
+          source: (tle as any).source || dataSource as 'space-track' | 'satnogs' | 'celestrak' | 'manual'
         }
       })
+
+      // Check if any satellites are missing TLE data and try fallback sources individually
+      const missingSatellites = satellites.filter(sat => !processedData[sat.noradId])
+
+      if (missingSatellites.length > 0) {
+        console.log(`⚠️ ${missingSatellites.length} satellites missing TLE data, trying fallback sources...`)
+        console.log(`   Missing: ${missingSatellites.map(s => `${s.name} (${s.noradId})`).join(', ')}`)
+
+        // Try SatNOGS for missing satellites (if not already tried)
+        if (dataSource !== 'satnogs') {
+          try {
+            const satnogsData = await fetchTLEDataFromSatNOGS(missingSatellites, satnogsToken)
+            satnogsData.forEach(tle => {
+              processedData[tle.noradId] = tle
+              console.log(`✓ Found TLE for ${satellites.find(s => s.noradId === tle.noradId)?.name} (${tle.noradId}) via SatNOGS`)
+            })
+          } catch (error) {
+            console.warn('SatNOGS fallback failed:', (error as Error).message)
+          }
+        }
+
+        // Try CelesTrak for still-missing satellites
+        const stillMissing = satellites.filter(sat => !processedData[sat.noradId])
+        if (stillMissing.length > 0) {
+          try {
+            console.log(`   Trying CelesTrak for ${stillMissing.length} satellites: ${stillMissing.map(s => s.name).join(', ')}`)
+            const celestrakData = await fetchTLEDataFromCelesTrak(stillMissing)
+            celestrakData.forEach(tle => {
+              processedData[tle.noradId] = tle
+              console.log(`✓ Found TLE for ${satellites.find(s => s.noradId === tle.noradId)?.name} (${tle.noradId}) via CelesTrak`)
+            })
+          } catch (error) {
+            console.warn('CelesTrak fallback failed:', (error as Error).message)
+          }
+        }
+
+        // Final report
+        const finalMissing = satellites.filter(sat => !processedData[sat.noradId])
+        if (finalMissing.length > 0) {
+          console.error(`❌ Could not find TLE data for ${finalMissing.length} satellites:`)
+          finalMissing.forEach(sat => console.error(`   - ${sat.name} (NORAD ${sat.noradId})`))
+        }
+      }
 
       tleData.value = processedData
       lastUpdate.value = Date.now()

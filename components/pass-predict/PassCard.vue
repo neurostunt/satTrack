@@ -166,7 +166,6 @@ const fetchGeostationaryPosition = async () => {
   if (!settings.value.n2yoApiKey) return
 
   try {
-    console.log(`🛰️ Fetching geostationary position for ${props.pass.satelliteName}`)
     const { getSatellitePositions } = useN2YO()
 
     const positions = await getSatellitePositions(
@@ -180,8 +179,6 @@ const fetchGeostationaryPosition = async () => {
 
     if (positions && positions.length > 0) {
       geostationaryPosition.value = positions[0]
-      console.log(`✅ Geostationary position loaded:`, positions[0])
-      console.log(`   Elevation: ${positions[0].elevation.toFixed(1)}°, Azimuth: ${positions[0].azimuth.toFixed(1)}°`)
     }
   } catch (error) {
     console.error(`❌ Failed to fetch geostationary position:`, error)
@@ -206,11 +203,6 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
 
   if (shouldTrack && !wasTracking) {
     // Card is open AND satellite is passing - start real-time tracking
-    console.log(`🎯 Starting real-time tracking for ${props.pass.satelliteName}`)
-    console.log(`   ✓ Card expanded: ${expanded}`)
-    console.log(`   ✓ Satellite passing: ${passing}`)
-    console.log(`   → API calls will be made every 270 seconds (4.5 min)`)
-
     // Validate settings before starting
     if (!settings.value.n2yoApiKey) {
       console.warn(`⚠️ N2YO API key not configured - cannot start tracking`)
@@ -226,29 +218,13 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
     )
   } else if (!shouldTrack && wasTracking) {
     // Card closed OR pass ended - stop tracking to save API calls
-    const reason = !expanded ? 'Card collapsed' : 'Pass ended'
-    console.log(`🛑 Stopping tracking for ${props.pass.satelliteName}: ${reason}`)
-    console.log(`   → Saving API quota (was making calls every 240s)`)
-    console.log(`   📊 Debug: expanded=${expanded}, passing=${passing}`)
-    console.log(`   📊 Debug: pass times: start=${new Date(props.pass.startTime).toLocaleTimeString()}, end=${new Date(props.pass.endTime).toLocaleTimeString()}`)
-    console.log(`   📊 Debug: current time: ${new Date().toLocaleTimeString()}`)
     stopTracking()
-  }
-
-  // Debug logging for state changes without tracking changes
-  if (!shouldTrack && !wasTracking && (expanded !== prevExpanded || passing !== prevPassing)) {
-    if (!expanded) {
-      console.log(`💤 ${props.pass.satelliteName}: Card collapsed - no tracking`)
-    } else if (!passing) {
-      console.log(`⏳ ${props.pass.satelliteName}: Not yet passing - no tracking`)
-    }
   }
 }, { immediate: false })
 
 // Cleanup when component is unmounted
 onUnmounted(() => {
   if (isTracking.value) {
-    console.log(`🧹 Component unmounted - stopping tracking for ${props.pass.satelliteName}`)
     stopTracking()
   }
 })

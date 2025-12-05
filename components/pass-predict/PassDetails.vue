@@ -215,13 +215,25 @@ const formatFrequency = (frequency) => {
 }
 
 // Get Doppler-shifted frequency for display
-const getShiftedFrequency = (frequency) => {
-  // Only calculate if satellite is passing (not stationary) and we have radial velocity
-  if (!props.isPassing || props.isGeostationary || !props.radialVelocity || !frequency) {
-    return null
-  }
+// Make this a computed property that returns a function, so it's reactive to radialVelocity changes
+const getShiftedFrequency = computed(() => {
+  // Return a function that calculates Doppler shift for a given frequency
+  // This computed property will re-run whenever radialVelocity, isPassing, or isGeostationary changes
+  return (frequency) => {
+    // Only calculate if satellite is passing (not stationary) and we have frequency data
+    // Note: radialVelocity can be 0 (satellite at closest point), which is valid
+    if (!props.isPassing || props.isGeostationary || !frequency) {
+      return null
+    }
 
-  const doppler = calculateDopplerShift(frequency, props.radialVelocity)
-  return formatFrequency(doppler.shiftedFrequency)
-}
+    // radialVelocity can be 0, null, or undefined - treat null/undefined as not available
+    if (props.radialVelocity === null || props.radialVelocity === undefined) {
+      return null
+    }
+
+    const doppler = calculateDopplerShift(frequency, props.radialVelocity)
+
+    return formatFrequency(doppler.shiftedFrequency)
+  }
+})
 </script>

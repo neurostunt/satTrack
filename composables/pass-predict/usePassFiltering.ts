@@ -43,7 +43,7 @@ export const usePassFiltering = (
         const durationHours = duration / (1000 * 60 * 60)
         return azimuthDiff < 5 && durationHours > 12
       })
-      
+
       // Filter passes for this satellite - include passes that ended less than 10 seconds ago
       let validPasses = passes
       if (!hasGeostationaryPass) {
@@ -52,7 +52,13 @@ export const usePassFiltering = (
           return pass.endTime > currentTimeNow || timeSinceEnd < 10000 // Keep passes that are upcoming OR ended less than 10 seconds ago
         })
       }
-      
+
+      // Filter out passes with max elevation below minimum elevation setting
+      const minElevation = settings.value?.minElevation || 20
+      validPasses = validPasses.filter(pass => {
+        return pass.maxElevation >= minElevation
+      })
+
       // Only process satellites that have valid passes (upcoming or recently passed)
       if (validPasses.length > 0) {
         // Find satellite name
@@ -114,7 +120,7 @@ export const usePassFiltering = (
     upcomingPasses,
     passingPasses,
     recentlyPassedPasses,
-    
+
     // Methods
     filterPassesByStatus
   }

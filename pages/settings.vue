@@ -241,7 +241,7 @@ const saveSettings = async () => {
   try {
     // Save regular settings
     await saveSettingsToStorage()
-    
+
     // Save credentials separately
     console.log('🔑 Saving credentials:', {
       username: settings.value.spaceTrackUsername,
@@ -249,7 +249,7 @@ const saveSettings = async () => {
       satnogsToken: settings.value.satnogsToken ? '***' : 'empty',
       n2yoApiKey: settings.value.n2yoApiKey ? '***' : 'empty'
     })
-    
+
     if (settings.value.spaceTrackUsername || settings.value.spaceTrackPassword || settings.value.satnogsToken || settings.value.n2yoApiKey) {
       await storeCredentials({
         username: settings.value.spaceTrackUsername || '',
@@ -261,7 +261,7 @@ const saveSettings = async () => {
     } else {
       console.log('⚠️ No credentials to save')
     }
-    
+
     console.log('Settings and credentials saved successfully')
   } catch (error) {
     console.error('Failed to save settings:', error)
@@ -359,12 +359,13 @@ const fetchTrackedSatellitesTransmitterData = async () => {
 
     for (const noradId of noradIds) {
       try {
+        // Note: SatNOGS transmitters endpoint doesn't require authentication for read-only operations
         const response = await $fetch('/api/satnogs', {
           method: 'POST',
           body: {
             action: 'transmitters',
-            noradId: noradId,
-            token: settings.value.satnogsToken
+            noradId: noradId
+            // token removed - not needed for read-only operations
           }
         })
 
@@ -570,6 +571,7 @@ watch(searchQuery, async (newQuery) => {
     console.log(`🔍 Searching for "${newQuery}"...`)
 
     try {
+      // Note: satnogsToken is optional - search works without authentication
       const results = await searchSatellites(newQuery, settings.value.satnogsToken)
       searchResults.value = results
 
@@ -597,30 +599,24 @@ watch(searchQuery, async (newQuery) => {
 onMounted(async () => {
   await loadSettings()
   await loadStorageInfo()
-  
-  // Load credentials from database
+
+  // Load credentials from .env or IndexedDB
+  const { loadCredentials } = useCredentials()
+
   try {
-    console.log('🔍 Loading credentials from database...')
-    const credentials = await getCredentials()
-    console.log('📋 Loaded credentials:', credentials)
-    
-    if (credentials) {
+    const credentials = await loadCredentials()
+
+    if (credentials.spaceTrackUsername || credentials.n2yoApiKey || credentials.satnogsToken) {
       // Update settings with loaded credentials
-      console.log('🔄 Updating settings with loaded credentials')
-      updateSettings({
-        spaceTrackUsername: credentials.username,
-        spaceTrackPassword: credentials.password,
-        satnogsToken: credentials.satnogsToken,
-        n2yoApiKey: credentials.n2yoApiKey
-      })
+      updateSettings(credentials)
       console.log('✅ Settings updated with credentials')
     } else {
-      console.log('⚠️ No credentials found in database')
+      console.log('⚠️ No credentials found')
     }
   } catch (error) {
     console.error('Failed to load credentials:', error)
   }
-  
+
   await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
 })
 

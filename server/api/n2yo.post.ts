@@ -3,11 +3,14 @@
  * Handles CORS and API key management for N2YO satellite data
  */
 
+import { fetchWithTimeout, handleApiError, validateRequired, createSuccessResponse } from '../utils/apiHelpers'
+
 export default defineEventHandler(async (event) => {
   try {
     const body = await readBody(event)
     const { action, apiKey, ...params } = body
 
+    // Validate API key
     if (!apiKey) {
       throw createError({
         status: 400,
@@ -15,95 +18,25 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    let url = ''
-    let responseData = null
-
-    switch (action) {
-      case 'radiopasses':
-        const { noradId: radioNoradId, observerLat: radioLat, observerLng: radioLng, observerAlt: radioAlt = 0, days: radioDays = 3, minElevation = 10 } = params
-        
-        if (!radioNoradId || !radioLat || !radioLng) {
-          throw createError({
-            status: 400,
-            statusText: 'Missing required parameters: noradId, observerLat, observerLng'
-          })
-        }
-
-        url = `https://api.n2yo.com/rest/v1/satellite/radiopasses/${radioNoradId}/${radioLat}/${radioLng}/${radioAlt}/${radioDays}/${minElevation}&apiKey=${apiKey}`
-        break
-
-      case 'tle':
-        const { noradId: tleNoradId } = params
-        
-        if (!tleNoradId) {
-          throw createError({
-            status: 400,
-            statusText: 'Missing required parameter: noradId'
-          })
-        }
-
-        url = `https://api.n2yo.com/rest/v1/satellite/tle/${tleNoradId}&apiKey=${apiKey}`
-        break
-
-      case 'positions':
-        const { noradId: posNoradId, observerLat: posLat, observerLng: posLng, observerAlt: posAlt = 0, seconds = 60 } = params
-        
-        if (!posNoradId || !posLat || !posLng) {
-          throw createError({
-            status: 400,
-            statusText: 'Missing required parameters: noradId, observerLat, observerLng'
-          })
-        }
-
-        url = `https://api.n2yo.com/rest/v1/satellite/positions/${posNoradId}/${posLat}/${posLng}/${posAlt}/${seconds}&apiKey=${apiKey}`
-        break
-
-      case 'test':
-        // Test connection with ISS (NORAD ID 25544)
-        url = `https://api.n2yo.com/rest/v1/satellite/tle/25544&apiKey=${apiKey}`
-        break
-
-      default:
-        throw createError({
-          status: 400,
-          statusText: `Unknown action: ${action}. Supported actions: radiopasses, tle, positions, above, test`
-        })
-    }
+    // Build URL based on action
+    const url = buildN2YOUrl(action, apiKey, params)
 
     console.log(`🛰️ N2YO API request: ${action}`, { url: url.replace(apiKey, '***') })
 
-    // Make request to N2YO API with timeout
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15000) // 15 second timeout
-    
-    let response
-    try {
-      response = await fetch(url, {
-        signal: controller.signal
-      })
-      clearTimeout(timeout)
-    } catch (error: any) {
-      clearTimeout(timeout)
-      if (error.name === 'AbortError') {
-        throw createError({
-          status: 504,
-          statusText: 'N2YO API request timeout - endpoint took too long to respond'
-        })
-      }
-      throw error
-    }
-    
+    // Make request with timeout
+    const response = await fetchWithTimeout(url, {}, 15000)
+
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`🛰️ N2YO API error: ${response.status}`, errorText)
-      
+
       throw createError({
         status: response.status,
         statusText: `N2YO API error: ${response.status} ${response.statusText}`
       })
     }
 
-    responseData = await response.json()
+    const responseData = await response.json()
 
     // Check for API errors in response
     if (responseData.error) {
@@ -119,23 +52,45 @@ export default defineEventHandler(async (event) => {
       passesCount: responseData.info?.passescount || responseData.passes?.length || 'N/A'
     })
 
-    return {
-      success: true,
-      data: responseData,
-      action,
-      timestamp: new Date().toISOString()
-    }
+    return createSuccessResponse(responseData, action)
 
   } catch (error) {
-    console.error('🛰️ N2YO API proxy error:', error)
-    
-    if ((error as any).status) {
-      throw error
-    }
-
-    throw createError({
-      status: 500,
-      statusText: `N2YO API proxy error: ${(error as any).message}`
-    })
+    handleApiError(error, 'N2YO')
   }
 })
+
+/**
+ * Build N2YO API URL based on action
+ */
+function buildN2YOUrl(action: string, apiKey: string, params: any): string {
+  const baseUrl = 'https://api.n2yo.com/rest/v1/satellite'
+
+  switch (action) {
+    case 'radiopasses': {
+      validateRequired(params, ['noradId', 'observerLat', 'observerLng'], 'N2YO')
+      const { noradId, observerLat, observerLng, observerAlt = 0, days = 3, minElevation = 10 } = params
+      return `${baseUrl}/radiopasses/${noradId}/${observerLat}/${observerLng}/${observerAlt}/${days}/${minElevation}&apiKey=${apiKey}`
+    }
+
+    case 'tle': {
+      validateRequired(params, ['noradId'], 'N2YO')
+      return `${baseUrl}/tle/${params.noradId}&apiKey=${apiKey}`
+    }
+
+    case 'positions': {
+      validateRequired(params, ['noradId', 'observerLat', 'observerLng'], 'N2YO')
+      const { noradId, observerLat, observerLng, observerAlt = 0, seconds = 60 } = params
+      return `${baseUrl}/positions/${noradId}/${observerLat}/${observerLng}/${observerAlt}/${seconds}&apiKey=${apiKey}`
+    }
+
+    case 'test':
+      // Test connection with ISS (NORAD ID 25544)
+      return `${baseUrl}/tle/25544&apiKey=${apiKey}`
+
+    default:
+      throw createError({
+        status: 400,
+        statusText: `Unknown action: ${action}. Supported actions: radiopasses, tle, positions, test`
+      })
+  }
+}

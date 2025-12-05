@@ -26,7 +26,7 @@ export interface TLEData {
   line1: string
   line2: string
   timestamp: number
-  source: 'space-track' | 'satnogs' | 'manual'
+  source: 'space-track' | 'satnogs' | 'celestrak' | 'manual'
 }
 
 export interface SatellitePosition {

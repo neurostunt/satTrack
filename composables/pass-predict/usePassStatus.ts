@@ -38,16 +38,6 @@ export const usePassStatus = () => {
 
     const now = currentTime.value
 
-    // Debug logging for specific NORAD ID
-    if (noradId === 27607) {
-      const timeUntilStart = startTime - now
-      const timeUntilEnd = endTime - now
-      console.log(`🔍 NORAD 27607 Status Check:`)
-      console.log(`   Current time: ${new Date(now).toLocaleTimeString()}`)
-      console.log(`   Pass start: ${new Date(startTime).toLocaleTimeString()} (${Math.round(timeUntilStart/1000)}s from now)`)
-      console.log(`   Pass end: ${new Date(endTime).toLocaleTimeString()} (${Math.round(timeUntilEnd/1000)}s from now)`)
-    }
-
     if (now < startTime) {
       return 'upcoming'
     } else if (now >= startTime && now <= endTime) {

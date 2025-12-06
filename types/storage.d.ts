@@ -24,13 +24,7 @@ export interface StorageSettings {
 }
 
 export interface TransmitterFilters {
-  amateur: boolean
-  data: boolean
-  voice: boolean
-  repeater: boolean
-  beacon: boolean
-  weather: boolean
-  communication: boolean
+  showOnly2m70cm: boolean
 }
 
 export interface StorageStats {

@@ -182,6 +182,22 @@
           />
         </div>
 
+        <!-- Transmitter Filters -->
+        <div class="border-t border-space-600 pt-4 mt-4">
+          <h4 class="text-sm font-medium text-space-200 mb-3">📡 Transmitter Frequency Filter</h4>
+          <div class="text-xs text-space-500 mb-3">
+            Show only frequencies in VHF (136-174 MHz) and UHF (400-520 MHz) bands. If disabled, all transmitters will be shown.
+          </div>
+          <div class="flex items-center justify-between">
+            <label class="text-sm text-space-300">Show only VHF / UHF frequencies</label>
+            <input
+              v-model="showOnly2m70cm"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
+            />
+          </div>
+        </div>
+
         <!-- Save Settings Button -->
         <div class="border-t border-space-600 pt-4 mt-4">
           <button
@@ -270,6 +286,18 @@ const highAccuracyGPS = computed({
 const autoCalibrateCompass = computed({
   get: () => props.settings.autoCalibrateCompass || false,
   set: (value) => props.updateSettings({ autoCalibrateCompass: value })
+})
+
+// Transmitter filter computed property
+const showOnly2m70cm = computed({
+  get: () => props.settings.transmitterFilters?.showOnly2m70cm === true,
+  set: (value) => {
+    props.updateSettings({
+      transmitterFilters: {
+        showOnly2m70cm: value
+      }
+    })
+  }
 })
 
 // GPS location function

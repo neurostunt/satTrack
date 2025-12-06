@@ -13,7 +13,7 @@
       <div class="bg-space-800 border border-space-700 rounded-lg p-4">
         <h3 class="text-lg font-semibold text-primary-400 mb-4 flex items-center">
           🛰️ Pass Predictions
-          <span class="ml-2 text-sm text-space-300">({{ sortedPasses.length }} upcoming passes)</span>
+          <span class="ml-2 text-sm text-space-300">({{ passesWithTransmitters.length }} upcoming passes)</span>
         </h3>
 
         <!-- Loading State -->
@@ -23,15 +23,15 @@
         </div>
 
         <!-- No Passes -->
-        <div v-else-if="sortedPasses.length === 0" class="text-center py-8">
-          <p class="text-space-400">No upcoming passes found</p>
-          <p class="text-space-500 text-sm mt-2">Make sure you have tracked satellites and TLE data</p>
+        <div v-else-if="passesWithTransmitters.length === 0" class="text-center py-8">
+          <p class="text-space-400">No upcoming passes with available transmitters found</p>
+          <p class="text-space-500 text-sm mt-2">Make sure you have tracked satellites with transmitter data</p>
         </div>
 
         <!-- Individual Pass Cards -->
         <div v-else class="space-y-4">
           <PassPredictPassCard
-            v-for="pass in sortedPasses"
+            v-for="pass in passesWithTransmitters"
             :key="`${pass.noradId}-${pass.startTime}`"
             :pass="pass"
             :is-expanded="isPassExpanded(pass.noradId, pass.startTime)"
@@ -64,6 +64,8 @@
 // - Vue functions (ref, onMounted, onUnmounted, computed, watch)
 // - Components from components/ directory
 // - Composables from composables/ directory
+import { matchesTransmitterFilters } from '~/utils/transmitterCategorization'
+
 const {
   settings,
   loadSettings
@@ -142,6 +144,46 @@ const togglePassData = (noradId, startTime) => {
 const getSatelliteData = (noradId) => {
   return combinedData.value[noradId] || null
 }
+
+// Helper function to check if a pass has available transmitters after filtering
+const hasAvailableTransmitters = (pass) => {
+  const satData = getSatelliteData(pass.noradId)
+  const allTransmitters = satData?.transmitters || []
+
+  // If no transmitter data at all, don't show (satellite might not have transmitter data loaded)
+  if (allTransmitters.length === 0) {
+    // But if transmitterCount is set and > 0, we might have data that just isn't loaded yet
+    // In that case, show it anyway (data might load later)
+    if (pass.transmitterCount && pass.transmitterCount > 0) {
+      return true
+    }
+    return false
+  }
+
+  // Filter out dead transmitters
+  const aliveTransmitters = allTransmitters.filter(t => t.alive !== false)
+
+  // If no alive transmitters, don't show
+  if (aliveTransmitters.length === 0) {
+    return false
+  }
+
+  // Apply frequency type filters if settings are available
+  if (settings.value?.transmitterFilters) {
+    const filtered = aliveTransmitters.filter(transmitter =>
+      matchesTransmitterFilters(transmitter, settings.value.transmitterFilters)
+    )
+    return filtered.length > 0
+  }
+
+  // If no filters configured, show if there are alive transmitters
+  return aliveTransmitters.length > 0
+}
+
+// Filter passes to only show those with available transmitters
+const passesWithTransmitters = computed(() => {
+  return sortedPasses.value.filter(pass => hasAvailableTransmitters(pass))
+})
 
 // Helper functions for satellite name formatting
 const getFormattedSatelliteName = (satellite, noradId) => {

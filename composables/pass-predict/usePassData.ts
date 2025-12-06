@@ -167,54 +167,15 @@ export const usePassData = (
 
   /**
    * Filter transmitters based on settings
+   * Note: This function is kept for backward compatibility but filtering
+   * is now done in PassDetails component using the categorization utility
    */
   const filterTransmitters = (transmitters: any[]) => {
-    if (!transmitters || !Array.isArray(transmitters)) return []
-
-    return transmitters.filter(transmitter => {
-      if (!transmitter.description) return true
-
-      const desc = transmitter.description.toLowerCase()
-      const filters = settings.value.transmitterFilters || {}
-
-      // Check each filter type
-      if (desc.includes('amateur') || desc.includes('ham')) {
-        return filters.amateur !== false
-      }
-      if (desc.includes('fm')) {
-        return filters.fm !== false
-      }
-      if (desc.includes('cw')) {
-        return filters.cw !== false
-      }
-      if (desc.includes('aprs')) {
-        return filters.aprs !== false
-      }
-      if (desc.includes('sstv')) {
-        return filters.sstv !== false
-      }
-      if (desc.includes('telemetry')) {
-        return filters.telemetry !== false
-      }
-      if (desc.includes('voice')) {
-        return filters.voice !== false
-      }
-      if (desc.includes('repeater')) {
-        return filters.repeater !== false
-      }
-      if (desc.includes('beacon')) {
-        return filters.beacon !== false
-      }
-      if (desc.includes('weather') || desc.includes('apt')) {
-        return filters.weather !== false
-      }
-      if (desc.includes('communication') || desc.includes('comm')) {
-        return filters.communication !== false
-      }
-
-      // If no specific type matches, show it (default behavior)
-      return true
-    })
+    if (!transmitters || !Array.isArray(transmitters)) return transmitters
+    
+    // Don't filter here - let PassDetails component handle filtering
+    // This ensures consistent filtering logic
+    return transmitters
   }
 
   /**

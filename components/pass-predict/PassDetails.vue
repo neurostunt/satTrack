@@ -67,7 +67,7 @@
       class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
       @click="toggleTransmitters"
     >
-      <span>📡 Available Transmitters: {{ pass.transmitterCount }}</span>
+      <span>📡 Available Transmitters: {{ filteredTransmitters.length }} / {{ pass.transmitterCount }}</span>
       <svg
         class="w-4 h-4 transition-transform duration-300"
         :class="{ 'rotate-180': showTransmitters }"
@@ -87,9 +87,9 @@
       leave-to-class="transform scale-y-0 opacity-0 origin-top"
     >
       <div v-if="showTransmitters && isParentExpanded" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
-        <div v-if="transmitters.length > 0" class="space-y-2">
+        <div v-if="filteredTransmitters.length > 0" class="space-y-2">
           <div
-            v-for="(transmitter, index) in transmitters"
+            v-for="(transmitter, index) in filteredTransmitters"
             :key="index"
             class="border-t border-space-600 pt-2 space-y-1"
           >
@@ -136,6 +136,10 @@
 
 <script setup>
 import { calculateDopplerShift, formatDopplerShift } from '~/utils/dopplerCalculations'
+import { matchesTransmitterFilters } from '~/utils/transmitterCategorization'
+import { useSettings } from '~/composables/storage/useSettings'
+
+const { settings } = useSettings()
 
 const props = defineProps({
   pass: {
@@ -182,13 +186,24 @@ const showPassDetails = ref(false)
 // State for transmitter expansion
 const showTransmitters = ref(false)
 
-// Get transmitters from satellite data (filter out dead ones)
-const transmitters = computed(() => {
+// Get transmitters from satellite data (filter out dead ones and apply frequency filters)
+const filteredTransmitters = computed(() => {
   const satData = props.getSatelliteData(props.pass.noradId)
   const allTransmitters = satData?.transmitters || []
 
   // Filter out dead transmitters
-  return allTransmitters.filter(t => t.alive !== false)
+  const aliveTransmitters = allTransmitters.filter(t => t.alive !== false)
+
+  // Apply frequency type filters if settings are available
+  if (settings.value?.transmitterFilters) {
+    const filters = settings.value.transmitterFilters
+    return aliveTransmitters.filter(transmitter =>
+      matchesTransmitterFilters(transmitter, filters)
+    )
+  }
+
+  // If no filters configured, show all
+  return aliveTransmitters
 })
 
 // Toggle pass details

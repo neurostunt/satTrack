@@ -16,13 +16,7 @@ const defaultSettings: StorageSettings = {
     altitude: 0
   },
   transmitterFilters: {
-    amateur: true,
-    data: true,
-    voice: true,
-    repeater: true,
-    beacon: true,
-    weather: true,
-    communication: true
+    showOnly2m70cm: false
   },
   gridSquare: 'KN04FXQL',
   useGPS: true,
@@ -49,10 +43,37 @@ const loadSettings = async (): Promise<void> => {
   try {
     const storedSettings = await storage.getSettings()
     if (storedSettings) {
+      // Migrate old transmitterFilters format to new format if needed
+      let transmitterFilters: any = storedSettings.transmitterFilters || defaultSettings.transmitterFilters
+      
+      // Check if old format exists and migrate to new simple format
+      if (transmitterFilters && typeof transmitterFilters === 'object') {
+        // If it has old format fields, migrate to new format
+        if ('radioAmateur' in transmitterFilters || 'amateur' in transmitterFilters || 'weather' in transmitterFilters) {
+          // Old format - migrate to new simple format
+          // If any old filter was enabled, default to false (show all)
+          // User can enable the new filter if they want
+          transmitterFilters = {
+            showOnly2m70cm: false
+          }
+        } else if (!('showOnly2m70cm' in transmitterFilters)) {
+          // Ensure new field exists
+          transmitterFilters = { ...defaultSettings.transmitterFilters }
+        }
+      } else {
+        transmitterFilters = { ...defaultSettings.transmitterFilters }
+      }
+      
+      // Ensure the field exists with proper default
+      if (transmitterFilters.showOnly2m70cm === undefined) {
+        transmitterFilters.showOnly2m70cm = false
+      }
+      
       // Deep clone to ensure nested objects are mutable
       settings.value = {
         ...defaultSettings,
         ...storedSettings,
+        transmitterFilters,
         observationLocation: {
           ...defaultSettings.observationLocation,
           ...storedSettings.observationLocation
@@ -120,3 +141,4 @@ export const useSettings = () => {
     }
   }
 }
+

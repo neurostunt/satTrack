@@ -24,11 +24,13 @@ import CombinedSatelliteData from '~/components/common/CombinedSatelliteData.vue
 import { useSettings } from '~/composables/storage/useSettings'
 import { useTLEData } from '~/composables/api/useTLEData'
 import { useIndexedDB } from '~/composables/storage/useIndexedDB'
+import { getSatnogsImageUrl } from '~/utils/satelliteImageUtils'
 
 // Import composables
 const {
   settings,
-  loadSettings
+  loadSettings,
+  saveSettings
 } = useSettings()
 
 const {
@@ -144,15 +146,39 @@ const loadStoredTransmitterData = async () => {
           const transmitters = transmitterDataObj[satellite.noradId] || []
           console.log(`🔍 Debug: Transmitters for ${satellite.name} (${satellite.noradId}):`, transmitters)
 
-                 combined[satellite.noradId] = {
-                   satellite: {
-                     name: satellite.name,
-                     status: satellite.status || 'alive',
-                     names: satellite.names || satellite.name
-                   },
-                   timestamp: new Date().toISOString(),
-                   transmitters: filterTransmitters(transmitters)
-                 }
+          // Convert SatNOGS relative image path to full URL if available
+          let imageUrl = undefined
+          if (satellite.image) {
+            imageUrl = getSatnogsImageUrl(satellite.image) || undefined
+          }
+
+          combined[satellite.noradId] = {
+            satellite: {
+              name: satellite.name,
+              status: satellite.status || 'alive',
+              names: satellite.names || satellite.name,
+              image: imageUrl, // Full URL from SatNOGS or undefined
+              description: satellite.description || undefined // Description if available
+            },
+            timestamp: new Date().toISOString(),
+            transmitters: filterTransmitters(transmitters)
+          }
+        }
+      })
+      
+      // Fetch satellite images asynchronously from UpHere Space API if SatNOGS image is missing (non-blocking)
+      settings.value.trackedSatellites.forEach(async (satellite) => {
+        if (satellite.noradId && !satellite.image && combined[satellite.noradId]) {
+          try {
+            const { getSatelliteImageFromUpHere } = await import('~/utils/satelliteImageUtils')
+            const imageUrl = await getSatelliteImageFromUpHere(satellite.noradId)
+            // Update image if found
+            if (imageUrl && combined[satellite.noradId]) {
+              combined[satellite.noradId].satellite.image = imageUrl
+            }
+          } catch (error) {
+            // Silently fail - image is optional
+          }
         }
       })
     }
@@ -160,8 +186,146 @@ const loadStoredTransmitterData = async () => {
     combinedData.value = combined
     console.log('🔍 Debug: Final combined data:', Object.keys(combinedData.value))
     console.log('🔍 Debug: ISS combined data:', combinedData.value['25544'])
+    
+    // Load recommended satellites descriptions as fallback (before API fetching)
+    await loadRecommendedSatellitesDescriptions()
+    
+    // Fetch missing satellite images and descriptions from SatNOGS API
+    await fetchMissingSatelliteImages()
+    await fetchMissingSatelliteDescriptions()
   } catch (error) {
     console.error('Failed to load stored transmitter data:', error)
+  }
+}
+
+/**
+ * Fetch satellite descriptions from SatNOGS API for satellites that don't have descriptions
+ */
+const fetchMissingSatelliteDescriptions = async () => {
+  if (!settings.value.trackedSatellites) return
+  
+  const satellitesWithoutDescriptions = settings.value.trackedSatellites.filter(
+    sat => sat.noradId && !sat.description && !combinedData.value[sat.noradId]?.satellite?.description
+  )
+  
+  if (satellitesWithoutDescriptions.length === 0) {
+    console.log('All satellites already have descriptions')
+    return
+  }
+  
+  console.log(`Fetching descriptions for ${satellitesWithoutDescriptions.length} satellites without descriptions`)
+  
+  // Fetch descriptions for each satellite
+  for (const satellite of satellitesWithoutDescriptions) {
+    try {
+      // Fetch satellite data from SatNOGS API
+      const response = await $fetch('/api/satnogs', {
+        method: 'POST',
+        body: {
+          action: 'satellites',
+          limit: 1,
+          noradId: satellite.noradId
+        }
+      })
+      
+      // Try to get satellite data from response
+      let satData = null
+      if (response?.success && Array.isArray(response.data)) {
+        satData = response.data.find(s => s.norad_cat_id === satellite.noradId)
+      }
+      
+      // Debug: log what fields are available in satData
+      console.log(`SatNOGS data for ${satellite.name} (${satellite.noradId}):`, Object.keys(satData || {}))
+      
+      // Try multiple possible description fields from SatNOGS API
+      const description = satData?.description || 
+                          satData?.purpose || 
+                          satData?.description_text ||
+                          satData?.notes ||
+                          satData?.comment
+      
+      // If we found satellite data with a description, update it
+      if (description && combinedData.value[satellite.noradId]) {
+        // Update the combined data reactively using a new object to ensure reactivity
+        combinedData.value = {
+          ...combinedData.value,
+          [satellite.noradId]: {
+            ...combinedData.value[satellite.noradId],
+            satellite: {
+              ...combinedData.value[satellite.noradId].satellite,
+              description: description
+            }
+          }
+        }
+        console.log(`✓ Fetched description for ${satellite.name} (${satellite.noradId}):`, description.substring(0, 50) + '...')
+      } else {
+        console.log(`No description found for ${satellite.name} (${satellite.noradId})`)
+      }
+    } catch (error) {
+      console.log(`Could not fetch description for ${satellite.name} (${satellite.noradId}):`, error)
+    }
+  }
+}
+
+/**
+ * Fetch satellite images from SatNOGS API for satellites that don't have images
+ */
+const fetchMissingSatelliteImages = async () => {
+  if (!settings.value.trackedSatellites) return
+  
+  const satellitesWithoutImages = settings.value.trackedSatellites.filter(
+    sat => sat.noradId && !sat.image
+  )
+  
+  if (satellitesWithoutImages.length === 0) {
+    console.log('All satellites already have images')
+    return
+  }
+  
+  console.log(`Fetching images for ${satellitesWithoutImages.length} satellites without images`)
+  
+  // Fetch images for each satellite
+  for (const satellite of satellitesWithoutImages) {
+    try {
+      // Fetch satellite data from SatNOGS API
+      const response = await $fetch('/api/satnogs', {
+        method: 'POST',
+        body: {
+          action: 'satellites',
+          limit: 1,
+          noradId: satellite.noradId
+        }
+      })
+      
+      // Try to get satellite data from response
+      let satData = null
+      if (response?.success && Array.isArray(response.data)) {
+        satData = response.data.find(s => s.norad_cat_id === satellite.noradId)
+      }
+      
+      // If we found satellite data with an image, update it
+      if (satData?.image) {
+        const imageUrl = getSatnogsImageUrl(satData.image)
+        
+        if (imageUrl) {
+          // Update the satellite in settings
+          const satIndex = settings.value.trackedSatellites.findIndex(s => s.noradId === satellite.noradId)
+          if (satIndex !== -1) {
+            settings.value.trackedSatellites[satIndex].image = satData.image
+            await saveSettings()
+          }
+          
+          // Update the combined data reactively
+          if (combinedData.value[satellite.noradId]) {
+            combinedData.value[satellite.noradId].satellite.image = imageUrl
+          }
+          
+          console.log(`✓ Fetched image for ${satellite.name} (${satellite.noradId})`)
+        }
+      }
+    } catch (error) {
+      console.log(`Could not fetch image for ${satellite.name} (${satellite.noradId}):`, error)
+    }
   }
 }
 
@@ -265,6 +429,49 @@ watch(() => settings.value.transmitterFilters, async () => {
   console.log('🔍 Debug: Transmitter filters changed, reloading data...')
   await loadStoredTransmitterData()
 }, { deep: true })
+
+// Load recommended satellites descriptions as fallback
+const loadRecommendedSatellitesDescriptions = async () => {
+  try {
+    const recommended = await $fetch('/recommended-satellites-belgrade.json')
+    console.log('📝 Loading recommended satellites descriptions:', recommended)
+    if (recommended?.recommendedSatellites) {
+      const descriptionsMap = {}
+      recommended.recommendedSatellites.forEach(sat => {
+        if (sat.noradId && sat.description) {
+          descriptionsMap[sat.noradId] = sat.description
+          console.log(`📝 Found description for NORAD ${sat.noradId}: ${sat.description.substring(0, 50)}...`)
+        }
+      })
+      
+      // Update combined data with descriptions from recommended file if not already present
+      // Use a new object to ensure reactivity
+      const updatedData = { ...combinedData.value }
+      Object.keys(updatedData).forEach(noradId => {
+        if (!updatedData[noradId]?.satellite?.description && descriptionsMap[noradId]) {
+          updatedData[noradId] = {
+            ...updatedData[noradId],
+            satellite: {
+              ...updatedData[noradId].satellite,
+              description: descriptionsMap[noradId]
+            }
+          }
+          console.log(`📝 Applied description from recommended file for NORAD ${noradId}: ${descriptionsMap[noradId].substring(0, 50)}...`)
+        }
+      })
+      combinedData.value = updatedData
+      
+      console.log('📝 Descriptions map:', descriptionsMap)
+      console.log('📝 Combined data after loading descriptions:', Object.keys(combinedData.value).map(id => ({
+        noradId: id,
+        hasDescription: !!combinedData.value[id]?.satellite?.description,
+        description: combinedData.value[id]?.satellite?.description?.substring(0, 50)
+      })))
+    }
+  } catch (error) {
+    console.log('Could not load recommended satellites descriptions:', error)
+  }
+}
 
 // Load data on mount
 onMounted(async () => {

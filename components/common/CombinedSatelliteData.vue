@@ -20,6 +20,16 @@
             :class="isSatelliteExpanded(noradId) ? 'bg-space-800' : 'hover:bg-space-800'"
           >
             <div class="flex items-center gap-2 w-full">
+              <!-- Satellite Image -->
+              <div v-if="data.satellite?.image" class="flex-shrink-0">
+                <img
+                  :src="data.satellite.image"
+                  :alt="data.satellite.name"
+                  class="w-12 h-12 object-cover rounded border border-space-600 bg-space-700"
+                  @error="handleImageError"
+                  loading="lazy"
+                />
+              </div>
               <div class="flex flex-col w-full">
         <!-- First row: Main satellite name + timestamp -->
         <div class="flex items-center pt-0 pb-1 leading-1">
@@ -62,72 +72,178 @@
               v-show="isSatelliteExpanded(noradId)"
               class="overflow-hidden"
             >
+              <!-- Satellite Image Tab -->
+              <div v-if="data.satellite?.image" class="mb-3">
+                <div
+                  class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
+                  @click="toggleSection(noradId, 'image')"
+                >
+                  <span>🖼️ Sat Image</span>
+                  <svg
+                    class="w-4 h-4 transition-transform duration-300"
+                    :class="{ 'rotate-180': isSectionExpanded(noradId, 'image') }"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </div>
+                <Transition
+                  enter-active-class="transition-all duration-300 ease-out"
+                  leave-active-class="transition-all duration-200 ease-in"
+                  enter-from-class="transform scale-y-0 opacity-0 origin-top"
+                  enter-to-class="transform scale-y-100 opacity-100 origin-top"
+                  leave-from-class="transform scale-y-100 opacity-100 origin-top"
+                  leave-to-class="transform scale-y-0 opacity-0 origin-top"
+                >
+                  <div v-if="isSectionExpanded(noradId, 'image')" class="bg-space-800 border border-space-500 rounded p-2">
+                    <img
+                      :src="data.satellite.image"
+                      :alt="data.satellite.name"
+                      class="w-full max-w-md mx-auto object-contain rounded border border-space-600 bg-space-700"
+                      @error="handleImageError"
+                      loading="lazy"
+                    />
+                  </div>
+                </Transition>
+              </div>
+
               <!-- Orbital Parameters Box -->
               <div v-if="getTLEData(parseInt(noradId))" class="mb-3">
-                <div class="text-sm text-space-300 mb-2">🛰️ Orbital Parameters (TLE)</div>
-                <div class="bg-space-800 border border-space-500 rounded p-2 text-xs">
-                  <div class="text-xs text-space-400 space-y-1 font-mono">
-                    <div v-if="getTLEData(parseInt(noradId)).line1" class="break-all">{{ getTLEData(parseInt(noradId)).line1 }}</div>
-                    <div v-if="getTLEData(parseInt(noradId)).line2" class="break-all">{{ getTLEData(parseInt(noradId)).line2 }}</div>
-                  </div>
+                <div
+                  class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
+                  @click="toggleSection(noradId, 'tle')"
+                >
+                  <span>🛰️ Orbital Parameters (TLE)</span>
+                  <svg
+                    class="w-4 h-4 transition-transform duration-300"
+                    :class="{ 'rotate-180': isSectionExpanded(noradId, 'tle') }"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
                 </div>
+                <Transition
+                  enter-active-class="transition-all duration-300 ease-out"
+                  leave-active-class="transition-all duration-200 ease-in"
+                  enter-from-class="transform scale-y-0 opacity-0 origin-top"
+                  enter-to-class="transform scale-y-100 opacity-100 origin-top"
+                  leave-from-class="transform scale-y-100 opacity-100 origin-top"
+                  leave-to-class="transform scale-y-0 opacity-0 origin-top"
+                >
+                  <div v-if="isSectionExpanded(noradId, 'tle')" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
+                    <div class="text-xs text-space-400 space-y-1 font-mono">
+                      <div v-if="getTLEData(parseInt(noradId)).line1" class="break-all">{{ getTLEData(parseInt(noradId)).line1 }}</div>
+                      <div v-if="getTLEData(parseInt(noradId)).line2" class="break-all">{{ getTLEData(parseInt(noradId)).line2 }}</div>
+                    </div>
+                  </div>
+                </Transition>
               </div>
 
               <!-- Transmitter Information -->
               <div v-if="data.transmitters && data.transmitters.length > 0" class="mb-3">
-                <div class="text-sm text-space-300 mb-2">📡 Transmitter Information</div>
-                <div class="space-y-2">
-                  <div
-                    v-for="transmitter in data.transmitters"
-                    :key="transmitter.id"
-                    class="bg-space-800 border border-space-500 rounded p-2 text-xs"
+                <div
+                  class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
+                  @click="toggleSection(noradId, 'transmitters')"
+                >
+                  <span>📡 Transmitter Information</span>
+                  <svg
+                    class="w-4 h-4 transition-transform duration-300"
+                    :class="{ 'rotate-180': isSectionExpanded(noradId, 'transmitters') }"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <div class="flex items-center justify-between mb-1">
-                      <div class="font-medium text-space-200">{{ getCleanDescription(transmitter.description) }}</div>
-                      <div class="text-space-400">{{ transmitter.mode }}</div>
-                    </div>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                </div>
+                <Transition
+                  enter-active-class="transition-all duration-300 ease-out"
+                  leave-active-class="transition-all duration-200 ease-in"
+                  enter-from-class="transform scale-y-0 opacity-0 origin-top"
+                  enter-to-class="transform scale-y-100 opacity-100 origin-top"
+                  leave-from-class="transform scale-y-100 opacity-100 origin-top"
+                  leave-to-class="transform scale-y-0 opacity-0 origin-top"
+                >
+                  <div v-if="isSectionExpanded(noradId, 'transmitters')" class="space-y-2">
+                    <div
+                      v-for="transmitter in data.transmitters"
+                      :key="transmitter.id"
+                      class="bg-space-800 border border-space-500 rounded p-2 text-xs"
+                    >
+                      <div class="flex items-center justify-between mb-1">
+                        <div class="font-medium text-space-200">{{ getCleanDescription(transmitter.description) }}</div>
+                        <div class="text-space-400">{{ transmitter.mode }}</div>
+                      </div>
 
-                    <!-- Frequency Information -->
-                    <div class="text-space-300 mb-2 mt-2 space-y-1">
-                      <div v-if="transmitter.downlink_low" class="flex justify-between">
-                        <span class="text-space-400">Downlink:</span>
-                        <span class="text-green-400">{{ formatFrequencyValue(transmitter.downlink_low) }}</span>
+                      <!-- Frequency Information -->
+                      <div class="text-space-300 mb-2 mt-2 space-y-1">
+                        <div v-if="transmitter.downlink_low" class="flex justify-between">
+                          <span class="text-space-400">Downlink:</span>
+                          <span class="text-green-400">{{ formatFrequencyValue(transmitter.downlink_low) }}</span>
+                        </div>
+                        <div v-if="transmitter.uplink_low" class="flex justify-between">
+                          <span class="text-space-400">Uplink:</span>
+                          <span class="text-blue-400">{{ formatFrequencyValue(transmitter.uplink_low) }}</span>
+                        </div>
+                        <div v-if="transmitter.downlink_high && transmitter.downlink_high !== transmitter.downlink_low" class="flex justify-between">
+                          <span class="text-space-400">Downlink High:</span>
+                          <span class="text-green-400">{{ formatFrequencyValue(transmitter.downlink_high) }}</span>
+                        </div>
+                        <div v-if="transmitter.uplink_high && transmitter.uplink_high !== transmitter.uplink_low" class="flex justify-between">
+                          <span class="text-space-400">Uplink High:</span>
+                          <span class="text-blue-400">{{ formatFrequencyValue(transmitter.uplink_high) }}</span>
+                        </div>
                       </div>
-                      <div v-if="transmitter.uplink_low" class="flex justify-between">
-                        <span class="text-space-400">Uplink:</span>
-                        <span class="text-blue-400">{{ formatFrequencyValue(transmitter.uplink_low) }}</span>
-                      </div>
-                      <div v-if="transmitter.downlink_high && transmitter.downlink_high !== transmitter.downlink_low" class="flex justify-between">
-                        <span class="text-space-400">Downlink High:</span>
-                        <span class="text-green-400">{{ formatFrequencyValue(transmitter.downlink_high) }}</span>
-                      </div>
-                      <div v-if="transmitter.uplink_high && transmitter.uplink_high !== transmitter.uplink_low" class="flex justify-between">
-                        <span class="text-space-400">Uplink High:</span>
-                        <span class="text-blue-400">{{ formatFrequencyValue(transmitter.uplink_high) }}</span>
-                      </div>
-                    </div>
 
-                    <!-- CTCSS and Additional Info -->
-                    <div class="text-space-500 text-xs">
-                      <div v-if="transmitter.callsign" class="text-purple-400 font-medium">Callsign: {{ transmitter.callsign }}</div>
-                      <div v-if="transmitter.ctcss" class="text-yellow-400">CTCSS: {{ transmitter.ctcss }} Hz</div>
-                      <div v-if="transmitter.power" class="mt-1">Power: {{ transmitter.power }}</div>
-                      <div v-if="transmitter.baud" class="mt-1">Baud: {{ transmitter.baud }}</div>
-                      <div v-if="transmitter.modulation" class="mt-1">Modulation: {{ transmitter.modulation }}</div>
+                      <!-- CTCSS and Additional Info -->
+                      <div class="text-space-500 text-xs">
+                        <div v-if="transmitter.callsign" class="text-purple-400 font-medium">Callsign: {{ transmitter.callsign }}</div>
+                        <div v-if="transmitter.ctcss" class="text-yellow-400">CTCSS: {{ transmitter.ctcss }} Hz</div>
+                        <div v-if="transmitter.power" class="mt-1">Power: {{ transmitter.power }}</div>
+                        <div v-if="transmitter.baud" class="mt-1">Baud: {{ transmitter.baud }}</div>
+                        <div v-if="transmitter.modulation" class="mt-1">Modulation: {{ transmitter.modulation }}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Transition>
               </div>
 
               <!-- Satellite Status -->
               <div v-if="data.satellite?.status" class="mb-3">
-                <div class="text-sm text-space-300 mb-2">📊 Satellite Status</div>
-                <div class="bg-space-800 border border-space-500 rounded p-2 text-xs">
-                  <div class="flex items-center gap-2">
-                    <span :class="getStatusColor(data.satellite.status)" class="font-medium">{{ getStatusText(data.satellite.status) }}</span>
-                    <span class="text-space-400">{{ data.satellite.names || 'No additional names' }}</span>
-                  </div>
+                <div
+                  class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
+                  @click="toggleSection(noradId, 'status')"
+                >
+                  <span>📊 Satellite Status</span>
+                  <svg
+                    class="w-4 h-4 transition-transform duration-300"
+                    :class="{ 'rotate-180': isSectionExpanded(noradId, 'status') }"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
                 </div>
+                <Transition
+                  enter-active-class="transition-all duration-300 ease-out"
+                  leave-active-class="transition-all duration-200 ease-in"
+                  enter-from-class="transform scale-y-0 opacity-0 origin-top"
+                  enter-to-class="transform scale-y-100 opacity-100 origin-top"
+                  leave-from-class="transform scale-y-100 opacity-100 origin-top"
+                  leave-to-class="transform scale-y-0 opacity-0 origin-top"
+                >
+                  <div v-if="isSectionExpanded(noradId, 'status')" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
+                    <div class="flex items-center gap-2">
+                      <span :class="getStatusColor(data.satellite.status)" class="font-medium">{{ getStatusText(data.satellite.status) }}</span>
+                      <span class="text-space-400">{{ data.satellite.names || 'No additional names' }}</span>
+                    </div>
+                  </div>
+                </Transition>
               </div>
             </div>
           </Transition>
@@ -138,12 +254,12 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 // Import satellite name utilities
 import { getFullSatelliteName, formatSatelliteNameForDisplay } from '~/utils/satelliteNameUtils'
 
 // Props
-defineProps({
+const props = defineProps({
   combinedData: {
     type: Object,
     required: true
@@ -179,6 +295,10 @@ const formatFrequencyValue = (frequency) => {
 
 // Reactive state
 const expandedSatellites = ref(new Set())
+// Track expanded sections per satellite (for non-image sections)
+const expandedSections = ref(new Map())
+// Track collapsed sections (for image sections which are expanded by default)
+const collapsedSections = ref(new Map())
 
 // Functions
 const getFormattedSatelliteName = (satellite, noradId) => {
@@ -195,6 +315,37 @@ const toggleSatelliteData = (noradId) => {
 
 const isSatelliteExpanded = (noradId) => {
   return expandedSatellites.value.has(noradId)
+}
+
+// Toggle individual section (TLE, Transmitters, Status, Image)
+const toggleSection = (noradId, section) => {
+  const key = `${noradId}-${section}`
+  // Image sections are expanded by default, so we track if they're collapsed
+  if (section === 'image') {
+    if (collapsedSections.value.has(key)) {
+      collapsedSections.value.delete(key)
+    } else {
+      collapsedSections.value.set(key, true)
+    }
+  } else {
+    // Other sections: track if they're expanded
+    if (expandedSections.value.has(key)) {
+      expandedSections.value.delete(key)
+    } else {
+      expandedSections.value.set(key, true)
+    }
+  }
+}
+
+// Check if section is expanded
+const isSectionExpanded = (noradId, section) => {
+  const key = `${noradId}-${section}`
+  // Image section is expanded by default unless explicitly collapsed
+  if (section === 'image') {
+    return !collapsedSections.value.has(key)
+  }
+  // Other sections: check if they're in the expanded map
+  return expandedSections.value.has(key)
 }
 
 const getStatusColor = (status) => {
@@ -227,6 +378,12 @@ const getCleanDescription = (description) => {
   if (!description) return 'Unknown'
   // Remove CTCSS information from description
   return description.replace(/\(CTCSS:?\s*\d+(?:\.\d+)?\s*Hz\)/gi, '').trim()
+}
+
+// Handle image loading errors
+const handleImageError = (event) => {
+  // Hide broken images
+  event.target.style.display = 'none'
 }
 </script>
 

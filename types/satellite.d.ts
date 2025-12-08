@@ -19,6 +19,7 @@ export interface Satellite {
   perigee?: number
   inclination?: number
   period?: number
+  description?: string
 }
 
 export interface TLEData {

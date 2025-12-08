@@ -149,7 +149,8 @@ const addSatellite = async (satellite) => {
     noradId: satellite.noradId,
     name: satellite.name,          // Full name (SAUDISAT 1C)
     status: satellite.status || 'alive',
-    names: satellite.names         // Short name (SO-50)
+    names: satellite.names,        // Short name (SO-50)
+    image: satellite.image || undefined // Include image field if available
   }
 
   console.log('🔍 Adding satellite:', newSatellite)

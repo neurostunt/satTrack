@@ -235,7 +235,8 @@ const formatSatellite = (satellite) => {
     name: satellite.names || satellite.name,    // Full name (SAUDISAT 1C)
     noradId: satellite.norad_cat_id,
     status: satellite.status,
-    names: satellite.name                       // Short name (SO-50)
+    names: satellite.name,                     // Short name (SO-50)
+    image: satellite.image || undefined        // Include image field
   }
   return formatted
 }

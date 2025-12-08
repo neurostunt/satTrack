@@ -6,6 +6,7 @@
 import type { Ref } from 'vue'
 import { useIndexedDB } from '../storage/useIndexedDB'
 import { usePassPrediction } from '../satellite/usePassPrediction'
+import { getSatnogsImageUrl } from '~/utils/satelliteImageUtils'
 
 export const usePassData = (
   settings: Ref<any>,
@@ -140,11 +141,18 @@ export const usePassData = (
             const passes = passPredictions.value.get(satellite.noradId) || []
             const nextPassTime = getNextPassTime(passes)
 
+            // Convert SatNOGS relative image path to full URL if available
+            let imageUrl = undefined
+            if (satellite.image) {
+              imageUrl = getSatnogsImageUrl(satellite.image) || undefined
+            }
+
             combined[satellite.noradId] = {
               satellite: {
                 name: satellite.name,
                 status: satellite.status || 'alive',
-                names: satellite.names || satellite.name
+                names: satellite.names || satellite.name,
+                image: imageUrl // Full URL from SatNOGS or undefined
               },
               timestamp: new Date().toISOString(),
               transmitters: filterTransmitters(transmitters),

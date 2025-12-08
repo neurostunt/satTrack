@@ -45,6 +45,8 @@
             :max-elevation="pass.maxElevation"
             :max-azimuth="pass.maxAzimuth"
             :norad-id="pass.noradId"
+            :pass-start-time="pass.startTime"
+            :pass-end-time="pass.endTime"
           />
         </div>
 

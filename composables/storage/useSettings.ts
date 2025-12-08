@@ -93,7 +93,8 @@ const saveSettings = async (): Promise<void> => {
       noradId: satellite.noradId,
       name: satellite.name,
       status: satellite.status,
-      names: satellite.names
+      names: satellite.names,
+      image: satellite.image || undefined // Include image field
     })) // Convert Proxy Objects to plain objects
 
     const cleanSettings: StorageSettings = {

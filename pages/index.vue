@@ -165,22 +165,6 @@ const loadStoredTransmitterData = async () => {
           }
         }
       })
-      
-      // Fetch satellite images asynchronously from UpHere Space API if SatNOGS image is missing (non-blocking)
-      settings.value.trackedSatellites.forEach(async (satellite) => {
-        if (satellite.noradId && !satellite.image && combined[satellite.noradId]) {
-          try {
-            const { getSatelliteImageFromUpHere } = await import('~/utils/satelliteImageUtils')
-            const imageUrl = await getSatelliteImageFromUpHere(satellite.noradId)
-            // Update image if found
-            if (imageUrl && combined[satellite.noradId]) {
-              combined[satellite.noradId].satellite.image = imageUrl
-            }
-          } catch (error) {
-            // Silently fail - image is optional
-          }
-        }
-      })
     }
 
     combinedData.value = combined

@@ -218,6 +218,15 @@ const props = defineProps({
   size: {
     type: Number,
     default: 400
+  },
+  // Pass timing for calculating predicted path position
+  passStartTime: {
+    type: Number,
+    default: null
+  },
+  passEndTime: {
+    type: Number,
+    default: null
   }
 })
 
@@ -374,12 +383,33 @@ const currentPosition = computed(() => {
 // Computed Properties - Predicted Pass Points
 // ============================================================================
 
-/** Entry point (start azimuth at horizon) */
+/** 
+ * Entry point - represents the satellite's position at pass start time (entry)
+ * Always calculated at t=0 (pass start time), regardless of current time or tracking state
+ * This ensures the entry dot always shows where the satellite actually entered, even during active passes
+ * 
+ * IMPORTANT: This is calculated from pass.startTime, NOT from when the card was opened or tracking started
+ */
 const entryPoint = computed(() => {
   // Don't show entry point for geostationary satellites
   if (isGeostationary.value) return null
   if (props.startAzimuth === null || props.startAzimuth === undefined) return null
-  return polarToCartesian(props.startAzimuth, 0) // At horizon
+  if (props.maxElevation === null || props.maxElevation === undefined) return null
+
+  // Entry point is ALWAYS at pass start time (t=0), regardless of:
+  // - Current time
+  // - Whether pass has started
+  // - Whether card is open
+  // - Whether real-time tracking is active
+  // 
+  // At t=0 (pass start time): elevation = 0 (horizon), azimuth = startAzimuth
+  // This is the actual satellite entry position, calculated from pass.startTime
+  const entryElevation = 0
+  const entryAzimuth = props.startAzimuth
+
+  // Calculate the entry point position using the same method as predicted path
+  // This ensures perfect alignment with the predicted path arc
+  return polarToCartesian(entryAzimuth, entryElevation)
 })
 
 /** Exit point (end azimuth at horizon) */
@@ -425,6 +455,8 @@ const peakPoint = computed(() => {
  * Predicted path arc - draws circular arc through entry → peak → exit
  * Uses true circular arc calculation (like compass drawing)
  * For geostationary satellites, returns null (no path needed)
+ * 
+ * IMPORTANT: Path is calculated from pass start time (entry), not from tab open time
  */
 const predictedPath = computed(() => {
   // Don't show path for geostationary satellites (they don't move)
@@ -472,8 +504,12 @@ const predictedPath = computed(() => {
   }
   const largeArcFlag = totalAngle > Math.PI ? 1 : 0
 
-  // Use SVG arc command (A) to draw perfect circular arc
-  // A rx ry x-axis-rotation large-arc-flag sweep-flag x y
+  // ALWAYS draw the full predicted path from entry to exit
+  // The predicted path represents the complete pass trajectory, regardless of:
+  // - Whether the pass has started
+  // - Whether the satellite is currently passing
+  // - When the tab was opened
+  // This ensures consistent visualization whether viewing before, during, or after the pass
   return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
 })
 

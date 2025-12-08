@@ -86,6 +86,10 @@ function buildSatnogsUrl(action: string, params: any): string | null {
       return `${baseUrl}/tle/?norad_cat_id=${params.noradId}&format=json`
 
     case 'satellites':
+      // If noradId is provided, fetch specific satellite, otherwise fetch list
+      if (params.noradId) {
+        return `${baseUrl}/satellites/?norad_cat_id=${params.noradId}`
+      }
       const limit = params.limit || 100
       return `${baseUrl}/satellites/?limit=${limit}`
 

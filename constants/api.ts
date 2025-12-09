@@ -17,6 +17,11 @@ export const API_ENDPOINTS = {
     TLE: '/tle',
     TRANSMITTERS: '/transmitters',
     TELEMETRY: '/telemetry'
+  },
+  AMSAT: {
+    BASE_URL: 'https://raw.githubusercontent.com/palewire/amateur-satellite-database/main/data',
+    ACTIVE_FREQUENCIES: '/amsat-active-frequencies.json',
+    ALL_FREQUENCIES: '/amsat-all-frequencies.json'
   }
 } as const
 

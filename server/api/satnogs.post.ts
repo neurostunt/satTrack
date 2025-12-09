@@ -113,6 +113,7 @@ function buildSatnogsUrl(action: string, params: any): string | null {
 
 /**
  * Handle transmitters endpoint (special case with query params)
+ * Falls back to AMSAT if SatNOGS returns no data
  */
 async function handleTransmitters(body: any, token: string | null): Promise<any> {
   const { noradId, satId } = body
@@ -132,7 +133,7 @@ async function handleTransmitters(body: any, token: string | null): Promise<any>
   queryParams.append('status', 'active')
 
   const url = `https://db.satnogs.org/api/transmitters/?${queryParams.toString()}`
-  console.log(`Fetching transmitters from: ${url}`)
+  console.log(`Fetching transmitters from SatNOGS: ${url}`)
 
   const headers = buildHeaders(token, { 'User-Agent': 'SatTrack/1.0' })
   const response = await fetchWithTimeout(url, { headers }, 15000)
@@ -141,14 +142,40 @@ async function handleTransmitters(body: any, token: string | null): Promise<any>
     throw new Error(`SatNOGS transmitters API error: ${response.status}`)
   }
 
-  const data = await response.json()
-  console.log(`Found ${data.length} transmitters`)
+  let data = await response.json()
+  console.log(`Found ${data.length} transmitters from SatNOGS`)
+
+  // If SatNOGS returns no data and we have a NORAD ID, try AMSAT fallback
+  if ((!data || data.length === 0) && noradId) {
+    console.log(`No transmitters found in SatNOGS for NORAD ${noradId}, trying AMSAT fallback...`)
+    try {
+      const amsatResponse = await $fetch('/api/amsat', {
+        method: 'POST',
+        body: {
+          action: 'transmitters',
+          noradId
+        }
+      })
+
+      if (amsatResponse?.success && amsatResponse.data && amsatResponse.data.length > 0) {
+        console.log(`Found ${amsatResponse.data.length} transmitters from AMSAT (fallback)`)
+        return createSuccessResponse(
+          amsatResponse.data,
+          'transmitters',
+          `Found ${amsatResponse.data.length} transmitters from AMSAT (fallback)`
+        )
+      }
+    } catch (amsatError) {
+      console.error('AMSAT fallback failed:', amsatError)
+    }
+  }
 
   return createSuccessResponse(data, 'transmitters', `Found ${data.length} transmitters`)
 }
 
 /**
  * Handle combined-data endpoint (satellite + transmitters)
+ * Falls back to AMSAT if SatNOGS returns no transmitter data
  */
 async function handleCombinedData(params: any, token: string | null): Promise<any> {
   validateRequired(params, ['noradId'], 'SatNOGS')
@@ -178,21 +205,48 @@ async function handleCombinedData(params: any, token: string | null): Promise<an
 
   const satnogsId = satelliteData[0].id
 
-  // Step 2: Get transmitters
-  const transmittersUrl = satnogsId
-    ? `${baseUrl}/transmitters/?sat_id=${satnogsId}`
-    : `${baseUrl}/transmitters/?satellite__norad_cat_id=${noradId}`
+  // Step 2: Get transmitters from SatNOGS
+  let transmittersData = []
+  try {
+    const transmittersUrl = satnogsId
+      ? `${baseUrl}/transmitters/?sat_id=${satnogsId}`
+      : `${baseUrl}/transmitters/?satellite__norad_cat_id=${noradId}`
 
-  const transmittersResponse = await fetchWithTimeout(transmittersUrl, { headers }, 15000)
+    const transmittersResponse = await fetchWithTimeout(transmittersUrl, { headers }, 15000)
 
-  if (!transmittersResponse.ok) {
-    throw createError({
-      statusCode: transmittersResponse.status,
-      statusMessage: `Failed to fetch transmitters: ${transmittersResponse.statusText}`
-    })
+    if (!transmittersResponse.ok) {
+      throw createError({
+        statusCode: transmittersResponse.status,
+        statusMessage: `Failed to fetch transmitters: ${transmittersResponse.statusText}`
+      })
+    }
+
+    transmittersData = await transmittersResponse.json()
+    console.log(`Found ${transmittersData.length} transmitters from SatNOGS for NORAD ${noradId}`)
+  } catch (error) {
+    console.warn(`Failed to fetch SatNOGS transmitters for NORAD ${noradId}:`, error)
   }
 
-  const transmittersData = await transmittersResponse.json()
+  // Step 3: If no transmitters from SatNOGS, try AMSAT fallback
+  if ((!transmittersData || transmittersData.length === 0) && noradId) {
+    console.log(`Trying AMSAT fallback for NORAD ${noradId}...`)
+    try {
+      const amsatResponse = await $fetch('/api/amsat', {
+        method: 'POST',
+        body: {
+          action: 'transmitters',
+          noradId
+        }
+      })
+
+      if (amsatResponse?.success && amsatResponse.data && amsatResponse.data.length > 0) {
+        console.log(`Found ${amsatResponse.data.length} transmitters from AMSAT (fallback)`)
+        transmittersData = amsatResponse.data
+      }
+    } catch (amsatError) {
+      console.error('AMSAT fallback failed:', amsatError)
+    }
+  }
 
   return createSuccessResponse(
     {

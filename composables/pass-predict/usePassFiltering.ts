@@ -5,6 +5,7 @@
 
 import type { Ref } from 'vue'
 import type { PassStatus } from './usePassStatus'
+import { formatSatelliteNameForDisplay } from '~/utils/satelliteNameUtils'
 
 export interface PassData {
   startTime: number
@@ -61,9 +62,10 @@ export const usePassFiltering = (
 
       // Only process satellites that have valid passes (upcoming or recently passed)
       if (validPasses.length > 0) {
-        // Find satellite name
+        // Find satellite and format name using same logic as home page
         const satellite = settings.value.trackedSatellites?.find((s: any) => parseInt(s.noradId) === noradId)
-        const satelliteName = satellite?.name || satellite?.names || `Satellite ${noradId}`
+        const formattedName = formatSatelliteNameForDisplay(satellite, noradId)
+        const satelliteName = formattedName.primary
 
         // Get transmitter count for this satellite
         const transmitterCount = combinedData.value[noradId]?.transmitters?.length || 0

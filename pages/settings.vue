@@ -38,10 +38,11 @@
       :storage-info="storageInfo"
       :is-loading-storage="isLoadingStorage"
       :is-clearing-data="isClearingData"
-      @load-storage-info="loadStorageInfo"
+      :is-loading-example-satellites="isLoadingExampleSatellites"
       @clear-tle-data="clearTLEData"
       @clear-transmitter-data="clearTransmitterData"
       @clear-all-data="clearAllData"
+      @load-example-satellites="loadExampleSatellites"
     />
 
     <!-- Combined Data Display -->
@@ -65,13 +66,15 @@ import { useTLEData } from '~/composables/api/useTLEData'
 import { useSatelliteSearch } from '~/composables/api/useSatelliteSearch'
 import { useIndexedDB } from '~/composables/storage/useIndexedDB'
 import { usePassPrediction } from '~/composables/satellite/usePassPrediction'
+import { EXAMPLE_SATELLITES } from '~/constants/satellite'
 
 // Import composables
 const {
   settings,
   loadSettings,
   saveSettings: saveSettingsToStorage,
-  updateSettings
+  updateSettings,
+  resetSettings
 } = useSettings()
 
 const {
@@ -218,6 +221,7 @@ const isSavingSettings = ref(false)
 const isTestingCombined = ref(false)
 const isClearingData = ref(false)
 const isLoadingStorage = ref(false)
+const isLoadingExampleSatellites = ref(false)
 const combinedData = ref({})
 const storageInfo = ref({})
 
@@ -491,15 +495,73 @@ const removeSatellite = async (noradId) => {
   console.log('🔍 Removed satellite, updated list:', updatedSatellites)
 }
 
-const loadStorageInfo = async () => {
-  isLoadingStorage.value = true
+const loadExampleSatellites = async () => {
+  isLoadingExampleSatellites.value = true
   try {
-    const info = await getStorageInfo()
-    storageInfo.value = info
+    // Get current tracked satellites
+    const currentSatellites = settings.value.trackedSatellites || []
+    const currentNoradIds = new Set(currentSatellites.map(sat => sat.noradId))
+
+    // Filter out satellites that are already tracked (EXAMPLE_SATELLITES is now just an array of NORAD IDs)
+    const newNoradIds = EXAMPLE_SATELLITES.filter(noradId => !currentNoradIds.has(noradId))
+
+    if (newNoradIds.length === 0) {
+      console.log('All example satellites are already tracked')
+      return
+    }
+
+    console.log(`Fetching satellite data for ${newNoradIds.length} satellites from API...`)
+
+    // Fetch satellite data from SatNOGS API for each NORAD ID
+    const newSatellites = []
+    for (const noradId of newNoradIds) {
+      try {
+        const response = await $fetch('/api/satnogs', {
+          method: 'POST',
+          body: {
+            action: 'satellites',
+            noradId: noradId
+          }
+        })
+
+        if (response?.success && Array.isArray(response.data) && response.data.length > 0) {
+          const satData = response.data[0]
+          const satellite = formatSatellite(satData)
+          newSatellites.push(satellite)
+          console.log(`✅ Fetched data for NORAD ${noradId}: ${satellite.name}`)
+        } else {
+          // If API doesn't return data, add with just NORAD ID
+          console.warn(`⚠️ No API data for NORAD ${noradId}, adding with minimal info`)
+          newSatellites.push({
+            noradId: noradId,
+            name: `Satellite ${noradId}`,
+            status: 'alive',
+            names: ''
+          })
+        }
+      } catch (error) {
+        console.error(`Failed to fetch data for NORAD ${noradId}:`, error)
+        // Add with minimal info if API fails
+        newSatellites.push({
+          noradId: noradId,
+          name: `Satellite ${noradId}`,
+          status: 'alive',
+          names: ''
+        })
+      }
+    }
+
+    // Add new satellites to tracked list
+    const updatedSatellites = [...currentSatellites, ...newSatellites]
+    updateSettings({ trackedSatellites: updatedSatellites })
+
+    // Save to database
+    await saveSettings()
+    console.log(`✅ Loaded ${newSatellites.length} example satellites with data from API`)
   } catch (error) {
-    console.error('Failed to load storage info:', error)
+    console.error('Failed to load example satellites:', error)
   } finally {
-    isLoadingStorage.value = false
+    isLoadingExampleSatellites.value = false
   }
 }
 
@@ -508,7 +570,9 @@ const clearTLEData = async () => {
   try {
     await clearIndexedDBTLEData()
     console.log('TLE data cleared successfully')
-    await loadStorageInfo()
+    // Update storage info display after clearing
+    const info = await getStorageInfo()
+    storageInfo.value = info
   } catch (error) {
     console.error('Failed to clear TLE data:', error)
   } finally {
@@ -521,7 +585,9 @@ const clearTransmitterData = async () => {
   try {
     await clearIndexedDBTransmitterData()
     console.log('Transmitter data cleared successfully')
-    await loadStorageInfo()
+    // Update storage info display after clearing
+    const info = await getStorageInfo()
+    storageInfo.value = info
   } catch (error) {
     console.error('Failed to clear transmitter data:', error)
   } finally {
@@ -532,9 +598,20 @@ const clearTransmitterData = async () => {
 const clearAllData = async () => {
   isClearingData.value = true
   try {
+    // Clear IndexedDB data
     await clearIndexedDBAllData()
-    console.log('All data cleared successfully')
-    await loadStorageInfo()
+    
+    // Reset settings to default (this clears tracked satellites)
+    resetSettings()
+    
+    // Save reset settings to storage
+    await saveSettingsToStorage()
+    
+    console.log('All data cleared successfully, including tracked satellites')
+    
+    // Update storage info display after clearing
+    const info = await getStorageInfo()
+    storageInfo.value = info
   } catch (error) {
     console.error('Failed to clear all data:', error)
   } finally {
@@ -596,10 +673,17 @@ watch(searchQuery, async (newQuery) => {
   }
 })
 
-// Load settings and storage info on mount
+// Load settings and initial storage info on mount
 onMounted(async () => {
   await loadSettings()
-  await loadStorageInfo()
+  
+  // Load storage info once on mount (no manual refresh button)
+  try {
+    const info = await getStorageInfo()
+    storageInfo.value = info
+  } catch (error) {
+    console.error('Failed to load storage info:', error)
+  }
 
   // Load credentials from .env or IndexedDB
   const { loadCredentials } = useCredentials()

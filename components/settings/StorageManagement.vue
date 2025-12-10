@@ -27,32 +27,32 @@
         <!-- Storage Actions -->
         <div class="flex gap-2 flex-wrap">
           <button
-            @click="loadStorageInfo"
-            class="btn-secondary text-xs px-3 py-1"
-            :disabled="isLoadingStorage"
-          >
-            {{ isLoadingStorage ? 'Loading...' : 'Refresh Storage Info' }}
-          </button>
-          <button
-            @click="clearTLEData"
+            @click="$emit('clear-tle-data')"
             class="btn-secondary text-xs px-3 py-1"
             :disabled="isClearingData"
           >
             {{ isClearingData ? 'Clearing...' : 'Clear TLE Data' }}
           </button>
           <button
-            @click="clearTransmitterData"
+            @click="$emit('clear-transmitter-data')"
             class="btn-secondary text-xs px-3 py-1"
             :disabled="isClearingData"
           >
             {{ isClearingData ? 'Clearing...' : 'Clear Transmitter Data' }}
           </button>
           <button
-            @click="clearAllData"
+            @click="$emit('clear-all-data')"
             class="btn-danger text-xs px-3 py-1"
             :disabled="isClearingData"
           >
             {{ isClearingData ? 'Clearing...' : 'Clear All Data' }}
+          </button>
+          <button
+            @click="$emit('load-example-satellites')"
+            class="btn-primary text-xs px-3 py-1"
+            :disabled="isLoadingExampleSatellites"
+          >
+            {{ isLoadingExampleSatellites ? 'Loading...' : 'Load Example Satellites' }}
           </button>
         </div>
       </div>
@@ -74,11 +74,15 @@ defineProps({
   isClearingData: {
     type: Boolean,
     default: false
+  },
+  isLoadingExampleSatellites: {
+    type: Boolean,
+    default: false
   }
 })
 
 // Emits
-defineEmits(['load-storage-info', 'clear-tle-data', 'clear-transmitter-data', 'clear-all-data'])
+defineEmits(['clear-tle-data', 'clear-transmitter-data', 'clear-all-data', 'load-example-satellites'])
 </script>
 
 <style scoped>

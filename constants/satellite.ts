@@ -52,17 +52,33 @@ export const FREQUENCY_BANDS = {
   X_BAND: { min: 8e9, max: 12e9, name: 'X-Band' }
 }
 
-// Popular Satellites (NORAD IDs)
-export const POPULAR_SATELLITES = {
-  ISS: 25544,
-  NOAA_15: 25338,
-  NOAA_18: 28654,
-  NOAA_19: 33591,
-  METEOR_M2: 40069,
-  SO_50: 27607,
-  AO_91: 43017,
-  FOX_1A: 40967,
-  FOX_1B: 41789,
-  FOX_1C: 43017,
-  FOX_1D: 44387
-}
+// Example Satellites - Recommended popular satellites for ham radio use
+// Recommended for Belgrade, Serbia and general amateur radio satellite tracking
+// Only NORAD IDs are stored here - names and details will be fetched from API
+export const EXAMPLE_SATELLITES = [
+  25544, // ISS
+  25338, // NOAA 15
+  28654, // NOAA 18
+  33591, // NOAA 19
+  27607, // SO-50
+  43013, // AO-91
+  44909, // RS-44 (DOSAAF-85)
+  //33498, // KUKAI
+  40069, // METEOR-M2
+  43017, // AO-91 / FOX-1C
+  40967, // FOX-1A
+  41789, // FOX-1B
+  44387, // FOX-1D / AO-92
+  // Additional recommended satellites
+  98537, // HUNITY
+  7530,  // OSCAR 7
+  39444, // FUNCUBE-1
+  40931, // LAPAN-A2
+  43678, // DIWATA-2
+  61762, // ArcticSat-1
+  58567, // HADES-D
+  43137, // FOX-1D
+  //98796, // JOVIAN-1
+  44354, // PSAT-2
+  43700  // QO-100 (Es'hail-2) - Geostationary
+]

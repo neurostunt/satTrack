@@ -31,14 +31,11 @@
                 />
               </div>
               <div class="flex flex-col w-full">
-        <!-- First row: Main satellite name + timestamp -->
+        <!-- First row: Main satellite name -->
         <div class="flex items-center pt-0 pb-1 leading-1">
-          <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out w-[60%] py-0.5">
+          <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out py-0.5">
             {{ getFormattedSatelliteName(data.satellite, noradId).primary }}
           </div>
-          <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out w-[40%] text-right flex-shrink-0 mr-2">
-            {{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}
-          </span>
         </div>
                 <!-- Second row: Secondary name + NORAD ID (proper spacing) -->
                 <div class="flex items-center gap-2 text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out mt-1 pb-2">

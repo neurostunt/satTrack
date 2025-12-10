@@ -185,19 +185,6 @@ const passesWithTransmitters = computed(() => {
   return sortedPasses.value.filter(pass => hasAvailableTransmitters(pass))
 })
 
-// Helper functions for satellite name formatting
-const getFormattedSatelliteName = (satellite, noradId) => {
-  if (!satellite) {
-    return { primary: `Satellite ${noradId}`, secondary: null }
-  }
-
-  const primary = satellite.name || satellite.names || `Satellite ${noradId}`
-  const secondary = satellite.names && satellite.name && satellite.names !== satellite.name ? satellite.names : null
-
-  return { primary, secondary }
-}
-
-
 onMounted(async () => {
   await loadSettings()
   await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)

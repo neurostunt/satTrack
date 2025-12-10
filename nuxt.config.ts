@@ -2,6 +2,10 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-10-10',
   devtools: { enabled: true },
   ssr: false, // Disable SSR globally to prevent hydration issues
+  devServer: {
+    host: '0.0.0.0', // Listen on all network interfaces for phone testing
+    port: 3000
+  },
 
   // Runtime configuration - accessible via useRuntimeConfig()
   runtimeConfig: {

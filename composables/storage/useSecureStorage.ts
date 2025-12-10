@@ -2,8 +2,10 @@
  * Secure Storage Composable
  * Handles encrypted storage of sensitive data and TLE caching
  * Uses IndexedDB for large TLE datasets and localStorage for smaller data
+ * Uses crypto-js for cross-platform encryption (works on iPhone, Android, desktop)
  */
 
+import CryptoJS from 'crypto-js'
 import { ref, readonly } from 'vue'
 import { useIndexedDB } from '../storage/useIndexedDB'
 import type { StorageSettings, StorageStats } from '~/types/storage'
@@ -23,84 +25,76 @@ export const useSecureStorage = () => {
   const settingsKey = 'sattrack-settings'
 
   /**
-   * Generate a simple encryption key from device fingerprint
+   * Generate encryption key from device fingerprint using crypto-js
+   * This ensures the same device can decrypt its own data
    */
-  const generateKey = async (): Promise<CryptoKey> => {
+  const generateKey = (): string => {
     // Create a device-specific key based on user agent and screen resolution
     const deviceInfo = `${navigator.userAgent}-${screen.width}x${screen.height}`
-    const encoder = new TextEncoder()
-    const data = encoder.encode(deviceInfo)
-
-    // Create a hash and use it as key material
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    return await crypto.subtle.importKey(
-      'raw',
-      hashBuffer,
-      { name: 'AES-GCM' },
-      false,
-      ['encrypt', 'decrypt']
-    )
+    // Use SHA256 to create a consistent key from device info
+    return CryptoJS.SHA256(deviceInfo).toString()
   }
 
   /**
-   * Encrypt data using AES-GCM
+   * Encrypt data using AES encryption (crypto-js)
+   * Works on all platforms including iPhone Safari/Chrome
    */
   const encrypt = async (data: string): Promise<string> => {
+    // Handle empty data
+    if (!data || data.trim().length === 0) {
+      return ''
+    }
+
     try {
-      const key = await generateKey()
-      const encoder = new TextEncoder()
-      const dataBuffer = encoder.encode(data)
-
-      // Generate random IV
-      const iv = crypto.getRandomValues(new Uint8Array(12))
-
-      // Encrypt the data
-      const encryptedBuffer = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        dataBuffer
-      )
-
-      // Combine IV and encrypted data
-      const combined = new Uint8Array(iv.length + encryptedBuffer.byteLength)
-      combined.set(iv)
-      combined.set(new Uint8Array(encryptedBuffer), iv.length)
-
-      // Convert to base64
-      return btoa(String.fromCharCode(...combined))
+      const key = generateKey()
+      
+      // Encrypt using AES with crypto-js
+      // This handles UTF-8 properly and works everywhere
+      const encrypted = CryptoJS.AES.encrypt(data, key).toString()
+      
+      // Verify encryption worked
+      if (!encrypted || encrypted.length === 0) {
+        throw new Error('Encryption produced empty result')
+      }
+      
+      return encrypted
     } catch (error) {
       console.error('Encryption failed:', error)
-      throw new Error('Failed to encrypt data')
+      throw new Error(`Encryption failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
   /**
-   * Decrypt data using AES-GCM
+   * Decrypt data using AES decryption (crypto-js)
+   * Works on all platforms including iPhone Safari/Chrome
    */
   const decrypt = async (encryptedData: string): Promise<string> => {
+    // Handle empty or null data
+    if (!encryptedData || encryptedData.trim().length === 0) {
+      return ''
+    }
+
     try {
-      const key = await generateKey()
-
-      // Convert from base64
-      const combined = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0))
-
-      // Extract IV and encrypted data
-      const iv = combined.slice(0, 12)
-      const encryptedBuffer = combined.slice(12)
-
-      // Decrypt the data
-      const decryptedBuffer = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        encryptedBuffer
-      )
-
-      // Convert back to string
-      const decoder = new TextDecoder()
-      return decoder.decode(decryptedBuffer)
+      const key = generateKey()
+      
+      // Decrypt using AES with crypto-js
+      // This handles UTF-8 properly and works everywhere
+      const decrypted = CryptoJS.AES.decrypt(encryptedData, key)
+      const decryptedText = decrypted.toString(CryptoJS.enc.Utf8)
+      
+      // If decryption failed (wrong key or corrupted data), decryptedText will be empty
+      if (!decryptedText || decryptedText.length === 0) {
+        // Try returning as-is in case it's old unencrypted data
+        console.warn('Decryption produced empty result, returning original data')
+        return encryptedData
+      }
+      
+      return decryptedText
     } catch (error) {
       console.error('Decryption failed:', error)
-      throw new Error('Failed to decrypt data')
+      // If decryption fails, return the data as-is (might be unencrypted old data)
+      // This allows the app to continue working with old data
+      return encryptedData
     }
   }
 

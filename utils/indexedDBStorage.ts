@@ -303,7 +303,7 @@ class IndexedDBStorage {
             // Import secure storage utility
             const secureStorage = (await import('./secureStorage')).default
 
-            // Decrypt sensitive data
+            // Decrypt sensitive data (handles empty strings and unencrypted data gracefully)
             const decryptedUsername = result.username ? await secureStorage.decrypt(result.username) : ''
             const decryptedPassword = result.password ? await secureStorage.decrypt(result.password) : ''
             const decryptedSatnogsToken = result.satnogsToken ? await secureStorage.decrypt(result.satnogsToken) : ''
@@ -318,13 +318,14 @@ class IndexedDBStorage {
             })
           } catch (error) {
             console.error('Failed to decrypt credentials:', error)
-            // If decryption fails, try to return empty credentials (might be old unencrypted data)
-            console.log('⚠️ Attempting to return credentials as-is (might be unencrypted)')
+            // If decryption fails completely, return empty credentials
+            // User will need to re-enter them
+            console.log('⚠️ Decryption failed, returning empty credentials')
             resolve({
-              username: result.username || '',
-              password: result.password || '',
-              satnogsToken: result.satnogsToken || '',
-              n2yoApiKey: result.n2yoApiKey || ''
+              username: '',
+              password: '',
+              satnogsToken: '',
+              n2yoApiKey: ''
             })
           }
         } else {

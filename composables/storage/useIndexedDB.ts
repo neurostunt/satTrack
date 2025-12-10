@@ -725,57 +725,95 @@ export const useIndexedDB = () => {
   }
 
   /**
-   * Store credentials
+   * Store credentials (encrypted)
    */
   const storeCredentials = async (credentials: { username: string; password: string; satnogsToken?: string; n2yoApiKey?: string }): Promise<void> => {
     await init()
     
-    return new Promise((resolve, reject) => {
-      const transaction = db.value!.transaction([credentialsStoreName], 'readwrite')
-      const store = transaction.objectStore(credentialsStoreName)
+    try {
+      // Import secure storage utility for encryption
+      const secureStorage = (await import('~/utils/secureStorage')).default
 
-      const request = store.put({
-        id: 'credentials',
-        username: credentials.username,
-        password: credentials.password,
-        satnogsToken: credentials.satnogsToken || '',
-        n2yoApiKey: credentials.n2yoApiKey || '',
-        timestamp: new Date().toISOString()
+      // Encrypt sensitive data with UTF-8 safe encoding
+      const encryptedUsername = credentials.username ? await secureStorage.encrypt(credentials.username) : ''
+      const encryptedPassword = credentials.password ? await secureStorage.encrypt(credentials.password) : ''
+      const encryptedSatnogsToken = credentials.satnogsToken ? await secureStorage.encrypt(credentials.satnogsToken) : ''
+      const encryptedN2yoApiKey = credentials.n2yoApiKey ? await secureStorage.encrypt(credentials.n2yoApiKey) : ''
+      
+      return new Promise((resolve, reject) => {
+        const transaction = db.value!.transaction([credentialsStoreName], 'readwrite')
+        const store = transaction.objectStore(credentialsStoreName)
+
+        const request = store.put({
+          id: 'credentials',
+          username: encryptedUsername,
+          password: encryptedPassword,
+          satnogsToken: encryptedSatnogsToken,
+          n2yoApiKey: encryptedN2yoApiKey,
+          timestamp: new Date().toISOString()
+        })
+
+        request.onsuccess = () => {
+          console.log('🔐 Encrypted credentials stored successfully')
+          resolve()
+        }
+
+        request.onerror = () => {
+          const error = request.error || new Error('Failed to store credentials')
+          console.error('Failed to store credentials:', error)
+          reject(error)
+        }
       })
-
-      request.onsuccess = () => {
-        console.log('Credentials stored successfully')
-        resolve()
-      }
-
-      request.onerror = () => {
-        const error = request.error || new Error('Failed to store credentials')
-        console.error('Failed to store credentials:', error)
-        reject(error)
-      }
-    })
+    } catch (error) {
+      console.error('Failed to encrypt credentials:', error)
+      throw new Error('Failed to encrypt credentials')
+    }
   }
 
   /**
-   * Get credentials
+   * Get credentials (decrypted)
    */
   const getCredentials = async (): Promise<{ username: string; password: string; satnogsToken: string; n2yoApiKey: string } | null> => {
     await init()
     
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       const transaction = db.value!.transaction([credentialsStoreName], 'readonly')
       const store = transaction.objectStore(credentialsStoreName)
       const request = store.get('credentials')
 
-      request.onsuccess = () => {
+      request.onsuccess = async () => {
         const result = request.result
         if (result) {
-          resolve({
-            username: result.username || '',
-            password: result.password || '',
-            satnogsToken: result.satnogsToken || '',
-            n2yoApiKey: result.n2yoApiKey || ''
-          })
+          try {
+            // Import secure storage utility for decryption
+            const secureStorage = (await import('~/utils/secureStorage')).default
+
+            // Decrypt sensitive data with UTF-8 safe decoding
+            // decrypt() handles empty strings and unencrypted data gracefully
+            const decryptedUsername = result.username ? await secureStorage.decrypt(result.username) : ''
+            const decryptedPassword = result.password ? await secureStorage.decrypt(result.password) : ''
+            const decryptedSatnogsToken = result.satnogsToken ? await secureStorage.decrypt(result.satnogsToken) : ''
+            const decryptedN2yoApiKey = result.n2yoApiKey ? await secureStorage.decrypt(result.n2yoApiKey) : ''
+
+            console.log('🔓 Decrypted credentials retrieved successfully')
+            resolve({
+              username: decryptedUsername,
+              password: decryptedPassword,
+              satnogsToken: decryptedSatnogsToken,
+              n2yoApiKey: decryptedN2yoApiKey
+            })
+          } catch (error) {
+            console.error('Failed to decrypt credentials:', error)
+            // If decryption fails completely, return empty credentials
+            // User will need to re-enter them
+            console.log('⚠️ Decryption failed, returning empty credentials')
+            resolve({
+              username: '',
+              password: '',
+              satnogsToken: '',
+              n2yoApiKey: ''
+            })
+          }
         } else {
           resolve(null)
         }

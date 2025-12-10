@@ -2,11 +2,13 @@
  * Secure Storage Utilities
  * Handles encrypted storage of sensitive data and TLE caching
  * Uses IndexedDB for large TLE datasets and localStorage for smaller data
+ * Uses crypto-js for cross-platform encryption (works on iPhone, Android, desktop)
  */
 
+import CryptoJS from 'crypto-js'
 import indexedDBStorage from './indexedDBStorage.js'
 
-// Simple encryption/decryption using Web Crypto API
+// Encryption using crypto-js (works everywhere including iPhone)
 class SecureStorage {
   private storageKey: string
   private tleCacheKey: string
@@ -19,91 +21,94 @@ class SecureStorage {
   }
 
   /**
-   * Generate a simple encryption key from device fingerprint
+   * Generate encryption key from device fingerprint using crypto-js
+   * This ensures the same device can decrypt its own data
    */
-  async generateKey(): Promise<CryptoKey> {
+  private generateKey(): string {
     // Create a device-specific key based on user agent and screen resolution
     const deviceInfo = `${navigator.userAgent}-${screen.width}x${screen.height}`
-    const encoder = new TextEncoder()
-    const data = encoder.encode(deviceInfo)
-
-    // Create a hash and use it as key material
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    return await crypto.subtle.importKey(
-      'raw',
-      hashBuffer,
-      { name: 'AES-GCM' },
-      false,
-      ['encrypt', 'decrypt']
-    )
+    // Use SHA256 to create a consistent key from device info
+    return CryptoJS.SHA256(deviceInfo).toString()
   }
 
   /**
-   * Encrypt data using AES-GCM
+   * Encrypt data using AES encryption (crypto-js)
+   * Works on all platforms including iPhone Safari/Chrome
    */
   async encrypt(data: string): Promise<string> {
+    // Handle empty data
+    if (!data || data.trim().length === 0) {
+      return ''
+    }
+
     try {
-      const key = await this.generateKey()
-      const encoder = new TextEncoder()
-      const dataBuffer = encoder.encode(data)
-
-      // Generate random IV
-      const iv = crypto.getRandomValues(new Uint8Array(12))
-
-      // Encrypt the data
-      const encrypted = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: iv },
-        key,
-        dataBuffer
-      )
-
-      // Combine IV and encrypted data
-      const combined = new Uint8Array(iv.length + encrypted.byteLength)
-      combined.set(iv)
-      combined.set(new Uint8Array(encrypted), iv.length)
-
-      // Convert to base64
-      return btoa(String.fromCharCode(...combined))
+      const key = this.generateKey()
+      
+      // Encrypt using AES with crypto-js
+      // This handles UTF-8 properly and works everywhere
+      const encrypted = CryptoJS.AES.encrypt(data, key).toString()
+      
+      // Verify encryption worked
+      if (!encrypted || encrypted.length === 0) {
+        throw new Error('Encryption produced empty result')
+      }
+      
+      return encrypted
     } catch (error) {
       console.error('Encryption failed:', error)
-      // Fallback to base64 encoding (not secure but better than plain text)
-      return btoa(data)
+      // If encryption fails, throw error so caller knows it failed
+      // Don't silently fallback to insecure encoding
+      throw new Error(`Encryption failed: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
   /**
-   * Decrypt data using AES-GCM
+   * Check if a string looks like crypto-js encrypted data
+   */
+  private isEncrypted(data: string): boolean {
+    if (!data || data.length === 0) return false
+    // crypto-js encrypted data is base64-like and typically longer
+    // It usually starts with U2FsdGVkX1... or similar base64 pattern
+    return /^[A-Za-z0-9+/=]+$/.test(data) && data.length > 20
+  }
+
+  /**
+   * Decrypt data using AES decryption (crypto-js)
+   * Works on all platforms including iPhone Safari/Chrome
    */
   async decrypt(encryptedData: string): Promise<string> {
+    // Handle empty or null data
+    if (!encryptedData || encryptedData.trim().length === 0) {
+      return ''
+    }
+
     try {
-      const key = await this.generateKey()
-
-      // Convert from base64
-      const combined = new Uint8Array(
-        atob(encryptedData).split('').map(char => char.charCodeAt(0))
-      )
-
-      // Extract IV and encrypted data
-      const iv = combined.slice(0, 12)
-      const encrypted = combined.slice(12)
-
-      // Decrypt the data
-      const decrypted = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: iv },
-        key,
-        encrypted
-      )
-
-      const decoder = new TextDecoder()
-      return decoder.decode(decrypted)
-    } catch (error) {
-      console.error('Decryption failed:', error)
-      // Fallback to base64 decoding
-      try {
-        return atob(encryptedData)
-      } catch {
+      // Check if data looks encrypted - if not, return as-is (might be old unencrypted data)
+      if (!this.isEncrypted(encryptedData)) {
+        console.log('Data does not appear encrypted, returning as-is')
         return encryptedData
       }
+
+      const key = this.generateKey()
+      
+      // Decrypt using AES with crypto-js
+      // This handles UTF-8 properly and works everywhere
+      const decrypted = CryptoJS.AES.decrypt(encryptedData, key)
+      const decryptedText = decrypted.toString(CryptoJS.enc.Utf8)
+      
+      // If decryption failed (wrong key or corrupted data), decryptedText will be empty
+      if (!decryptedText || decryptedText.length === 0) {
+        // Try returning as-is in case it's old unencrypted data
+        console.warn('Decryption produced empty result, returning original data')
+        return encryptedData
+      }
+      
+      return decryptedText
+    } catch (error) {
+      console.error('Decryption failed:', error)
+      // If decryption fails, return the data as-is (might be unencrypted old data)
+      // This allows the app to continue working with old data
+      return encryptedData
     }
   }
 

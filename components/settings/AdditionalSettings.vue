@@ -130,6 +130,8 @@
               <label class="text-sm text-space-300">Sound alerts</label>
               <div class="text-xs text-space-500 mt-1">
                 Play sonar-like sounds for pass start, max elevation, and pass end
+                <br />
+                <span class="text-orange-400">⚠️ iOS: Ensure mute switch is OFF for sounds to play</span>
               </div>
             </div>
             <input

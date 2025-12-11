@@ -195,6 +195,27 @@ export const useRealTimePosition = () => {
         if (hasFutureData && locationMatch) {
           // Filter cached positions to only include future ones from current server time
           const futurePositionsFromCache = cached.positions.filter(pos => pos.timestamp >= currentServerTime)
+          
+          // When tab opens mid-pass, also extract past positions from cache to show complete path
+          const pastThreshold = currentServerTime - 1000 // 1 second ago
+          const pastPositionsFromCache = cached.positions.filter(pos => 
+            pos.timestamp < pastThreshold && 
+            pos.timestamp > (currentServerTime - 5 * 60 * 1000) // Last 5 minutes only
+          )
+          
+          // Add past positions to history if they don't already exist
+          if (pastPositionsFromCache.length > 0) {
+            const existingHistoryTimestamps = new Set(positionHistory.value.map(p => p.timestamp))
+            const newPastPositions = pastPositionsFromCache.filter(pos => !existingHistoryTimestamps.has(pos.timestamp))
+            if (newPastPositions.length > 0) {
+              positionHistory.value.push(...newPastPositions)
+              // Keep only last 5 minutes of history
+              const fiveMinutesAgo = currentServerTime - (5 * 60 * 1000)
+              positionHistory.value = positionHistory.value.filter(pos => pos.timestamp > fiveMinutesAgo)
+              // Sort history by timestamp
+              positionHistory.value.sort((a, b) => a.timestamp - b.timestamp)
+            }
+          }
 
           // Merge with any existing buffer
           const existingFuture = futurePositions.value.filter(pos => pos.timestamp >= currentServerTime)
@@ -256,7 +277,29 @@ export const useRealTimePosition = () => {
       )
 
       // Merge and sort by timestamp to ensure proper ordering
-      futurePositions.value = [...existingFuture, ...newPositions].sort((a, b) => a.timestamp - b.timestamp)
+      const allMergedPositions = [...existingFuture, ...newPositions].sort((a, b) => a.timestamp - b.timestamp)
+      
+      // When tab opens mid-pass, some positions in futurePositions may be in the past
+      // Move past positions to history immediately so they can be drawn as part of the green path
+      const pastThreshold = currentTime - 1000 // 1 second ago (to account for timing differences)
+      const pastPositions = allMergedPositions.filter(pos => pos.timestamp < pastThreshold)
+      const futurePositionsOnly = allMergedPositions.filter(pos => pos.timestamp >= pastThreshold)
+      
+      // Add past positions to history if they don't already exist
+      if (pastPositions.length > 0) {
+        const existingHistoryTimestamps = new Set(positionHistory.value.map(p => p.timestamp))
+        const newPastPositions = pastPositions.filter(pos => !existingHistoryTimestamps.has(pos.timestamp))
+        if (newPastPositions.length > 0) {
+          positionHistory.value.push(...newPastPositions)
+          // Keep only last 5 minutes of history
+          const fiveMinutesAgo = currentTime - (5 * 60 * 1000)
+          positionHistory.value = positionHistory.value.filter(pos => pos.timestamp > fiveMinutesAgo)
+          // Sort history by timestamp
+          positionHistory.value.sort((a, b) => a.timestamp - b.timestamp)
+        }
+      }
+      
+      futurePositions.value = futurePositionsOnly
       lastFetchTime.value = currentTime // Use server-side timestamp
 
       // Store in cache for reuse

@@ -11,7 +11,10 @@ export interface Satellite {
   type?: string
   launchDate?: string
   decayDate?: string
+  decayed?: string
+  deployed?: string
   country?: string
+  countries?: string
   operator?: string
   purpose?: string
   mass?: number
@@ -20,6 +23,17 @@ export interface Satellite {
   inclination?: number
   period?: number
   description?: string
+  website?: string
+  image?: string
+  // SATCAT (Satellite Catalog) data from CelesTrak
+  objectId?: string // International Designator (e.g., "1998-067A")
+  objectType?: string // PAY (Payload), R/B (Rocket Body), DEB (Debris), UNK (Unknown)
+  opsStatusCode?: string // + (operational), - (non-operational), P (partially operational), B (backup), S (standby), X (extended mission)
+  owner?: string // Owner/operator code
+  launchSite?: string // Launch site code (e.g., "TYMSC" for Baikonur, "AFETR" for Cape Canaveral)
+  rcs?: number // Radar Cross Section (size indicator) in square meters (m²)
+  orbitCenter?: string // Orbit center (EA = Earth, etc.)
+  orbitType?: string // ORB (orbital), etc.
 }
 
 export interface TLEData {

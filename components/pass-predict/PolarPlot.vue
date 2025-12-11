@@ -513,11 +513,49 @@ const predictedPath = computed(() => {
   return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
 })
 
-/** Future path (next positions from API) - dashed green line */
+/** 
+ * Combined actual path (past + future positions from API) - dashed green line
+ * When tab opens mid-pass, we need to combine past and future positions
+ * to show the complete actual path the satellite has taken and will take
+ * 
+ * IMPORTANT: Uses timestamp to properly merge and sort positions, removing duplicates
+ */
 const futurePath = computed(() => {
-  if (!props.futurePositions || props.futurePositions.length < 2) return null
-
-  return generatePathWithWraparound(props.futurePositions)
+  // Combine past and future positions to show complete actual path
+  const allActualPositions = []
+  const seenTimestamps = new Set()
+  
+  // Add past positions (already traveled path)
+  if (props.pastPositions && props.pastPositions.length > 0) {
+    props.pastPositions.forEach(pos => {
+      // Remove duplicates based on timestamp (within 100ms tolerance)
+      const roundedTimestamp = Math.round(pos.timestamp / 100) * 100
+      if (!seenTimestamps.has(roundedTimestamp)) {
+        seenTimestamps.add(roundedTimestamp)
+        allActualPositions.push(pos)
+      }
+    })
+  }
+  
+  // Add future positions (upcoming path)
+  if (props.futurePositions && props.futurePositions.length > 0) {
+    props.futurePositions.forEach(pos => {
+      // Remove duplicates based on timestamp (within 100ms tolerance)
+      const roundedTimestamp = Math.round(pos.timestamp / 100) * 100
+      if (!seenTimestamps.has(roundedTimestamp)) {
+        seenTimestamps.add(roundedTimestamp)
+        allActualPositions.push(pos)
+      }
+    })
+  }
+  
+  // Need at least 2 positions to draw a path
+  if (allActualPositions.length < 2) return null
+  
+  // Sort by timestamp to ensure proper path order (chronological)
+  const sortedPositions = [...allActualPositions].sort((a, b) => a.timestamp - b.timestamp)
+  
+  return generatePathWithWraparound(sortedPositions)
 })
 </script>
 

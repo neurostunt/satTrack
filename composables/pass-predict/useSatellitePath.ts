@@ -24,11 +24,18 @@ export const useSatellitePath = (
   /**
    * Get positions for "future path" drawing
    * Returns next positions from API buffer (up to 300 seconds ahead)
+   * Uses server-side timestamp if available for consistency
    */
   const getFuturePositions = (
-    futurePositions: SatellitePosition[]
+    futurePositions: SatellitePosition[],
+    serverTimestamp?: number,
+    serverTimestampOffset?: number
   ): SatellitePosition[] => {
-    const now = Date.now()
+    // Use server-side timestamp if available, otherwise fallback to client time
+    const clientNow = Date.now()
+    const now = (serverTimestamp && serverTimestamp > 0 && serverTimestampOffset !== undefined)
+      ? clientNow + serverTimestampOffset
+      : clientNow
     
     // Return only future positions (from now onwards)
     // API provides up to 300 seconds of future data

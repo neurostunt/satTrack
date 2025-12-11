@@ -14,89 +14,42 @@ export const useSoundAlerts = () => {
   const isEnabled = ref(false)
   const playedAlerts = ref(new Set<string>()) // Track which alerts have been played to avoid duplicates
 
-  // Audio context for playing sounds
-  let audioContext: AudioContext | null = null
-  // Cached audio buffer for sonarping.mp3
-  let audioBuffer: AudioBuffer | null = null
+  // HTML5 Audio element for playing sounds (better iOS compatibility)
+  // Using HTML5 Audio instead of Web Audio API for better iOS Safari support
+  // iOS Safari has issues with Web Audio API when mute switch is on
+  let audioElement: HTMLAudioElement | null = null
 
   /**
-   * Initialize audio context (required for Web Audio API)
-   * Web Audio API requires user interaction before playing sounds
-   * This will be called lazily when first sound needs to play (after user interaction)
+   * Initialize audio element (HTML5 Audio for better iOS compatibility)
+   * HTML5 Audio works better on iOS Safari, especially with mute switch
    */
-  const initAudioContext = async () => {
-    if (typeof window === 'undefined') return
-    
-    if (!audioContext) {
-      try {
-        audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-        
-        // Resume audio context if suspended (required after user interaction)
-        // If resume fails, it means user hasn't interacted yet - that's OK, we'll try again later
-        if (audioContext.state === 'suspended') {
-          try {
-            await audioContext.resume()
-          } catch (error) {
-            // AudioContext can't be resumed without user interaction - this is expected
-            // Will be retried on next play attempt
-            console.log('AudioContext suspended - will resume on next user interaction')
-            return
-          }
-        }
-      } catch (error) {
-        // Failed to create AudioContext - might be browser limitation
-        console.error('Failed to initialize audio context:', error)
-        return
-      }
-    } else {
-      // Resume if already exists but suspended
-      if (audioContext.state === 'suspended') {
-        try {
-          await audioContext.resume()
-        } catch (error) {
-          // Can't resume without user interaction - will retry later
-          console.log('AudioContext suspended - will resume on next user interaction')
-          return
-        }
-      }
-    }
-  }
-
-  /**
-   * Load sonarping.mp3 audio file into AudioBuffer
-   * Caches the buffer for subsequent plays
-   */
-  const loadAudioBuffer = async (): Promise<AudioBuffer | null> => {
+  const initAudioElement = () => {
     if (typeof window === 'undefined') return null
     
-    // Return cached buffer if already loaded
-    if (audioBuffer) {
-      return audioBuffer
-    }
-
-    await initAudioContext()
-    if (!audioContext) return null
-
-    try {
-      // Fetch the audio file from public folder
-      const response = await fetch('/sonarping.mp3')
-      if (!response.ok) {
-        throw new Error(`Failed to load audio file: ${response.statusText}`)
+    if (!audioElement) {
+      try {
+        audioElement = new Audio('/sonarping.mp3')
+        audioElement.preload = 'auto' // Preload for faster playback
+        audioElement.volume = 0.6 // Default volume
+        
+        // Handle errors gracefully
+        audioElement.addEventListener('error', (e) => {
+          console.debug('Audio playback error:', e)
+        })
+      } catch (error) {
+        console.error('Failed to create audio element:', error)
+        return null
       }
-      
-      const arrayBuffer = await response.arrayBuffer()
-      audioBuffer = await audioContext.decodeAudioData(arrayBuffer)
-      
-      return audioBuffer
-    } catch (error) {
-      console.error('Failed to load sonarping.mp3:', error)
-      return null
     }
+    
+    return audioElement
   }
 
   /**
-   * Play sonarping.mp3 sonar sound
-   * Uses the actual audio file for authentic submarine sonar sound
+   * Play sonarping.mp3 sonar sound using HTML5 Audio
+   * HTML5 Audio works better on iOS Safari than Web Audio API
+   * Note: On iOS, sounds will respect mute switch unless app is in background
+   * For alerts to work on iOS, user should ensure mute switch is off or use Do Not Disturb settings
    */
   const playSonarPing = async (
     volume: number = 0.6,
@@ -105,54 +58,45 @@ export const useSoundAlerts = () => {
     if (!isEnabled.value) return
     if (typeof window === 'undefined') return
 
-    // Initialize AudioContext (will be created/resumed on first user interaction)
-    await initAudioContext()
-    if (!audioContext) {
-      // AudioContext not available - user hasn't interacted yet
-      // Silently fail - sound will work after user interaction
-      return
-    }
-    
-    // Ensure audio context is running
-    if (audioContext.state === 'suspended') {
-      try {
-        await audioContext.resume()
-      } catch (error) {
-        // Can't resume without user interaction - silently fail
-        return
-      }
-    }
-
-    // If still suspended after resume attempt, can't play
-    if (audioContext.state === 'suspended') {
+    const audio = initAudioElement()
+    if (!audio) {
       return
     }
 
-    const buffer = await loadAudioBuffer()
-    if (!buffer) {
-      // Failed to load buffer - silently fail
-      return
+    // Set volume
+    audio.volume = Math.max(0, Math.min(1, volume)) // Clamp between 0 and 1
+
+    // Handle delay
+    if (delay > 0) {
+      setTimeout(() => {
+        playAudio(audio)
+      }, delay * 1000)
+    } else {
+      playAudio(audio)
     }
+  }
 
-    const playAt = audioContext.currentTime + delay
-
+  /**
+   * Helper function to play audio with error handling
+   */
+  const playAudio = async (audio: HTMLAudioElement) => {
     try {
-      // Create buffer source and gain node
-      const source = audioContext.createBufferSource()
-      const gainNode = audioContext.createGain()
+      // Reset to start of audio
+      audio.currentTime = 0
       
-      source.buffer = buffer
+      // Play the audio
+      const playPromise = audio.play()
       
-      // Set volume
-      gainNode.gain.value = volume
-      
-      // Connect and play
-      source.connect(gainNode)
-      gainNode.connect(audioContext.destination)
-      
-      source.start(playAt)
+      // Handle play promise (required for modern browsers)
+      if (playPromise !== undefined) {
+        await playPromise.catch((error) => {
+          // Play was prevented - might be autoplay policy or mute switch
+          // This is expected on iOS when mute switch is on
+          console.debug('Audio play prevented:', error.message)
+        })
+      }
     } catch (error) {
-      // Failed to play - silently fail (might be browser limitation)
+      // Failed to play - might be browser limitation or mute switch
       console.debug('Failed to play sonar ping:', error)
     }
   }
@@ -162,7 +106,6 @@ export const useSoundAlerts = () => {
    * Two pings - detection sound
    */
   const playPassStart = async () => {
-    await initAudioContext()
     // First ping
     await playSonarPing(0.6, 0)
     // Second ping (after delay)
@@ -174,7 +117,6 @@ export const useSoundAlerts = () => {
    * Single ping - distant detection
    */
   const play10MinWarning = async () => {
-    await initAudioContext()
     // Lower volume for distant warning
     await playSonarPing(0.4, 0)
   }
@@ -184,7 +126,6 @@ export const useSoundAlerts = () => {
    * Three pings - peak detection sequence
    */
   const playMaxElevation = async () => {
-    await initAudioContext()
     // First ping
     await playSonarPing(0.5, 0)
     // Second ping
@@ -198,7 +139,6 @@ export const useSoundAlerts = () => {
    * Single ping - fading detection
    */
   const playPassEnd = async () => {
-    await initAudioContext()
     // Lower volume for fading signal
     await playSonarPing(0.4, 0)
   }
@@ -240,12 +180,12 @@ export const useSoundAlerts = () => {
 
   /**
    * Enable sound alerts
-   * Note: AudioContext will be initialized lazily on first sound play (after user interaction)
+   * Note: HTML5 Audio element will be initialized lazily on first sound play
+   * On iOS, sounds will respect mute switch - user should ensure mute switch is off for alerts
    */
   const enable = async () => {
     isEnabled.value = true
-    // Don't initialize AudioContext here - it requires user interaction
-    // It will be initialized automatically when first sound needs to play
+    // Audio element will be initialized automatically when first sound needs to play
   }
 
   /**

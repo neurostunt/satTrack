@@ -177,30 +177,34 @@ const loadStoredTransmitterData = async () => {
     // Fetch missing satellite images and descriptions from SatNOGS API
     await fetchMissingSatelliteImages()
     await fetchMissingSatelliteDescriptions()
+    
+    // Fetch additional satellite information from CelesTrak SATCAT API
+    await fetchSatcatData()
   } catch (error) {
     console.error('Failed to load stored transmitter data:', error)
   }
 }
 
 /**
- * Fetch satellite descriptions from SatNOGS API for satellites that don't have descriptions
+ * Fetch additional satellite information from SatNOGS API
+ * Gets launch date, operator, countries, website, etc.
  */
 const fetchMissingSatelliteDescriptions = async () => {
   if (!settings.value.trackedSatellites) return
   
-  const satellitesWithoutDescriptions = settings.value.trackedSatellites.filter(
-    sat => sat.noradId && !sat.description && !combinedData.value[sat.noradId]?.satellite?.description
+  const satellitesNeedingInfo = settings.value.trackedSatellites.filter(
+    sat => sat.noradId && !combinedData.value[sat.noradId]?.satellite?.launchDate
   )
   
-  if (satellitesWithoutDescriptions.length === 0) {
-    console.log('All satellites already have descriptions')
+  if (satellitesNeedingInfo.length === 0) {
+    console.log('All satellites already have additional info')
     return
   }
   
-  console.log(`Fetching descriptions for ${satellitesWithoutDescriptions.length} satellites without descriptions`)
+  console.log(`Fetching additional info for ${satellitesNeedingInfo.length} satellites`)
   
-  // Fetch descriptions for each satellite
-  for (const satellite of satellitesWithoutDescriptions) {
+  // Fetch additional info for each satellite
+  for (const satellite of satellitesNeedingInfo) {
     try {
       // Fetch satellite data from SatNOGS API
       const response = await $fetch('/api/satnogs', {
@@ -221,15 +225,16 @@ const fetchMissingSatelliteDescriptions = async () => {
       // Debug: log what fields are available in satData
       console.log(`SatNOGS data for ${satellite.name} (${satellite.noradId}):`, Object.keys(satData || {}))
       
-      // Try multiple possible description fields from SatNOGS API
-      const description = satData?.description || 
-                          satData?.purpose || 
-                          satData?.description_text ||
-                          satData?.notes ||
-                          satData?.comment
+      // Extract additional satellite information from SatNOGS API
+      const launchDate = satData?.launched ? new Date(satData.launched).toLocaleDateString() : null
+      const operator = satData?.operator && satData.operator !== 'None' ? satData.operator : null
+      const countries = satData?.countries || null
+      const website = satData?.website || null
+      const decayed = satData?.decayed ? new Date(satData.decayed).toLocaleDateString() : null
+      const deployed = satData?.deployed ? new Date(satData.deployed).toLocaleDateString() : null
       
-      // If we found satellite data with a description, update it
-      if (description && combinedData.value[satellite.noradId]) {
+      // If we found satellite data, update it with all available information
+      if (satData && combinedData.value[satellite.noradId]) {
         // Update the combined data reactively using a new object to ensure reactivity
         combinedData.value = {
           ...combinedData.value,
@@ -237,16 +242,156 @@ const fetchMissingSatelliteDescriptions = async () => {
             ...combinedData.value[satellite.noradId],
             satellite: {
               ...combinedData.value[satellite.noradId].satellite,
-              description: description
+              ...(launchDate && { launchDate }),
+              ...(operator && { operator }),
+              ...(countries && { countries }),
+              ...(website && { website }),
+              ...(decayed && { decayed }),
+              ...(deployed && { deployed })
             }
           }
         }
-        console.log(`✓ Fetched description for ${satellite.name} (${satellite.noradId}):`, description.substring(0, 50) + '...')
+        console.log(`✓ Fetched additional info for ${satellite.name} (${satellite.noradId}):`, {
+          launchDate,
+          operator,
+          countries,
+          website: website ? 'Yes' : 'No'
+        })
       } else {
-        console.log(`No description found for ${satellite.name} (${satellite.noradId})`)
+        console.log(`No additional info found for ${satellite.name} (${satellite.noradId})`)
       }
     } catch (error) {
       console.log(`Could not fetch description for ${satellite.name} (${satellite.noradId}):`, error)
+    }
+  }
+}
+
+/**
+ * Fetch SATCAT (Satellite Catalog) data from CelesTrak API
+ * Provides detailed information: launch site, object type, size (RCS), orbital parameters, etc.
+ * 
+ * IMPORTANT: CelesTrak has rate limits - we cache data and limit requests to avoid 403 errors
+ * Cache duration: 2 hours (matches CelesTrak update frequency)
+ */
+const satcatCache = new Map() // Cache: noradId -> { data, timestamp }
+
+const fetchSatcatData = async () => {
+  if (!settings.value.trackedSatellites) return
+  
+  const satellitesNeedingSatcat = settings.value.trackedSatellites.filter(
+    sat => sat.noradId && !combinedData.value[sat.noradId]?.satellite?.launchSite
+  )
+  
+  if (satellitesNeedingSatcat.length === 0) {
+    console.log('All satellites already have SATCAT data')
+    return
+  }
+  
+  console.log(`Fetching SATCAT data for ${satellitesNeedingSatcat.length} satellites`)
+  
+  // Fetch SATCAT data for each satellite with rate limiting
+  // Add delay between requests to avoid rate limiting (500ms between requests)
+  for (let i = 0; i < satellitesNeedingSatcat.length; i++) {
+    const satellite = satellitesNeedingSatcat[i]
+    
+    // Check cache first (2 hour cache duration)
+    const cached = satcatCache.get(satellite.noradId)
+    const cacheAge = cached ? (Date.now() - cached.timestamp) / 1000 / 60 : Infinity // minutes
+    const CACHE_DURATION_MINUTES = 120 // 2 hours - matches CelesTrak update frequency
+    
+    if (cached && cacheAge < CACHE_DURATION_MINUTES) {
+      // Use cached data
+      if (combinedData.value[satellite.noradId]) {
+        const satcatData = cached.data
+        combinedData.value = {
+          ...combinedData.value,
+          [satellite.noradId]: {
+            ...combinedData.value[satellite.noradId],
+            satellite: {
+              ...combinedData.value[satellite.noradId].satellite,
+              objectId: satcatData.objectId,
+              objectType: satcatData.objectType,
+              opsStatusCode: satcatData.opsStatusCode,
+              owner: satcatData.owner,
+              launchSite: satcatData.launchSite,
+              rcs: satcatData.rcs,
+              orbitCenter: satcatData.orbitCenter,
+              orbitType: satcatData.orbitType,
+              ...(satcatData.apogee && !combinedData.value[satellite.noradId].satellite.apogee && { apogee: satcatData.apogee }),
+              ...(satcatData.perigee && !combinedData.value[satellite.noradId].satellite.perigee && { perigee: satcatData.perigee }),
+              ...(satcatData.inclination && !combinedData.value[satellite.noradId].satellite.inclination && { inclination: satcatData.inclination }),
+              ...(satcatData.period && !combinedData.value[satellite.noradId].satellite.period && { period: satcatData.period })
+            }
+          }
+        }
+        console.log(`✓ Using cached SATCAT data for ${satellite.name} (${satellite.noradId})`)
+      }
+      continue
+    }
+    
+    // Add delay between requests to avoid rate limiting (except for first request)
+    if (i > 0) {
+      await new Promise(resolve => setTimeout(resolve, 500)) // 500ms delay
+    }
+    
+    try {
+      // Fetch SATCAT data from CelesTrak API
+      const response = await $fetch('/api/celestrak', {
+        method: 'POST',
+        body: {
+          action: 'satcat',
+          noradId: satellite.noradId
+        }
+      })
+      
+      if (response?.success && response.data && combinedData.value[satellite.noradId]) {
+        const satcatData = response.data
+        
+        // Cache the data
+        satcatCache.set(satellite.noradId, {
+          data: satcatData,
+          timestamp: Date.now()
+        })
+        
+        // Update the combined data with SATCAT information
+        combinedData.value = {
+          ...combinedData.value,
+          [satellite.noradId]: {
+            ...combinedData.value[satellite.noradId],
+            satellite: {
+              ...combinedData.value[satellite.noradId].satellite,
+              // Add SATCAT fields
+              objectId: satcatData.objectId, // International Designator (e.g., "1998-067A")
+              objectType: satcatData.objectType, // PAY, R/B, DEB, etc.
+              opsStatusCode: satcatData.opsStatusCode, // + (operational), - (non-operational)
+              owner: satcatData.owner,
+              launchSite: satcatData.launchSite, // Launch site code
+              rcs: satcatData.rcs, // Radar Cross Section (size indicator) in m²
+              orbitCenter: satcatData.orbitCenter,
+              orbitType: satcatData.orbitType,
+              // Update orbital parameters if not already set
+              ...(satcatData.apogee && !combinedData.value[satellite.noradId].satellite.apogee && { apogee: satcatData.apogee }),
+              ...(satcatData.perigee && !combinedData.value[satellite.noradId].satellite.perigee && { perigee: satcatData.perigee }),
+              ...(satcatData.inclination && !combinedData.value[satellite.noradId].satellite.inclination && { inclination: satcatData.inclination }),
+              ...(satcatData.period && !combinedData.value[satellite.noradId].satellite.period && { period: satcatData.period })
+            }
+          }
+        }
+        console.log(`✓ Fetched SATCAT data for ${satellite.name} (${satellite.noradId}):`, {
+          objectType: satcatData.objectType,
+          launchSite: satcatData.launchSite,
+          rcs: satcatData.rcs,
+          owner: satcatData.owner
+        })
+      }
+    } catch (error) {
+      // Handle 403 errors gracefully - don't retry immediately
+      if (error?.statusCode === 403 || error?.statusMessage?.includes('403')) {
+        console.warn(`⚠️ CelesTrak rate limit reached for ${satellite.name} (${satellite.noradId}). Skipping remaining requests.`)
+        // Stop fetching to avoid further rate limiting
+        break
+      }
+      console.log(`Could not fetch SATCAT data for ${satellite.name} (${satellite.noradId}):`, error)
     }
   }
 }

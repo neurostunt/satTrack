@@ -235,9 +235,77 @@
                   leave-to-class="transform scale-y-0 opacity-0 origin-top"
                 >
                   <div v-if="isSectionExpanded(noradId, 'status')" class="bg-space-800 border border-space-500 rounded p-2 text-xs">
-                    <div class="flex items-center gap-2">
-                      <span :class="getStatusColor(data.satellite.status)" class="font-medium">{{ getStatusText(data.satellite.status) }}</span>
-                      <span class="text-space-400">{{ data.satellite.names || 'No additional names' }}</span>
+                    <div class="space-y-1.5">
+                      <div class="flex items-center gap-2">
+                        <span :class="getStatusColor(data.satellite.status)" class="font-medium">{{ getStatusText(data.satellite.status) }}</span>
+                        <span class="text-space-400">{{ data.satellite.names || 'No additional names' }}</span>
+                      </div>
+                      <div v-if="data.satellite.launchDate" class="flex justify-between">
+                        <span class="text-space-400">🚀 Launch Date:</span>
+                        <span class="text-space-300">{{ data.satellite.launchDate }}</span>
+                      </div>
+                      <div v-if="data.satellite.operator" class="flex justify-between">
+                        <span class="text-space-400">👤 Operator:</span>
+                        <span class="text-space-300">{{ data.satellite.operator }}</span>
+                      </div>
+                      <div v-if="data.satellite.countries" class="flex justify-between">
+                        <span class="text-space-400">🌍 Countries:</span>
+                        <span class="text-space-300">{{ data.satellite.countries }}</span>
+                      </div>
+                      <div v-if="data.satellite.website" class="flex justify-between">
+                        <span class="text-space-400">🔗 Website:</span>
+                        <a :href="data.satellite.website" target="_blank" rel="noopener noreferrer" class="text-primary-400 hover:text-primary-300 underline">
+                          Link
+                        </a>
+                      </div>
+                      <div v-if="data.satellite.decayed" class="flex justify-between">
+                        <span class="text-space-400">💥 Decayed:</span>
+                        <span class="text-space-300">{{ data.satellite.decayed }}</span>
+                      </div>
+                      <div v-if="data.satellite.deployed" class="flex justify-between">
+                        <span class="text-space-400">📅 Deployed:</span>
+                        <span class="text-space-300">{{ data.satellite.deployed }}</span>
+                      </div>
+                      <!-- SATCAT Data from CelesTrak -->
+                      <div v-if="data.satellite.objectId" class="mt-2 pt-2 border-t border-space-600 space-y-1.5">
+                        <div class="text-space-400 text-xs mb-1 font-medium">📋 Additional Details (SATCAT):</div>
+                        <div v-if="data.satellite.objectId" class="flex justify-between">
+                          <span class="text-space-400">🆔 International Designator:</span>
+                          <span class="text-space-300">{{ data.satellite.objectId }}</span>
+                        </div>
+                        <div v-if="data.satellite.objectType" class="flex justify-between">
+                          <span class="text-space-400">📦 Object Type:</span>
+                          <span class="text-space-300">{{ getObjectTypeText(data.satellite.objectType) }}</span>
+                        </div>
+                        <div v-if="data.satellite.launchSite" class="flex justify-between">
+                          <span class="text-space-400">🚀 Launch Site:</span>
+                          <span class="text-space-300">{{ data.satellite.launchSite }}</span>
+                        </div>
+                        <div v-if="data.satellite.owner" class="flex justify-between">
+                          <span class="text-space-400">👤 Owner:</span>
+                          <span class="text-space-300">{{ data.satellite.owner }}</span>
+                        </div>
+                        <div v-if="data.satellite.rcs !== undefined && data.satellite.rcs !== null" class="flex justify-between">
+                          <span class="text-space-400">📏 Size (RCS):</span>
+                          <span class="text-space-300">{{ data.satellite.rcs.toFixed(2) }} m²</span>
+                        </div>
+                        <div v-if="data.satellite.opsStatusCode" class="flex justify-between">
+                          <span class="text-space-400">⚡ Operational Status:</span>
+                          <span class="text-space-300">{{ getOpsStatusText(data.satellite.opsStatusCode) }}</span>
+                        </div>
+                        <div v-if="data.satellite.apogee && data.satellite.perigee" class="flex justify-between">
+                          <span class="text-space-400">🌍 Orbit:</span>
+                          <span class="text-space-300">{{ data.satellite.perigee }} - {{ data.satellite.apogee }} km</span>
+                        </div>
+                        <div v-if="data.satellite.inclination" class="flex justify-between">
+                          <span class="text-space-400">📐 Inclination:</span>
+                          <span class="text-space-300">{{ data.satellite.inclination.toFixed(2) }}°</span>
+                        </div>
+                        <div v-if="data.satellite.period" class="flex justify-between">
+                          <span class="text-space-400">⏱️ Period:</span>
+                          <span class="text-space-300">{{ data.satellite.period.toFixed(2) }} min</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </Transition>
@@ -369,6 +437,31 @@ const getStatusText = (status) => {
     default:
       return 'UNKNOWN'
   }
+}
+
+const getObjectTypeText = (objectType) => {
+  const types = {
+    'PAY': 'Payload',
+    'R/B': 'Rocket Body',
+    'DEB': 'Debris',
+    'UNK': 'Unknown',
+    'TBA': 'To Be Assigned'
+  }
+  return types[objectType] || objectType
+}
+
+const getOpsStatusText = (opsStatusCode) => {
+  const statuses = {
+    '+': 'Operational',
+    '-': 'Non-Operational',
+    'P': 'Partially Operational',
+    'B': 'Backup',
+    'S': 'Standby',
+    'X': 'Extended Mission',
+    'D': 'Decayed',
+    '?': 'Unknown'
+  }
+  return statuses[opsStatusCode] || opsStatusCode
 }
 
 const getCleanDescription = (description) => {

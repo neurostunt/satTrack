@@ -277,6 +277,11 @@ const degreesToRadians = (degrees) => {
   return (degrees * Math.PI) / 180
 }
 
+/** Normalize azimuth to 0-360° */
+const normalizeAzimuth = (azimuth) => {
+  return ((azimuth % 360) + 360) % 360
+}
+
 /**
  * Convert azimuth/elevation to SVG coordinates
  * Azimuth: 0° = North (top), 90° = East, 180° = South, 270° = West
@@ -292,23 +297,28 @@ const polarToCartesian = (azimuth, elevation) => {
   }
 }
 
-/** Calculate circle center through three points */
+/**
+ * Calculate circle center through three points
+ */
 const getCircleCenter = (p1, p2, p3) => {
   const ax = p1.x, ay = p1.y
   const bx = p2.x, by = p2.y
   const cx = p3.x, cy = p3.y
 
   const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
-
   if (Math.abs(d) < 0.0001) return null // Points are collinear
 
-  const ux = ((ax * ax + ay * ay) * (by - cy) +
-              (bx * bx + by * by) * (cy - ay) +
-              (cx * cx + cy * cy) * (ay - by)) / d
+  const ux = (
+    (ax * ax + ay * ay) * (by - cy) +
+    (bx * bx + by * by) * (cy - ay) +
+    (cx * cx + cy * cy) * (ay - by)
+  ) / d
 
-  const uy = ((ax * ax + ay * ay) * (cx - bx) +
-              (bx * bx + by * by) * (ax - cx) +
-              (cx * cx + cy * cy) * (bx - ax)) / d
+  const uy = (
+    (ax * ax + ay * ay) * (cx - bx) +
+    (bx * bx + by * by) * (ax - cx) +
+    (cx * cx + cy * cy) * (bx - ax)
+  ) / d
 
   return { x: ux, y: uy }
 }
@@ -419,31 +429,37 @@ const exitPoint = computed(() => {
   return polarToCartesian(props.endAzimuth, 0)
 })
 
-/** Peak point (max elevation at actual azimuth from API) */
-const peakPoint = computed(() => {
+/** Peak azimuth value used for both predicted and current markers */
+const peakAzimuth = computed(() => {
   if (props.maxElevation === null || props.maxElevation === undefined) return null
 
-  // Use actual maxAzimuth from API if available, otherwise calculate as fallback
-  let peakAzimuth
   if (props.maxAzimuth !== null && props.maxAzimuth !== undefined) {
-    peakAzimuth = props.maxAzimuth
-  } else if (props.startAzimuth !== null && props.endAzimuth !== null) {
-    // Fallback: Calculate peak azimuth (midpoint between start and end)
-    peakAzimuth = (props.startAzimuth + props.endAzimuth) / 2
+    return normalizeAzimuth(props.maxAzimuth)
+  }
+
+  if (props.startAzimuth !== null && props.endAzimuth !== null) {
+    let peakAzimuthValue = (props.startAzimuth + props.endAzimuth) / 2
 
     // Handle wraparound: if the arc crosses 0°/360°, adjust the peak
     if (Math.abs(props.endAzimuth - props.startAzimuth) > 180) {
       if (props.endAzimuth > props.startAzimuth) {
-        peakAzimuth = ((props.startAzimuth + props.endAzimuth + 360) / 2) % 360
+        peakAzimuthValue = ((props.startAzimuth + props.endAzimuth + 360) / 2) % 360
       } else {
-        peakAzimuth = ((props.startAzimuth + props.endAzimuth - 360) / 2 + 360) % 360
+        peakAzimuthValue = ((props.startAzimuth + props.endAzimuth - 360) / 2 + 360) % 360
       }
     }
-  } else {
-    return null
+
+    return normalizeAzimuth(peakAzimuthValue)
   }
 
-  return polarToCartesian(peakAzimuth, props.maxElevation)
+  return null
+})
+
+/** Peak point (max elevation at actual azimuth from API) */
+const peakPoint = computed(() => {
+  const peakAzimuthValue = peakAzimuth.value
+  if (peakAzimuthValue === null) return null
+  return polarToCartesian(peakAzimuthValue, props.maxElevation)
 })
 
 // ============================================================================
@@ -467,48 +483,35 @@ const predictedPath = computed(() => {
   const p3 = exitPoint.value
 
   // Calculate circle center through three points
-  const center = getCircleCenter(p1, p2, p3)
-
-  if (!center) {
-    // Points are collinear - draw straight lines
+  const centerPoint = getCircleCenter(p1, p2, p3)
+  if (!centerPoint) {
+    // Points are collinear - fall back to straight segments
     return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y}`
   }
 
   // Calculate radius and angles
-  const radius = Math.hypot(p1.x - center.x, p1.y - center.y)
-  const angle1 = Math.atan2(p1.y - center.y, p1.x - center.x)
-  const angle2 = Math.atan2(p2.y - center.y, p2.x - center.x)
-  const angle3 = Math.atan2(p3.y - center.y, p3.x - center.x)
+  const radius = Math.hypot(p1.x - centerPoint.x, p1.y - centerPoint.y)
+  let angle1 = Math.atan2(p1.y - centerPoint.y, p1.x - centerPoint.x)
+  let angle2 = Math.atan2(p2.y - centerPoint.y, p2.x - centerPoint.x)
+  let angle3 = Math.atan2(p3.y - centerPoint.y, p3.x - centerPoint.x)
 
-  // Determine arc direction (counter-clockwise or clockwise)
-  const isCounterClockwise = (a1, a2, a3) => {
-    let diff1 = a2 - a1
-    let diff2 = a3 - a2
-
-    while (diff1 < 0) diff1 += 2 * Math.PI
-    while (diff2 < 0) diff2 += 2 * Math.PI
-
-    return (diff1 + diff2) < 2 * Math.PI
+  // Unwrap angles so they follow the pass order (entry -> peak -> exit)
+  const unwrap = (base, angle) => {
+    let a = angle
+    while (a - base > Math.PI) a -= 2 * Math.PI
+    while (a - base < -Math.PI) a += 2 * Math.PI
+    return a
   }
+  angle2 = unwrap(angle1, angle2)
+  angle3 = unwrap(angle2, angle3)
 
-  const ccw = isCounterClockwise(angle1, angle2, angle3)
+  // Determine arc direction: SVG sweep-flag 1 = clockwise, 0 = counter-clockwise
+  const sweepFlag = angle3 >= angle1 ? 1 : 0
 
-  // For SVG, sweep-flag: 0 = counter-clockwise, 1 = clockwise
-  const sweepFlag = ccw ? 1 : 0
+  // Large-arc flag if span exceeds 180°
+  const angleSpan = Math.abs(angle3 - angle1)
+  const largeArcFlag = angleSpan > Math.PI ? 1 : 0
 
-  // Check if we need the large arc (> 180 degrees)
-  let totalAngle = Math.abs(angle3 - angle1)
-  if (totalAngle > Math.PI) {
-    totalAngle = 2 * Math.PI - totalAngle
-  }
-  const largeArcFlag = totalAngle > Math.PI ? 1 : 0
-
-  // ALWAYS draw the full predicted path from entry to exit
-  // The predicted path represents the complete pass trajectory, regardless of:
-  // - Whether the pass has started
-  // - Whether the satellite is currently passing
-  // - When the tab was opened
-  // This ensures consistent visualization whether viewing before, during, or after the pass
   return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
 })
 

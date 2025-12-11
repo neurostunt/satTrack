@@ -78,19 +78,31 @@ export default defineEventHandler(async (event: any) => {
  * 
  * Note: Returns null data (not an error) if SATCAT data is not available for a satellite.
  * This is expected behavior - not all satellites have SATCAT data.
+ * 
+ * IMPORTANT: CelesTrak is geo-blocked and only accessible from US IP addresses.
+ * For production deployment, ensure the server is hosted in the US (e.g., AWS us-east-1, Vercel US region).
+ * Alternative: Use a US-based proxy service for CelesTrak requests.
+ * If server is not in US, this will return null gracefully without errors.
  */
 async function handleSatcat(noradId: number) {
   const url = `https://celestrak.org/satcat/records.php?CATNR=${noradId}&FORMAT=JSON`
-  console.log('Making request to CelesTrak SATCAT:', url)
 
-  const response = await fetchWithTimeout(url, { method: 'GET' }, 15000)
-
-  console.log('CelesTrak SATCAT API response status:', response.status)
+  let response: Response
+  try {
+    response = await fetchWithTimeout(url, { method: 'GET' }, 20000) // Increased timeout to 20s
+  } catch {
+    // Network errors, timeouts, geo-blocking, etc. - return null data gracefully
+    // CelesTrak is geo-blocked outside the US - this is expected if server is not in US
+    return createSuccessResponse(
+      null,
+      'satcat',
+      `No SATCAT data available for NORAD ${noradId} (CelesTrak unavailable)`
+    )
+  }
 
   if (!response.ok) {
     // For non-200 status codes, return null data instead of throwing error
-    // This is expected - not all satellites have SATCAT data
-    console.log(`CelesTrak SATCAT returned ${response.status} for NORAD ${noradId} - no data available`)
+    // This is expected - not all satellites have SATCAT data, or may be geo-blocked
     return createSuccessResponse(
       null,
       'satcat',
@@ -100,10 +112,19 @@ async function handleSatcat(noradId: number) {
 
   // Read response as text first (we can always parse JSON from text, but can't read text after JSON parse fails)
   const textData = await response.text()
+  const trimmedText = textData.trim()
+  
+  // Check for empty response
+  if (trimmedText.length === 0) {
+    return createSuccessResponse(
+      null,
+      'satcat',
+      `No SATCAT data available for NORAD ${noradId} (empty response)`
+    )
+  }
   
   // Check if it's an error message (expected case - no data available)
-  if (textData.includes('No SATCAT') || textData.includes('not found') || textData.includes('No records')) {
-    console.log(`No SATCAT data available for NORAD ${noradId} (expected)`)
+  if (trimmedText.includes('No SATCAT') || trimmedText.includes('not found') || trimmedText.includes('No records')) {
     return createSuccessResponse(
       null,
       'satcat',
@@ -114,24 +135,44 @@ async function handleSatcat(noradId: number) {
   // Try to parse as JSON
   let data: any
   try {
-    data = JSON.parse(textData)
+    data = JSON.parse(trimmedText)
   } catch {
-    // Invalid JSON format - log as warning but return null
-    console.warn(`CelesTrak SATCAT returned invalid JSON for NORAD ${noradId}:`, textData.substring(0, 100))
+    // Invalid JSON format - return null gracefully
+    console.error(`CelesTrak SATCAT returned invalid JSON for NORAD ${noradId}`)
+    return createSuccessResponse(
+      null,
+      'satcat',
+      `No SATCAT data available for NORAD ${noradId} (invalid JSON)`
+    )
+  }
+
+  // Validate data structure
+  if (!data) {
     return createSuccessResponse(
       null,
       'satcat',
       `No SATCAT data available for NORAD ${noradId}`
     )
   }
-
-  // Validate data structure
-  if (!data || !Array.isArray(data) || data.length === 0) {
-    console.log(`No SATCAT data available for NORAD ${noradId} (expected)`)
+  
+  if (!Array.isArray(data)) {
+    // Maybe it's a single object? Try to handle it
+    if (typeof data === 'object' && data.OBJECT_NAME) {
+      data = [data]
+    } else {
+      return createSuccessResponse(
+        null,
+        'satcat',
+        `No SATCAT data available for NORAD ${noradId} (unexpected format)`
+      )
+    }
+  }
+  
+  if (data.length === 0) {
     return createSuccessResponse(
       null,
       'satcat',
-      `No SATCAT data available for NORAD ${noradId}`
+      `No SATCAT data available for NORAD ${noradId} (empty array)`
     )
   }
 

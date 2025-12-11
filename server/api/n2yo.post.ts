@@ -92,6 +92,13 @@ function buildN2YOUrl(action: string, apiKey: string, params: any): string {
       return `${baseUrl}/positions/${noradId}/${observerLat}/${observerLng}/${observerAlt}/${seconds}&apiKey=${apiKey}`
     }
 
+    case 'above': {
+      // Get satellites above observer location (includes catalog info like launch date)
+      validateRequired(params, ['observerLat', 'observerLng'], 'N2YO')
+      const { observerLat, observerLng, observerAlt = 0, searchRadius = 70, categoryId = 0 } = params
+      return `${baseUrl}/above/${observerLat}/${observerLng}/${observerAlt}/${searchRadius}/${categoryId}&apiKey=${apiKey}`
+    }
+
     case 'test':
       // Test connection with ISS (NORAD ID 25544)
       return `${baseUrl}/tle/25544&apiKey=${apiKey}`
@@ -99,7 +106,7 @@ function buildN2YOUrl(action: string, apiKey: string, params: any): string {
     default:
       throw createError({
         status: 400,
-        statusText: `Unknown action: ${action}. Supported actions: radiopasses, tle, positions, test`
+        statusText: `Unknown action: ${action}. Supported actions: radiopasses, tle, positions, above, test`
       })
   }
 }

@@ -149,7 +149,7 @@ onMounted(() => {
       satnogsToken: config.public.satnogsToken || '',
       n2yoApiKey: config.public.n2yoApiKey || ''
     }
-  } catch (error) {
+  } catch {
     // Runtime config not available (e.g., during SSR)
     console.log('Runtime config not available in ApiCredentials component')
   }

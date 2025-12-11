@@ -35,7 +35,15 @@
             :key="`${pass.noradId}-${pass.startTime}`"
             :pass="pass"
             :is-expanded="isPassExpanded(pass.noradId, pass.startTime)"
-            :is-passing="getPassStatus(pass.startTime, pass.endTime, pass.noradId, pass) === 'passing'"
+            :is-passing="(() => {
+              const status = getPassStatus(pass.startTime, pass.endTime, pass.noradId, pass)
+              // For geostationary satellites, consider them 'passing' (green) if within time window
+              if (status === 'stationary') {
+                const now = Date.now()
+                return now >= pass.startTime && now <= pass.endTime
+              }
+              return status === 'passing'
+            })()"
             :format-time-until-pass="formatTimeUntilPass"
             :get-pass-status="getPassStatus"
             :get-t-l-e-data="getTLEData"

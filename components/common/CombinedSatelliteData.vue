@@ -209,13 +209,13 @@
                 </Transition>
               </div>
 
-              <!-- Satellite Status -->
+              <!-- Satellite Information -->
               <div v-if="data.satellite?.status" class="mb-3">
                 <div
                   class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
                   @click="toggleSection(noradId, 'status')"
                 >
-                  <span>📊 Satellite Status</span>
+                  <span>ℹ️ Satellite Information</span>
                   <svg
                     class="w-4 h-4 transition-transform duration-300"
                     :class="{ 'rotate-180': isSectionExpanded(noradId, 'status') }"
@@ -267,8 +267,7 @@
                         <span class="text-space-300">{{ data.satellite.deployed }}</span>
                       </div>
                       <!-- SATCAT Data from CelesTrak -->
-                      <div v-if="data.satellite.objectId" class="mt-2 pt-2 border-t border-space-600 space-y-1.5">
-                        <div class="text-space-400 text-xs mb-1 font-medium">📋 Additional Details (SATCAT):</div>
+                      <div v-if="data.satellite.objectId" class="mt-2 pt-2 border-t border-space-600 space-y-1.5">      
                         <div v-if="data.satellite.objectId" class="flex justify-between">
                           <span class="text-space-400">🆔 International Designator:</span>
                           <span class="text-space-300">{{ data.satellite.objectId }}</span>
@@ -324,7 +323,7 @@ import { ref } from 'vue'
 import { formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
 // Props
-const props = defineProps({
+defineProps({
   combinedData: {
     type: Object,
     required: true

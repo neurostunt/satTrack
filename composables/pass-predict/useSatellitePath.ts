@@ -4,7 +4,6 @@
  * Keeps past positions and combines with real-time data
  */
 
-import type { Ref } from 'vue'
 import type { SatellitePosition } from './useRealTimePosition'
 
 export const useSatellitePath = () => {

@@ -30,8 +30,7 @@ import { getSatnogsImageUrl } from '~/utils/satelliteImageUtils'
 // Import composables
 const {
   settings,
-  loadSettings,
-  saveSettings
+  loadSettings
 } = useSettings()
 
 const {
@@ -50,15 +49,11 @@ const combinedData = ref({})
 const loadStoredTransmitterData = async () => {
   try {
     const transmitterData = await getAllTransponderData()
-    console.log('🔍 Debug: Raw transmitter data from IndexedDB:', transmitterData)
-    console.log('🔍 Debug: Type of transmitter data:', typeof transmitterData)
-    console.log('🔍 Debug: Is array?', Array.isArray(transmitterData))
 
     // Convert array to object keyed by NORAD ID
     const transmitterDataObj = {}
     if (Array.isArray(transmitterData)) {
       transmitterData.forEach(data => {
-        console.log('🔍 Debug: Processing array item:', data)
         if (data.noradId) {
           // Handle different data structures
           if (Array.isArray(data.data)) {
@@ -77,45 +72,10 @@ const loadStoredTransmitterData = async () => {
         }
       })
     } else if (transmitterData && typeof transmitterData === 'object') {
-      console.log('🔍 Debug: Processing object keys:', Object.keys(transmitterData))
       Object.keys(transmitterData).forEach(noradId => {
         transmitterDataObj[noradId] = transmitterData[noradId]
       })
     }
-
-    console.log('🔍 Debug: Transmitter data converted to object:', Object.keys(transmitterDataObj))
-    console.log('🔍 Debug: Sample transmitter data for ISS (25544):', transmitterDataObj['25544'])
-    console.log('🔍 Debug: First ISS transmitter:', transmitterDataObj['25544']?.[0])
-
-    // Analyze transmitter types for filtering
-    const allTransmitters = Object.values(transmitterDataObj).flat()
-    const transmitterTypes = new Set()
-    const transmitterModes = new Set()
-    const transmitterServices = new Set()
-
-    allTransmitters.forEach(transmitter => {
-      if (transmitter.description) {
-        const desc = transmitter.description.toLowerCase()
-        if (desc.includes('amateur') || desc.includes('ham')) transmitterTypes.add('amateur')
-        if (desc.includes('fm')) transmitterTypes.add('fm')
-        if (desc.includes('cw')) transmitterTypes.add('cw')
-        if (desc.includes('aprs')) transmitterTypes.add('aprs')
-        if (desc.includes('sstv')) transmitterTypes.add('sstv')
-        if (desc.includes('telemetry')) transmitterTypes.add('telemetry')
-        if (desc.includes('voice')) transmitterTypes.add('voice')
-        if (desc.includes('repeater')) transmitterTypes.add('repeater')
-        if (desc.includes('beacon')) transmitterTypes.add('beacon')
-        if (desc.includes('weather') || desc.includes('apt')) transmitterTypes.add('weather')
-        if (desc.includes('communication') || desc.includes('comm')) transmitterTypes.add('communication')
-      }
-
-      if (transmitter.mode) transmitterModes.add(transmitter.mode.toLowerCase())
-      if (transmitter.service) transmitterServices.add(transmitter.service.toLowerCase())
-    })
-
-    console.log('🔍 Debug: Available transmitter types:', Array.from(transmitterTypes))
-    console.log('🔍 Debug: Available transmitter modes:', Array.from(transmitterModes))
-    console.log('🔍 Debug: Available transmitter services:', Array.from(transmitterServices))
 
     // Build combined data from tracked satellites
     const combined = {}
@@ -123,7 +83,6 @@ const loadStoredTransmitterData = async () => {
       settings.value.trackedSatellites.forEach(satellite => {
         if (satellite.noradId) {
           const transmitters = transmitterDataObj[satellite.noradId] || []
-          console.log(`🔍 Debug: Transmitters for ${satellite.name} (${satellite.noradId}):`, transmitters)
 
           // Convert SatNOGS relative image path to full URL if available
           let imageUrl = undefined
@@ -147,95 +106,11 @@ const loadStoredTransmitterData = async () => {
     }
 
     combinedData.value = combined
-    console.log('🔍 Debug: Final combined data:', Object.keys(combinedData.value))
-    console.log('🔍 Debug: ISS combined data:', combinedData.value['25544'])
 
-    // Load recommended satellites descriptions as fallback (before API fetching)
+    // Load recommended satellites descriptions as fallback (from static JSON file, no API)
     await loadRecommendedSatellitesDescriptions()
-
-    // Fetch missing satellite images and descriptions from SatNOGS API
-    await fetchMissingSatelliteImages()
-    await fetchMissingSatelliteDescriptions()
-
-    // Fetch additional satellite information from CelesTrak SATCAT API
-    await fetchSatcatData()
   } catch (error) {
     console.error('Failed to load stored transmitter data:', error)
-  }
-}
-
-/**
- * Fetch additional satellite information from SatNOGS API
- * Gets launch date, operator, countries, website, etc.
- */
-const fetchMissingSatelliteDescriptions = async () => {
-  if (!settings.value.trackedSatellites) return
-
-  const satellitesNeedingInfo = settings.value.trackedSatellites.filter(
-    sat => sat.noradId && !combinedData.value[sat.noradId]?.satellite?.launchDate
-  )
-
-  if (satellitesNeedingInfo.length === 0) {
-    console.log('All satellites already have additional info')
-    return
-  }
-
-  console.log(`Fetching additional info for ${satellitesNeedingInfo.length} satellites`)
-
-  const CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
-  const now = Date.now()
-
-  // Fetch additional info for each satellite
-  for (const satellite of satellitesNeedingInfo) {
-    try {
-      // Check cache first
-      try {
-        const cached = await indexedDBStorage.getSatnogsInfo(satellite.noradId)
-        if (cached && (now - cached.timestamp) < CACHE_DURATION_MS) {
-          applySatnogsInfo(satellite.noradId, cached.data)
-          console.log(`✓ Loaded cached SatNOGS info for ${satellite.name} (${satellite.noradId})`)
-          continue
-        }
-      } catch (error) {
-        console.warn(`Failed to load cached SatNOGS info for ${satellite.noradId}:`, error)
-      }
-
-      // Fetch satellite data from SatNOGS API
-      const response = await $fetch('/api/satnogs', {
-        method: 'POST',
-        body: {
-          action: 'satellites',
-          limit: 1,
-          noradId: satellite.noradId
-        }
-      })
-
-      // Try to get satellite data from response
-      let satData = null
-      if (response?.success && Array.isArray(response.data)) {
-        satData = response.data.find(s => s.norad_cat_id === satellite.noradId)
-      }
-
-      // Debug: log what fields are available in satData
-      console.log(`SatNOGS data for ${satellite.name} (${satellite.noradId}):`, Object.keys(satData || {}))
-
-      // If we found satellite data, update it with all available information
-      if (satData && combinedData.value[satellite.noradId]) {
-        applySatnogsInfo(satellite.noradId, satData)
-        console.log(`✓ Fetched additional info for ${satellite.name} (${satellite.noradId})`)
-
-        // Cache the SatNOGS info for future loads
-        try {
-          await indexedDBStorage.storeSatnogsInfo(satellite.noradId, satData)
-        } catch (error) {
-          console.warn(`Failed to cache SatNOGS info for ${satellite.noradId}:`, error)
-        }
-      } else {
-        console.log(`No additional info found for ${satellite.name} (${satellite.noradId})`)
-      }
-    } catch (error) {
-      console.log(`Could not fetch description for ${satellite.name} (${satellite.noradId}):`, error)
-    }
   }
 }
 
@@ -270,21 +145,18 @@ const applySatcatData = (noradId, satcatData) => {
 
 /**
  * Load SATCAT data from IndexedDB cache
+ * Always uses cached data if available (no expiration check - data is refreshed in settings)
  */
 const loadSatcatDataFromCache = async () => {
   if (!settings.value.trackedSatellites) return
 
   try {
-    const CACHE_DURATION_MS = 120 * 60 * 1000 // 2 hours
-    const now = Date.now()
-
     for (const satellite of settings.value.trackedSatellites) {
       if (!satellite.noradId) continue
 
       const cached = await indexedDBStorage.getSatcatData(satellite.noradId)
-      if (cached && (now - cached.timestamp) < CACHE_DURATION_MS) {
+      if (cached) {
         applySatcatData(satellite.noradId, cached.data)
-        console.log(`✓ Loaded cached SATCAT data for ${satellite.name} (${satellite.noradId})`)
       }
     }
   } catch (error) {
@@ -292,179 +164,9 @@ const loadSatcatDataFromCache = async () => {
   }
 }
 
-/**
- * Fetch SATCAT (Satellite Catalog) data from CelesTrak API
- * Provides detailed information: launch site, object type, size (RCS), orbital parameters, etc.
- *
- * IMPORTANT: CelesTrak has rate limits - we cache data in IndexedDB and limit requests to avoid 403 errors
- * Cache duration: 2 hours (matches CelesTrak update frequency)
- */
-const satcatRateLimitUntil = ref(0) // timestamp until next allowed SATCAT call
-
-const fetchSatcatData = async () => {
-  if (!settings.value.trackedSatellites) return
-
-  if (Date.now() < satcatRateLimitUntil.value) {
-    console.warn('⚠️ SATCAT fetch skipped due to recent rate limit window')
-    return
-  }
-
-  const satellitesNeedingSatcat = settings.value.trackedSatellites.filter(
-    sat => sat.noradId && !combinedData.value[sat.noradId]?.satellite?.launchSite
-  )
-
-  if (satellitesNeedingSatcat.length === 0) {
-    console.log('All satellites already have SATCAT data')
-    return
-  }
-
-  console.log(`Fetching SATCAT data for ${satellitesNeedingSatcat.length} satellites`)
-
-  const CACHE_DURATION_MS = 120 * 60 * 1000 // 2 hours
-  const now = Date.now()
-
-  // Fetch SATCAT data for each satellite with rate limiting
-  // Add delay between requests to avoid rate limiting (500ms between requests)
-  for (let i = 0; i < satellitesNeedingSatcat.length; i++) {
-    const satellite = satellitesNeedingSatcat[i]
-
-    // Check IndexedDB cache first (2 hour cache duration)
-    try {
-      const cached = await indexedDBStorage.getSatcatData(satellite.noradId)
-      if (cached && (now - cached.timestamp) < CACHE_DURATION_MS) {
-        applySatcatData(satellite.noradId, cached.data)
-        console.log(`✓ Using cached SATCAT data for ${satellite.name} (${satellite.noradId})`)
-        continue
-      }
-    } catch (error) {
-      console.warn(`Failed to check cache for ${satellite.noradId}:`, error)
-    }
-
-    // Add delay between requests to avoid rate limiting (except for first request)
-    if (i > 0) {
-      await new Promise(resolve => setTimeout(resolve, 500)) // 500ms delay
-    }
-
-    try {
-      // Fetch SATCAT data from CelesTrak API
-      const response = await $fetch('/api/celestrak', {
-        method: 'POST',
-        body: {
-          action: 'satcat',
-          noradId: satellite.noradId
-        }
-      })
-
-      if (response?.success) {
-        // If data is null, satellite doesn't have SATCAT data (expected - not an error)
-        if (!response.data) {
-          console.log(`ℹ️ No SATCAT data available for ${satellite.name} (${satellite.noradId}) - this is normal`)
-          continue // Skip to next satellite
-        }
-
-        const satcatData = response.data
-
-        if (combinedData.value[satellite.noradId]) {
-          // Store in IndexedDB cache
-          try {
-            await indexedDBStorage.storeSatcatData(satellite.noradId, satcatData)
-          } catch (error) {
-            console.warn(`Failed to cache SATCAT data for ${satellite.noradId}:`, error)
-          }
-
-          // Update the combined data with SATCAT information
-          applySatcatData(satellite.noradId, satcatData)
-
-          console.log(`✓ Fetched SATCAT data for ${satellite.name} (${satellite.noradId}):`, {
-            objectType: satcatData.objectType,
-            launchSite: satcatData.launchSite,
-            rcs: satcatData.rcs,
-            owner: satcatData.owner
-          })
-        }
-      }
-    } catch (error) {
-      // Handle 403 errors gracefully - don't retry immediately
-      if (error?.statusCode === 403 || error?.statusMessage?.includes('403')) {
-        console.warn(`⚠️ CelesTrak rate limit reached for ${satellite.name} (${satellite.noradId}). Skipping remaining requests.`)
-        // Stop fetching to avoid further rate limiting and set cooldown (60 minutes)
-        satcatRateLimitUntil.value = Date.now() + (60 * 60 * 1000)
-        break
-      }
-      
-      // Log other errors but continue processing (shouldn't happen now since we return success with null)
-      console.warn(`Could not fetch SATCAT data for ${satellite.name} (${satellite.noradId}):`, error?.statusMessage || error?.message || error)
-    }
-  }
-}
-
-/**
- * Fetch satellite images from SatNOGS API for satellites that don't have images
- */
-const fetchMissingSatelliteImages = async () => {
-  if (!settings.value.trackedSatellites) return
-
-  const satellitesWithoutImages = settings.value.trackedSatellites.filter(
-    sat => sat.noradId && !sat.image
-  )
-
-  if (satellitesWithoutImages.length === 0) {
-    console.log('All satellites already have images')
-    return
-  }
-
-  console.log(`Fetching images for ${satellitesWithoutImages.length} satellites without images`)
-
-  // Fetch images for each satellite
-  for (const satellite of satellitesWithoutImages) {
-    try {
-      // Fetch satellite data from SatNOGS API
-      const response = await $fetch('/api/satnogs', {
-        method: 'POST',
-        body: {
-          action: 'satellites',
-          limit: 1,
-          noradId: satellite.noradId
-        }
-      })
-
-      // Try to get satellite data from response
-      let satData = null
-      if (response?.success && Array.isArray(response.data)) {
-        satData = response.data.find(s => s.norad_cat_id === satellite.noradId)
-      }
-
-      // If we found satellite data with an image, update it
-      if (satData?.image) {
-        const imageUrl = getSatnogsImageUrl(satData.image)
-
-        if (imageUrl) {
-          // Update the satellite in settings
-          const satIndex = settings.value.trackedSatellites.findIndex(s => s.noradId === satellite.noradId)
-          if (satIndex !== -1) {
-            settings.value.trackedSatellites[satIndex].image = satData.image
-            await saveSettings()
-          }
-
-          // Update the combined data reactively
-          if (combinedData.value[satellite.noradId]) {
-            combinedData.value[satellite.noradId].satellite.image = imageUrl
-          }
-
-          console.log(`✓ Fetched image for ${satellite.name} (${satellite.noradId})`)
-        }
-      }
-    } catch (error) {
-      console.log(`Could not fetch image for ${satellite.name} (${satellite.noradId}):`, error)
-    }
-  }
-}
-
 // Filter transmitters based on settings
 const filterTransmitters = (transmitters) => {
   if (!transmitters || !Array.isArray(transmitters)) return []
-
-  console.log('🔍 Debug: Filtering transmitters with settings:', settings.value.transmitterFilters)
 
   return transmitters.filter(transmitter => {
     if (!transmitter.description) return true
@@ -472,56 +174,42 @@ const filterTransmitters = (transmitters) => {
     const desc = transmitter.description.toLowerCase()
     const filters = settings.value.transmitterFilters || {}
 
-    console.log(`🔍 Debug: Checking transmitter "${transmitter.description}" against filters:`, filters)
-
     // Check each filter type
     if (desc.includes('amateur') || desc.includes('ham')) {
-      console.log('🔍 Debug: Found amateur/ham transmitter, filter enabled:', filters.amateur !== false)
       return filters.amateur !== false
     }
     if (desc.includes('fm')) {
-      console.log('🔍 Debug: Found FM transmitter, filter enabled:', filters.fm !== false)
       return filters.fm !== false
     }
     if (desc.includes('cw')) {
-      console.log('🔍 Debug: Found CW transmitter, filter enabled:', filters.cw !== false)
       return filters.cw !== false
     }
     if (desc.includes('aprs')) {
-      console.log('🔍 Debug: Found APRS transmitter, filter enabled:', filters.aprs !== false)
       return filters.aprs !== false
     }
     if (desc.includes('sstv')) {
-      console.log('🔍 Debug: Found SSTV transmitter, filter enabled:', filters.sstv !== false)
       return filters.sstv !== false
     }
     if (desc.includes('telemetry')) {
-      console.log('🔍 Debug: Found telemetry transmitter, filter enabled:', filters.telemetry !== false)
       return filters.telemetry !== false
     }
     if (desc.includes('voice')) {
-      console.log('🔍 Debug: Found voice transmitter, filter enabled:', filters.voice !== false)
       return filters.voice !== false
     }
     if (desc.includes('repeater')) {
-      console.log('🔍 Debug: Found repeater transmitter, filter enabled:', filters.repeater !== false)
       return filters.repeater !== false
     }
     if (desc.includes('beacon')) {
-      console.log('🔍 Debug: Found beacon transmitter, filter enabled:', filters.beacon !== false)
       return filters.beacon !== false
     }
     if (desc.includes('weather') || desc.includes('apt')) {
-      console.log('🔍 Debug: Found weather transmitter, filter enabled:', filters.weather !== false)
       return filters.weather !== false
     }
     if (desc.includes('communication') || desc.includes('comm')) {
-      console.log('🔍 Debug: Found communication transmitter, filter enabled:', filters.communication !== false)
       return filters.communication !== false
     }
 
     // If no specific type matches, show it (default behavior)
-    console.log('🔍 Debug: No specific type match, showing transmitter by default')
     return true
   })
 }
@@ -557,7 +245,6 @@ const formatFrequency = (transmitter) => {
 
 // Watch for changes in transmitter filters and reload data
 watch(() => settings.value.transmitterFilters, async () => {
-  console.log('🔍 Debug: Transmitter filters changed, reloading data...')
   await loadStoredTransmitterData()
 }, { deep: true })
 
@@ -565,13 +252,11 @@ watch(() => settings.value.transmitterFilters, async () => {
 const loadRecommendedSatellitesDescriptions = async () => {
   try {
     const recommended = await $fetch('/recommended-satellites-belgrade.json')
-    console.log('📝 Loading recommended satellites descriptions:', recommended)
     if (recommended?.recommendedSatellites) {
       const descriptionsMap = {}
       recommended.recommendedSatellites.forEach(sat => {
         if (sat.noradId && sat.description) {
           descriptionsMap[sat.noradId] = sat.description
-          console.log(`📝 Found description for NORAD ${sat.noradId}: ${sat.description.substring(0, 50)}...`)
         }
       })
 
@@ -587,20 +272,12 @@ const loadRecommendedSatellitesDescriptions = async () => {
               description: descriptionsMap[noradId]
             }
           }
-          console.log(`📝 Applied description from recommended file for NORAD ${noradId}: ${descriptionsMap[noradId].substring(0, 50)}...`)
         }
       })
       combinedData.value = updatedData
-
-      console.log('📝 Descriptions map:', descriptionsMap)
-      console.log('📝 Combined data after loading descriptions:', Object.keys(combinedData.value).map(id => ({
-        noradId: id,
-        hasDescription: !!combinedData.value[id]?.satellite?.description,
-        description: combinedData.value[id]?.satellite?.description?.substring(0, 50)
-      })))
     }
-  } catch (error) {
-    console.log('Could not load recommended satellites descriptions:', error)
+  } catch {
+    // Silently fail - descriptions are optional
   }
 }
 
@@ -655,7 +332,6 @@ const loadSatnogsInfoFromCache = async () => {
       const cached = await indexedDBStorage.getSatnogsInfo(satellite.noradId)
       if (cached && (now - cached.timestamp) < CACHE_DURATION_MS) {
         applySatnogsInfo(satellite.noradId, cached.data)
-        console.log(`✓ Loaded cached SatNOGS info for ${satellite.name} (${satellite.noradId})`)
       }
     }
   } catch (error) {
@@ -663,20 +339,15 @@ const loadSatnogsInfoFromCache = async () => {
   }
 }
 
-// Load data on mount
+// Load data on mount - only from IndexedDB, no API calls
 onMounted(async () => {
   await loadSettings()
-  console.log('🔍 Debug: Settings loaded:', settings.value.transmitterFilters)
   await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
+  
+  // Load cached data from IndexedDB only - no API fetching
   await loadStoredTransmitterData()
-  // Load cached SatNOGS info (launch date, operator, countries, website, etc.)
   await loadSatnogsInfoFromCache()
-  // Load cached SatNOGS info before fetching
-  // (handled inside fetchMissingSatelliteDescriptions via cache check)
-  // Load SATCAT data from IndexedDB cache first
   await loadSatcatDataFromCache()
-  // Then fetch any missing SATCAT data
-  await fetchSatcatData()
 })
 </script>
 

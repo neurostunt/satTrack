@@ -8,7 +8,7 @@
           class="btn-primary text-xs px-3 py-1"
           :disabled="tleLoading || isTestingCombined"
         >
-          {{ (tleLoading || isTestingCombined) ? 'Fetching...' : 'Fetch TLE & Transmitter Data' }}
+          {{ (tleLoading || isTestingCombined) ? 'Fetching...' : 'Fetch Satellite Data' }}
         </button>
       </div>
 

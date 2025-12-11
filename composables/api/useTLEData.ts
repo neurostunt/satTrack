@@ -243,10 +243,10 @@ export const useTLEData = () => {
    * Fetch TLE data for tracked satellites with multi-source fallback
    * Priority: Space-Track.org → SatNOGS DB → CelesTrak
    */
-  const fetchTLEData = async (satellites: Satellite[], username: string, password: string, satnogsToken: string | null = null, forceRefresh: boolean = false): Promise<void> => {
+  const fetchTLEData = async (satellites: Satellite[], username: string, password: string, satnogsToken: string | null = null, forceRefresh: boolean = false): Promise<number> => {
     if (!satellites || satellites.length === 0) {
       console.warn('No satellites to fetch TLE data for')
-      return
+      return 0
     }
 
     // Try to load from cache first if not forcing refresh
@@ -254,7 +254,7 @@ export const useTLEData = () => {
       const cacheLoaded = await loadFromCache()
       if (cacheLoaded) {
         console.log('Using cached TLE data')
-        return
+        return Object.keys(tleData.value).length
       }
     }
 
@@ -407,7 +407,9 @@ export const useTLEData = () => {
       }, settings.value.n2yoApiKey)
       console.log('✅ calculatePassPredictionsAfterTLEUpdate completed')
 
-      console.log(`TLE data updated successfully from ${dataSource}:`, Object.keys(processedData).length, 'satellites')
+      const fetchedCount = Object.keys(processedData).length
+      console.log(`TLE data updated successfully from ${dataSource}:`, fetchedCount, 'satellites')
+      return fetchedCount
 
     } catch (err) {
       console.error('TLE data fetch failed:', err instanceof Error ? err.message : 'Unknown error')
@@ -420,6 +422,7 @@ export const useTLEData = () => {
         isOffline.value = true
         cacheStatus.value = 'offline'
         error.value = `Network error: ${err instanceof Error ? err.message : 'Unknown error'}. Using cached data.`
+        return Object.keys(tleData.value).length
       } else {
         throw err
       }

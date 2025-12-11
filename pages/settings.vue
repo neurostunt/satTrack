@@ -67,6 +67,7 @@ import { useSatelliteSearch } from '~/composables/api/useSatelliteSearch'
 import { useIndexedDB } from '~/composables/storage/useIndexedDB'
 import { usePassPrediction } from '~/composables/satellite/usePassPrediction'
 import { EXAMPLE_SATELLITES } from '~/constants/satellite'
+import indexedDBStorage from '~/utils/indexedDBStorage'
 
 // Import composables
 const {
@@ -80,10 +81,16 @@ const {
 const {
   tleLoading,
   getTLEData,
-  initializeTLEData,
-  fetchTLEData,
-  passPredictionStatus
+  fetchTLEData
 } = useTLEData()
+
+// Pass prediction status (managed locally in settings page)
+const passPredictionStatus = ref({
+  show: true,
+  status: 'success',
+  message: 'Pass predictions calculated: 0 satellites',
+  progress: ''
+})
 
 const {
   searchSatellites
@@ -95,7 +102,11 @@ const {
 
 const {
   storeTransponderData,
+  getTransponderData,
   getStorageInfo,
+  getTLEData: getTLEDataFromIndexedDB,
+  getAllTransponderData,
+  getAllPassPredictions,
   storeCredentials,
   clearTLEData: clearIndexedDBTLEData,
   clearTransmitterData: clearIndexedDBTransmitterData,
@@ -293,9 +304,13 @@ const fetchAllData = async () => {
   isTestingCombined.value = true
 
   try {
+    // Always update TLE and Pass Predictions
     await fetchTrackedSatellitesTLEData()
-    await fetchTrackedSatellitesTransmitterData()
     await fetchTrackedSatellitesPassPredictions()
+    
+    // Only fetch and store if missing: Transmitter data, SatNOGS info, SATCAT, images
+    await fetchTrackedSatellitesTransmitterData()
+    await fetchTrackedSatellitesInfoData()
   } catch (error) {
     console.error('Failed to fetch data:', error)
   } finally {
@@ -314,6 +329,12 @@ const fetchTrackedSatellitesTLEData = async () => {
 
   if (noradIds.length === 0) {
     console.log('No valid NORAD IDs found')
+    spaceTrackFetchStatus.value = {
+      show: true,
+      status: 'error',
+      message: 'TLE data fetched successfully: 0 satellites',
+      progress: ''
+    }
     return
   }
 
@@ -328,12 +349,12 @@ const fetchTrackedSatellitesTLEData = async () => {
     // Force fresh TLE data fetch, bypass cache
     // Pass satellite objects instead of just NORAD IDs
     const satellites = settings.value.trackedSatellites.filter(sat => sat.noradId)
-    await fetchTLEData(satellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken, true)
+    const fetchedCount = await fetchTLEData(satellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken, true)
 
     spaceTrackFetchStatus.value = {
       show: true,
       status: 'success',
-      message: `TLE data fetched successfully: ${noradIds.length} satellites`,
+      message: `TLE data fetched successfully: ${fetchedCount} satellites`,
       progress: ''
     }
   } catch (error) {
@@ -357,6 +378,12 @@ const fetchTrackedSatellitesTransmitterData = async () => {
 
   if (noradIds.length === 0) {
     console.log('No valid NORAD IDs found')
+    satnogsFetchStatus.value = {
+      show: true,
+      status: 'error',
+      message: 'Transmitter data fetched: 0 successful, 0 failed',
+      progress: ''
+    }
     return
   }
 
@@ -373,6 +400,14 @@ const fetchTrackedSatellitesTransmitterData = async () => {
 
     for (const noradId of noradIds) {
       try {
+        // Check if transmitter data already exists - only fetch if missing
+        const existingData = await getTransponderData(noradId)
+        if (existingData) {
+          console.log(`Transmitter data already exists for NORAD ${noradId}, skipping fetch`)
+          successCount++
+          continue
+        }
+
         // Note: SatNOGS transmitters endpoint doesn't require authentication for read-only operations
         const response = await $fetch('/api/satnogs', {
           method: 'POST',
@@ -434,18 +469,36 @@ const fetchTrackedSatellitesPassPredictions = async () => {
 
   if (satellites.length === 0) {
     console.log('No valid satellites found for pass predictions')
+    passPredictionStatus.value = {
+      show: true,
+      status: 'error',
+      message: 'Pass predictions calculated: 0 satellites',
+      progress: ''
+    }
     return
   }
 
   // Check if we have observer location
   if (!settings.value.observationLocation?.latitude || !settings.value.observationLocation?.longitude) {
     console.warn('⚠️ Observer location not configured, skipping pass predictions')
+    passPredictionStatus.value = {
+      show: true,
+      status: 'error',
+      message: 'Pass predictions calculated: 0 satellites (observer location not configured)',
+      progress: ''
+    }
     return
   }
 
   // Check if we have N2YO API key
   if (!settings.value.n2yoApiKey) {
     console.warn('⚠️ N2YO API key not configured, skipping pass predictions')
+    passPredictionStatus.value = {
+      show: true,
+      status: 'error',
+      message: 'Pass predictions calculated: 0 satellites (N2YO API key not configured)',
+      progress: ''
+    }
     return
   }
 
@@ -453,6 +506,13 @@ const fetchTrackedSatellitesPassPredictions = async () => {
     lat: settings.value.observationLocation.latitude,
     lng: settings.value.observationLocation.longitude,
     alt: settings.value.observationLocation.altitude || 0
+  }
+
+  passPredictionStatus.value = {
+    show: true,
+    status: 'loading',
+    message: 'Calculating pass predictions...',
+    progress: `Processing ${satellites.length} satellites`
   }
 
   try {
@@ -471,19 +531,174 @@ const fetchTrackedSatellitesPassPredictions = async () => {
     console.log('✅ Pass predictions calculated:', freshPasses.size, 'satellites')
 
     // Store each satellite's passes in IndexedDB
+    let storedCount = 0
     for (const [noradId, passes] of freshPasses.entries()) {
       try {
         await storePassPredictions(noradId, passes, observerLocation)
         console.log(`✅ Stored ${passes.length} passes for NORAD ID: ${noradId}`)
+        storedCount++
       } catch (error) {
         console.error(`❌ Failed to store passes for NORAD ID: ${noradId}`, error)
       }
     }
 
     console.log('✅ All pass predictions stored successfully')
+
+    passPredictionStatus.value = {
+      show: true,
+      status: 'success',
+      message: `Pass predictions calculated: ${storedCount} satellites`,
+      progress: ''
+    }
   } catch (error) {
     console.error('❌ Failed to fetch pass predictions:', error)
+    passPredictionStatus.value = {
+      show: true,
+      status: 'error',
+      message: `Pass predictions failed: ${error.message || 'Unknown error'}`,
+      progress: ''
+    }
   }
+}
+
+const fetchTrackedSatellitesInfoData = async () => {
+  console.log('Fetching satellite info data (SatNOGS, SATCAT, images) for tracked satellites:', settings.value.trackedSatellites)
+
+  const satellites = settings.value.trackedSatellites.filter(sat => sat.noradId)
+
+  if (satellites.length === 0) {
+    console.log('No valid satellites found for info data')
+    return
+  }
+
+  console.log(`Fetching info data for ${satellites.length} satellites`)
+
+  // Batch check which satellites need SatNOGS info (check all upfront)
+  const satnogsCheckPromises = satellites.map(sat => 
+    indexedDBStorage.getSatnogsInfo(sat.noradId).then(info => ({ sat, hasInfo: !!info }))
+  )
+  const satnogsChecks = await Promise.all(satnogsCheckPromises)
+  
+  const satellitesNeedingSatnogs = satnogsChecks
+    .filter(check => !check.hasInfo)
+    .map(check => check.sat)
+
+  // Process SatNOGS info fetches in parallel batches (5 at a time to avoid rate limits)
+  if (satellitesNeedingSatnogs.length > 0) {
+    console.log(`Fetching SatNOGS info for ${satellitesNeedingSatnogs.length} satellites...`)
+    
+    const batchSize = 5
+    const imageUpdates = []
+    let storedCount = 0
+    
+    for (let i = 0; i < satellitesNeedingSatnogs.length; i += batchSize) {
+      const batch = satellitesNeedingSatnogs.slice(i, i + batchSize)
+      
+      await Promise.all(batch.map(async (satellite) => {
+        const noradId = satellite.noradId
+        try {
+          const response = await $fetch('/api/satnogs', {
+            method: 'POST',
+            body: {
+              action: 'satellites',
+              limit: 1,
+              noradId: noradId
+            }
+          })
+
+          if (response?.success && Array.isArray(response.data)) {
+            const satData = response.data.find(s => s.norad_cat_id === noradId)
+            if (satData) {
+              await indexedDBStorage.storeSatnogsInfo(noradId, satData)
+              storedCount++
+              
+              // Collect image updates to batch process later
+              if (satData.image && !satellite.image) {
+                imageUpdates.push({ noradId, image: satData.image })
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to fetch SatNOGS info for NORAD ${noradId}:`, error)
+        }
+      }))
+      
+      // Small delay between batches to avoid rate limiting
+      if (i + batchSize < satellitesNeedingSatnogs.length) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    }
+    
+    console.log(`✅ Stored SatNOGS info for ${storedCount} satellites`)
+    
+    // Batch update satellite images in settings (single save operation)
+    if (imageUpdates.length > 0) {
+      for (const update of imageUpdates) {
+        const satIndex = settings.value.trackedSatellites.findIndex(s => s.noradId === update.noradId)
+        if (satIndex !== -1 && !settings.value.trackedSatellites[satIndex].image) {
+          settings.value.trackedSatellites[satIndex].image = update.image
+        }
+      }
+      await saveSettings()
+      console.log(`✅ Updated images for ${imageUpdates.length} satellites`)
+    }
+  }
+
+  // Process SATCAT data fetches in parallel batches (5 at a time)
+  console.log(`Fetching SATCAT data for ${satellites.length} satellites...`)
+  const batchSize = 5
+  let satcatStoredCount = 0
+  
+  for (let i = 0; i < satellites.length; i += batchSize) {
+    const batch = satellites.slice(i, i + batchSize)
+    
+    await Promise.all(batch.map(async (satellite) => {
+      const noradId = satellite.noradId
+      try {
+        const response = await $fetch('/api/celestrak', {
+          method: 'POST',
+          body: {
+            action: 'satcat',
+            noradId: noradId
+          }
+        })
+
+        console.log(`SATCAT response for NORAD ${noradId}:`, {
+          success: response?.success,
+          hasData: !!response?.data,
+          dataKeys: response?.data ? Object.keys(response.data) : null
+        })
+
+        if (response?.success) {
+          if (response.data) {
+            await indexedDBStorage.storeSatcatData(noradId, response.data)
+            satcatStoredCount++
+            console.log(`✅ Stored SATCAT data for NORAD ${noradId}`)
+          } else {
+            console.log(`⚠️ No SATCAT data returned for NORAD ${noradId} (API returned null)`)
+          }
+        } else {
+          console.warn(`⚠️ SATCAT API call failed for NORAD ${noradId}:`, response?.message)
+        }
+      } catch (error) {
+        // Handle 403 errors gracefully - don't log if rate limited
+        if (error?.statusCode === 403 || error?.statusMessage?.includes('403')) {
+          // Silently skip if rate limited
+        } else {
+          console.error(`Failed to fetch SATCAT data for NORAD ${noradId}:`, error)
+        }
+      }
+    }))
+    
+    // Small delay between batches to avoid rate limiting
+    if (i + batchSize < satellites.length) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  }
+  
+  console.log(`✅ Stored SATCAT data for ${satcatStoredCount} satellites`)
+
+  console.log('✅ Satellite info data fetch completed')
 }
 
 const removeSatellite = async (noradId) => {
@@ -711,7 +926,63 @@ onMounted(async () => {
     console.error('Failed to load credentials:', error)
   }
 
-  await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
+  // Note: initializeTLEData removed - data fetching only happens on button click
+  // No automatic fetching on page load/refresh
+
+  // Calculate and log storage by sections (only if beatle query parameter is present)
+  const route = useRoute()
+  const beatleParam = route.query.beatle
+  if (beatleParam === '' || beatleParam === 'true') {
+    try {
+      const tleData = await getTLEDataFromIndexedDB()
+      const transponderData = await getAllTransponderData()
+      const passPredictions = await getAllPassPredictions()
+      
+      // Calculate sizes
+      const tleSize = JSON.stringify(tleData).length
+      const transponderSize = JSON.stringify(transponderData).length
+      const passPredictionsSize = JSON.stringify(passPredictions).length
+      
+      // Get SatNOGS info and SATCAT data sizes
+      let satnogsInfoSize = 0
+      let satcatSize = 0
+      
+      if (settings.value.trackedSatellites) {
+        for (const satellite of settings.value.trackedSatellites) {
+          if (satellite.noradId) {
+            try {
+              const satnogsInfo = await indexedDBStorage.getSatnogsInfo(satellite.noradId)
+              if (satnogsInfo) {
+                satnogsInfoSize += JSON.stringify(satnogsInfo).length
+              }
+            } catch {
+              // Skip if not found
+            }
+            
+            try {
+              const satcatData = await indexedDBStorage.getSatcatData(satellite.noradId)
+              if (satcatData) {
+                satcatSize += JSON.stringify(satcatData).length
+              }
+            } catch {
+              // Skip if not found
+            }
+          }
+        }
+      }
+      
+      const totalSize = tleSize + transponderSize + passPredictionsSize + satnogsInfoSize + satcatSize
+      
+      console.log('Our calculated storage size:', totalSize, 'bytes')
+      console.log('TLE size:', tleSize, 'bytes')
+      console.log('Transponder size:', transponderSize, 'bytes')
+      console.log('Pass Predictions size:', passPredictionsSize, 'bytes')
+      console.log('SatNOGS Info size:', satnogsInfoSize, 'bytes')
+      console.log('SATCAT size:', satcatSize, 'bytes')
+    } catch (error) {
+      console.error('Failed to calculate storage sizes:', error)
+    }
+  }
 })
 
 // Cleanup on unmount

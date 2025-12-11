@@ -1,9 +1,11 @@
 <template>
   <div
-    class="bg-space-900 border border-space-600 rounded p-3"
+    class="bg-space-900 border rounded p-3"
     :class="{
       'bg-space-800': isExpanded,
-      'passing-card': isPassing
+      'passing-card': isPassing,
+      'border-green-500': isGeostationarySatellite && isPassing,
+      'border-space-600': !(isGeostationarySatellite && isPassing)
     }"
   >
     <!-- Clickable Header -->
@@ -34,8 +36,8 @@
         <div v-if="showVisualization" class="mb-4">
           <PassPredictPolarPlot
             :satellite-name="pass.satelliteName"
-            :current-elevation="isGeostationarySatellite ? (geostationaryPosition?.elevation || 0) : (currentPosition?.elevation || 0)"
-            :current-azimuth="isGeostationarySatellite ? (geostationaryPosition?.azimuth || 0) : (currentPosition?.azimuth || 0)"
+            :current-elevation="isGeostationarySatellite ? (geostationaryPosition?.elevation || props.pass.maxElevation) : (currentPosition?.elevation || 0)"
+            :current-azimuth="isGeostationarySatellite ? (geostationaryPosition?.azimuth || props.pass.maxAzimuth) : (currentPosition?.azimuth || 0)"
             :current-distance="isGeostationarySatellite ? (geostationaryPosition?.distance || 0) : (currentPosition?.distance || 0)"
             :distance-units="settings.distanceUnits || 'km'"
             :past-positions="pastPositions"
@@ -137,14 +139,39 @@ const isGeostationarySatellite = computed(() => {
   return checkIsGeostationary(props.pass)
 })
 
-// For geostationary satellites, store position
-const geostationaryPosition = ref(null)
+// For geostationary satellites, calculate position from pass data (no API call needed)
+const geostationaryPosition = computed(() => {
+  if (!isGeostationarySatellite.value) return null
+
+  // Geostationary satellites are at ~35,786 km altitude
+  const GEOSTATIONARY_ALTITUDE_KM = 35786
+  const EARTH_RADIUS_KM = 6371
+  const observerAltKm = (settings.value.observationLocation?.altitude || 0) / 1000
+
+  // Calculate distance from observer to satellite using elevation angle
+  // Distance = sqrt((R + h)² - (R + obsAlt)² * cos²(elevation)) - (R + obsAlt) * sin(elevation)
+  const elevationRad = (props.pass.maxElevation * Math.PI) / 180
+  const R = EARTH_RADIUS_KM
+  const h = GEOSTATIONARY_ALTITUDE_KM
+  const obsR = R + observerAltKm
+
+  const distance = Math.sqrt(
+    Math.pow(R + h, 2) - Math.pow(obsR * Math.cos(elevationRad), 2)
+  ) - obsR * Math.sin(elevationRad)
+
+  return {
+    azimuth: props.pass.maxAzimuth,
+    elevation: props.pass.maxElevation,
+    distance: distance,
+    timestamp: Date.now()
+  }
+})
 
 // Computed: Should we show the visualization?
 const showVisualization = computed(() => {
   if (!props.isExpanded) return false
 
-  // For geostationary: show immediately when expanded, position will load asynchronously
+  // For geostationary: show immediately when expanded (position is already known)
   if (isGeostationarySatellite.value) {
     return true
   }
@@ -158,41 +185,15 @@ const pastPositions = computed(() => {
   return getPastPositions(positionHistory.value)
 })
 
-// Fetch geostationary satellite position (once)
-const fetchGeostationaryPosition = async () => {
-  if (!settings.value.n2yoApiKey) return
-
-  try {
-    const { getSatellitePositions } = useN2YO()
-
-    const positions = await getSatellitePositions(
-      props.pass.noradId,
-      settings.value.observationLocation.latitude,
-      settings.value.observationLocation.longitude,
-      settings.value.observationLocation.altitude || 0,
-      1, // Just 1 second (current position)
-      settings.value.n2yoApiKey
-    )
-
-    if (positions && positions.length > 0) {
-      geostationaryPosition.value = positions[0]
-    }
-  } catch (error) {
-    console.error(`❌ Failed to fetch geostationary position:`, error)
-  }
-}
-
 // Watch for card expansion and pass status
 // IMPORTANT: Only track when BOTH conditions are met:
 // 1. Card is expanded (user clicked to view details)
 // 2. Satellite is actively passing (within pass window)
 watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing]) => {
-  // Special handling for geostationary satellites
+  // Special handling for geostationary satellites - no API call needed, position is already known
   if (isGeostationarySatellite.value) {
-    if (expanded && !geostationaryPosition.value) {
-      await fetchGeostationaryPosition()
-    }
-    return // Don't use regular tracking for geostationary
+    // Position is calculated from pass data, no API call needed
+    return
   }
 
   const shouldTrack = expanded && passing

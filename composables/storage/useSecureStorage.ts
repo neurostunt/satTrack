@@ -130,10 +130,34 @@ export const useSecureStorage = () => {
       if (!encryptedData) return null
 
       const decryptedData = await decrypt(encryptedData)
-      return JSON.parse(decryptedData)
+      
+      // Check if decryption actually failed (returned encrypted data instead of decrypted)
+      // Encrypted data typically starts with "U2FsdGVkX1" (base64 encoded "Salted__")
+      if (decryptedData && decryptedData.startsWith('U2FsdGVkX1')) {
+        console.warn('Decryption failed - data appears to still be encrypted. Clearing corrupted data.')
+        // Clear corrupted data from storage
+        localStorage.removeItem(key)
+        return null
+      }
+      
+      // Try to parse as JSON
+      try {
+        return JSON.parse(decryptedData)
+      } catch (parseError) {
+        console.error('Failed to parse decrypted data as JSON:', parseError)
+        // If it's not valid JSON, it might be corrupted - clear it
+        localStorage.removeItem(key)
+        return null
+      }
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Retrieval failed'
       console.error('Encrypted retrieval error:', err)
+      // Clear potentially corrupted data
+      try {
+        localStorage.removeItem(key)
+      } catch (clearError) {
+        // Ignore clear errors
+      }
       return null
     } finally {
       isLoading.value = false

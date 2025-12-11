@@ -131,14 +131,56 @@ const localSettings = ref({
   minElevation: 20
 })
 
-// Initialize local settings from props
+// Initialize local settings from props and .env file
 onMounted(() => {
+  // Get runtime config from .env file (if available)
+  let envCredentials = {
+    spaceTrackUsername: '',
+    spaceTrackPassword: '',
+    satnogsToken: '',
+    n2yoApiKey: ''
+  }
+  
+  try {
+    const config = useRuntimeConfig()
+    envCredentials = {
+      spaceTrackUsername: config.public.spaceTrackUsername || '',
+      spaceTrackPassword: config.public.spaceTrackPassword || '',
+      satnogsToken: config.public.satnogsToken || '',
+      n2yoApiKey: config.public.n2yoApiKey || ''
+    }
+  } catch (error) {
+    // Runtime config not available (e.g., during SSR)
+    console.log('Runtime config not available in ApiCredentials component')
+  }
+  
+  // Merge props settings with .env credentials
+  // Priority: props settings > .env values (only use .env if props value is empty)
   localSettings.value = {
-    spaceTrackUsername: props.settings.spaceTrackUsername || '',
-    spaceTrackPassword: props.settings.spaceTrackPassword || '',
-    satnogsToken: props.settings.satnogsToken || '',
-    n2yoApiKey: props.settings.n2yoApiKey || '',
+    spaceTrackUsername: props.settings.spaceTrackUsername || envCredentials.spaceTrackUsername,
+    spaceTrackPassword: props.settings.spaceTrackPassword || envCredentials.spaceTrackPassword,
+    satnogsToken: props.settings.satnogsToken || envCredentials.satnogsToken,
+    n2yoApiKey: props.settings.n2yoApiKey || envCredentials.n2yoApiKey,
     minElevation: props.settings.minElevation || 20
+  }
+  
+  // If we populated from .env, update the parent settings
+  if (envCredentials.spaceTrackUsername || envCredentials.spaceTrackPassword || envCredentials.satnogsToken || envCredentials.n2yoApiKey) {
+    const hasNewValues = 
+      (!props.settings.spaceTrackUsername && envCredentials.spaceTrackUsername) ||
+      (!props.settings.spaceTrackPassword && envCredentials.spaceTrackPassword) ||
+      (!props.settings.satnogsToken && envCredentials.satnogsToken) ||
+      (!props.settings.n2yoApiKey && envCredentials.n2yoApiKey)
+    
+    if (hasNewValues) {
+      console.log('🔧 Populating credentials form from .env file')
+      props.updateSettings({
+        spaceTrackUsername: localSettings.value.spaceTrackUsername,
+        spaceTrackPassword: localSettings.value.spaceTrackPassword,
+        satnogsToken: localSettings.value.satnogsToken,
+        n2yoApiKey: localSettings.value.n2yoApiKey
+      })
+    }
   }
 })
 

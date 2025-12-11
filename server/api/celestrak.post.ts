@@ -75,6 +75,9 @@ export default defineEventHandler(async (event: any) => {
 /**
  * Handle SATCAT (Satellite Catalog) data fetching from CelesTrak
  * Returns detailed satellite information including launch site, object type, size, etc.
+ * 
+ * Note: Returns null data (not an error) if SATCAT data is not available for a satellite.
+ * This is expected behavior - not all satellites have SATCAT data.
  */
 async function handleSatcat(noradId: number) {
   const url = `https://celestrak.org/satcat/records.php?CATNR=${noradId}&FORMAT=JSON`
@@ -85,19 +88,51 @@ async function handleSatcat(noradId: number) {
   console.log('CelesTrak SATCAT API response status:', response.status)
 
   if (!response.ok) {
-    throw createError({
-      statusCode: response.status,
-      statusMessage: `CelesTrak SATCAT API error: ${response.status} ${response.statusText}`
-    })
+    // For non-200 status codes, return null data instead of throwing error
+    // This is expected - not all satellites have SATCAT data
+    console.log(`CelesTrak SATCAT returned ${response.status} for NORAD ${noradId} - no data available`)
+    return createSuccessResponse(
+      null,
+      'satcat',
+      `No SATCAT data available for NORAD ${noradId}`
+    )
   }
 
-  const data = await response.json()
+  // Read response as text first (we can always parse JSON from text, but can't read text after JSON parse fails)
+  const textData = await response.text()
+  
+  // Check if it's an error message (expected case - no data available)
+  if (textData.includes('No SATCAT') || textData.includes('not found') || textData.includes('No records')) {
+    console.log(`No SATCAT data available for NORAD ${noradId} (expected)`)
+    return createSuccessResponse(
+      null,
+      'satcat',
+      `No SATCAT data available for NORAD ${noradId}`
+    )
+  }
 
+  // Try to parse as JSON
+  let data: any
+  try {
+    data = JSON.parse(textData)
+  } catch {
+    // Invalid JSON format - log as warning but return null
+    console.warn(`CelesTrak SATCAT returned invalid JSON for NORAD ${noradId}:`, textData.substring(0, 100))
+    return createSuccessResponse(
+      null,
+      'satcat',
+      `No SATCAT data available for NORAD ${noradId}`
+    )
+  }
+
+  // Validate data structure
   if (!data || !Array.isArray(data) || data.length === 0) {
-    throw createError({
-      statusCode: 404,
-      statusMessage: `No SATCAT data found for NORAD ${noradId} in CelesTrak`
-    })
+    console.log(`No SATCAT data available for NORAD ${noradId} (expected)`)
+    return createSuccessResponse(
+      null,
+      'satcat',
+      `No SATCAT data available for NORAD ${noradId}`
+    )
   }
 
   // Return first result (should be only one for a specific NORAD ID)

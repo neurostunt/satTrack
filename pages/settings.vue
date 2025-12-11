@@ -242,9 +242,12 @@ const satnogsFetchStatus = ref({
 // Functions
 const saveSettings = async () => {
   isSavingSettings.value = true
+  console.log('💾 Starting to save settings...')
   try {
     // Save regular settings
+    console.log('📝 Saving regular settings...')
     await saveSettingsToStorage()
+    console.log('✅ Regular settings saved')
 
     // Save credentials separately
     console.log('🔑 Saving credentials:', {
@@ -255,6 +258,7 @@ const saveSettings = async () => {
     })
 
     if (settings.value.spaceTrackUsername || settings.value.spaceTrackPassword || settings.value.satnogsToken || settings.value.n2yoApiKey) {
+      console.log('🔐 Encrypting and storing credentials...')
       await storeCredentials({
         username: settings.value.spaceTrackUsername || '',
         password: settings.value.spaceTrackPassword || '',
@@ -266,10 +270,16 @@ const saveSettings = async () => {
       console.log('⚠️ No credentials to save')
     }
 
-    console.log('Settings and credentials saved successfully')
+    console.log('✅ Settings and credentials saved successfully')
   } catch (error) {
-    console.error('Failed to save settings:', error)
+    console.error('❌ Failed to save settings:', error)
+    console.error('Error details:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined
+    })
   } finally {
+    console.log('🏁 Save operation completed, resetting loading state')
     isSavingSettings.value = false
   }
 }

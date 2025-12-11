@@ -355,25 +355,33 @@ const fetchSatcatData = async () => {
         }
       })
 
-      if (response?.success && response.data && combinedData.value[satellite.noradId]) {
-        const satcatData = response.data
-
-        // Store in IndexedDB cache
-        try {
-          await indexedDBStorage.storeSatcatData(satellite.noradId, satcatData)
-        } catch (error) {
-          console.warn(`Failed to cache SATCAT data for ${satellite.noradId}:`, error)
+      if (response?.success) {
+        // If data is null, satellite doesn't have SATCAT data (expected - not an error)
+        if (!response.data) {
+          console.log(`ℹ️ No SATCAT data available for ${satellite.name} (${satellite.noradId}) - this is normal`)
+          continue // Skip to next satellite
         }
 
-        // Update the combined data with SATCAT information
-        applySatcatData(satellite.noradId, satcatData)
+        const satcatData = response.data
 
-        console.log(`✓ Fetched SATCAT data for ${satellite.name} (${satellite.noradId}):`, {
-          objectType: satcatData.objectType,
-          launchSite: satcatData.launchSite,
-          rcs: satcatData.rcs,
-          owner: satcatData.owner
-        })
+        if (combinedData.value[satellite.noradId]) {
+          // Store in IndexedDB cache
+          try {
+            await indexedDBStorage.storeSatcatData(satellite.noradId, satcatData)
+          } catch (error) {
+            console.warn(`Failed to cache SATCAT data for ${satellite.noradId}:`, error)
+          }
+
+          // Update the combined data with SATCAT information
+          applySatcatData(satellite.noradId, satcatData)
+
+          console.log(`✓ Fetched SATCAT data for ${satellite.name} (${satellite.noradId}):`, {
+            objectType: satcatData.objectType,
+            launchSite: satcatData.launchSite,
+            rcs: satcatData.rcs,
+            owner: satcatData.owner
+          })
+        }
       }
     } catch (error) {
       // Handle 403 errors gracefully - don't retry immediately
@@ -383,7 +391,9 @@ const fetchSatcatData = async () => {
         satcatRateLimitUntil.value = Date.now() + (60 * 60 * 1000)
         break
       }
-      console.log(`Could not fetch SATCAT data for ${satellite.name} (${satellite.noradId}):`, error)
+      
+      // Log other errors but continue processing (shouldn't happen now since we return success with null)
+      console.warn(`Could not fetch SATCAT data for ${satellite.name} (${satellite.noradId}):`, error?.statusMessage || error?.message || error)
     }
   }
 }

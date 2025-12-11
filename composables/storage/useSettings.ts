@@ -43,6 +43,28 @@ const isSettingsLoaded = computed(() => Object.keys(settings.value).length > 0)
 const loadSettings = async (): Promise<void> => {
   try {
     const storedSettings = await storage.getSettings()
+    
+    // Get runtime config from .env file (if available)
+    let envCredentials = {
+      spaceTrackUsername: '',
+      spaceTrackPassword: '',
+      satnogsToken: '',
+      n2yoApiKey: ''
+    }
+    
+    try {
+      const config = useRuntimeConfig()
+      envCredentials = {
+        spaceTrackUsername: config.public.spaceTrackUsername || '',
+        spaceTrackPassword: config.public.spaceTrackPassword || '',
+        satnogsToken: config.public.satnogsToken || '',
+        n2yoApiKey: config.public.n2yoApiKey || ''
+      }
+    } catch (error) {
+      // Runtime config not available (e.g., during SSR)
+      console.log('Runtime config not available, skipping .env credentials')
+    }
+    
     if (storedSettings) {
       // Migrate old transmitterFilters format to new format if needed
       let transmitterFilters: any = storedSettings.transmitterFilters || defaultSettings.transmitterFilters
@@ -70,15 +92,31 @@ const loadSettings = async (): Promise<void> => {
         transmitterFilters.showOnly2m70cm = false
       }
 
+      // Merge stored settings with .env credentials
+      // Priority: stored settings > .env values (only use .env if stored value is empty)
+      const mergedCredentials = {
+        spaceTrackUsername: storedSettings.spaceTrackUsername || envCredentials.spaceTrackUsername,
+        spaceTrackPassword: storedSettings.spaceTrackPassword || envCredentials.spaceTrackPassword,
+        satnogsToken: storedSettings.satnogsToken || envCredentials.satnogsToken,
+        n2yoApiKey: storedSettings.n2yoApiKey || envCredentials.n2yoApiKey
+      }
+
       // Deep clone to ensure nested objects are mutable
       settings.value = {
         ...defaultSettings,
         ...storedSettings,
+        ...mergedCredentials, // Override with merged credentials
         transmitterFilters,
         observationLocation: {
           ...defaultSettings.observationLocation,
           ...storedSettings.observationLocation
         }
+      }
+    } else {
+      // No stored settings, use .env credentials if available
+      settings.value = {
+        ...defaultSettings,
+        ...envCredentials
       }
     }
   } catch (error) {

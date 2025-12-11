@@ -755,17 +755,56 @@ export const useIndexedDB = () => {
   const storeCredentials = async (credentials: { username: string; password: string; satnogsToken?: string; n2yoApiKey?: string }): Promise<void> => {
     await init()
 
+    // Ensure database is initialized
+    if (!db.value) {
+      throw new Error('Database not initialized')
+    }
+
     try {
       // Import secure storage utility for encryption
       const secureStorage = (await import('~/utils/secureStorage')).default
 
       // Encrypt sensitive data with UTF-8 safe encoding
-      const encryptedUsername = credentials.username ? await secureStorage.encrypt(credentials.username) : ''
-      const encryptedPassword = credentials.password ? await secureStorage.encrypt(credentials.password) : ''
-      const encryptedSatnogsToken = credentials.satnogsToken ? await secureStorage.encrypt(credentials.satnogsToken) : ''
-      const encryptedN2yoApiKey = credentials.n2yoApiKey ? await secureStorage.encrypt(credentials.n2yoApiKey) : ''
+      // Handle each encryption separately to catch individual errors
+      let encryptedUsername = ''
+      let encryptedPassword = ''
+      let encryptedSatnogsToken = ''
+      let encryptedN2yoApiKey = ''
 
+      try {
+        encryptedUsername = credentials.username ? await secureStorage.encrypt(credentials.username) : ''
+      } catch (error) {
+        console.error('Failed to encrypt username:', error)
+        throw new Error('Failed to encrypt username')
+      }
+
+      try {
+        encryptedPassword = credentials.password ? await secureStorage.encrypt(credentials.password) : ''
+      } catch (error) {
+        console.error('Failed to encrypt password:', error)
+        throw new Error('Failed to encrypt password')
+      }
+
+      try {
+        encryptedSatnogsToken = credentials.satnogsToken ? await secureStorage.encrypt(credentials.satnogsToken) : ''
+      } catch (error) {
+        console.error('Failed to encrypt SatNOGS token:', error)
+        throw new Error('Failed to encrypt SatNOGS token')
+      }
+
+      try {
+        encryptedN2yoApiKey = credentials.n2yoApiKey ? await secureStorage.encrypt(credentials.n2yoApiKey) : ''
+      } catch (error) {
+        console.error('Failed to encrypt N2YO API key:', error)
+        throw new Error('Failed to encrypt N2YO API key')
+      }
+
+      // Add timeout to prevent infinite hanging
       return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Store credentials timeout after 10 seconds'))
+        }, 10000)
+
         const transaction = db.value!.transaction([credentialsStoreName], 'readwrite')
         const store = transaction.objectStore(credentialsStoreName)
 
@@ -779,19 +818,29 @@ export const useIndexedDB = () => {
         })
 
         request.onsuccess = () => {
+          clearTimeout(timeout)
           console.log('🔐 Encrypted credentials stored successfully')
           resolve()
         }
 
         request.onerror = () => {
+          clearTimeout(timeout)
           const error = request.error || new Error('Failed to store credentials')
           console.error('Failed to store credentials:', error)
+          reject(error)
+        }
+
+        // Also handle transaction errors
+        transaction.onerror = () => {
+          clearTimeout(timeout)
+          const error = transaction.error || new Error('Transaction failed')
+          console.error('Transaction error:', error)
           reject(error)
         }
       })
     } catch (error) {
       console.error('Failed to encrypt credentials:', error)
-      throw new Error('Failed to encrypt credentials')
+      throw error instanceof Error ? error : new Error('Failed to encrypt credentials')
     }
   }
 

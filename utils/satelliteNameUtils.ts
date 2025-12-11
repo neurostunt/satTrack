@@ -154,3 +154,14 @@ export const getFullSatelliteName = (satellite: any, noradId?: string | number):
   // Return whichever exists
   return primaryFromNames || primaryFromName || `NORAD ${noradId || 'Unknown'}`
 }
+
+/**
+ * Truncate satellite name if longer than reference length
+ * Reference: "KUKAI: Mother (Parents) JR5YBN" (35 characters)
+ * If name is longer, truncate and add "..."
+ */
+export const truncateSatelliteName = (name: string, maxLength: number = 35): string => {
+  if (!name) return ''
+  if (name.length <= maxLength) return name
+  return name.substring(0, maxLength) + '...'
+}

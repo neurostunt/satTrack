@@ -73,7 +73,8 @@ const {
 
 const {
   getTLEData,
-  initializeTLEData
+  initializeTLEData,
+  fetchTLEData
 } = useTLEData()
 
 const {
@@ -120,10 +121,27 @@ const { cleanupExpiredPasses, handleAutoRemoval } = usePassCleanup(
   isGeostationary
 )
 
+// Sound alerts composable
+const {
+  enable: enableSoundAlerts,
+  disable: disableSoundAlerts,
+  checkAndPlayAlert
+} = useSoundAlerts()
+
+// Device orientation composable (for auto-calibrate compass)
+const {
+  start: startDeviceOrientation,
+  stop: stopDeviceOrientation,
+  startCalibration: startCompassCalibration,
+  isActive: isDeviceOrientationActive
+} = useDeviceOrientation()
+
 // Reactive state
 const expandedSatellites = ref(new Set()) // Track which satellites are expanded
 const timeUpdateInterval = ref(null)
 const backgroundRefreshInterval = ref(null)
+const soundAlertCheckInterval = ref(null)
+const alertedPasses = ref(new Map()) // Track which passes have triggered alerts
 
 // Collapsible functionality for individual passes
 const isPassExpanded = (noradId, startTime) => {
@@ -185,6 +203,74 @@ const passesWithTransmitters = computed(() => {
   return sortedPasses.value.filter(pass => hasAvailableTransmitters(pass))
 })
 
+// Check and play sound alerts for passes
+const checkSoundAlerts = () => {
+  if (!settings.value.soundAlerts) return
+
+  const now = currentTime.value
+  const TEN_MINUTES = 10 * 60 * 1000
+
+  passesWithTransmitters.value.forEach(pass => {
+    const passKey = `${pass.noradId}-${pass.startTime}`
+    const alerted = alertedPasses.value.get(passKey) || {
+      warning10min: false,
+      start: false,
+      maxElevation: false,
+      end: false
+    }
+
+    // 10-minute warning
+    if (!alerted.warning10min && now >= pass.startTime - TEN_MINUTES && now < pass.startTime) {
+      checkAndPlayAlert({
+        type: 'pass_10min_warning',
+        noradId: pass.noradId,
+        satelliteName: getSatelliteData(pass.noradId)?.satellite?.name,
+        timestamp: now
+      })
+      alerted.warning10min = true
+      alertedPasses.value.set(passKey, alerted)
+    }
+
+    // Pass start
+    if (!alerted.start && now >= pass.startTime && now < pass.startTime + 5000) {
+      checkAndPlayAlert({
+        type: 'pass_start',
+        noradId: pass.noradId,
+        satelliteName: getSatelliteData(pass.noradId)?.satellite?.name,
+        timestamp: now
+      })
+      alerted.start = true
+      alertedPasses.value.set(passKey, alerted)
+    }
+
+    // Max elevation (approximate - when pass is at midpoint)
+    const passDuration = pass.endTime - pass.startTime
+    const maxElevationTime = pass.startTime + passDuration / 2
+    if (!alerted.maxElevation && now >= maxElevationTime - 5000 && now < maxElevationTime + 5000) {
+      checkAndPlayAlert({
+        type: 'max_elevation',
+        noradId: pass.noradId,
+        satelliteName: getSatelliteData(pass.noradId)?.satellite?.name,
+        timestamp: now
+      })
+      alerted.maxElevation = true
+      alertedPasses.value.set(passKey, alerted)
+    }
+
+    // Pass end
+    if (!alerted.end && now >= pass.endTime - 5000 && now < pass.endTime + 5000) {
+      checkAndPlayAlert({
+        type: 'pass_end',
+        noradId: pass.noradId,
+        satelliteName: getSatelliteData(pass.noradId)?.satellite?.name,
+        timestamp: now
+      })
+      alerted.end = true
+      alertedPasses.value.set(passKey, alerted)
+    }
+  })
+}
+
 onMounted(async () => {
   await loadSettings()
   await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
@@ -194,6 +280,21 @@ onMounted(async () => {
 
   // Load stored transmitter data
   await loadStoredTransmitterData()
+
+  // Enable sound alerts if setting is enabled
+  if (settings.value.soundAlerts) {
+    enableSoundAlerts()
+  }
+
+  // Start device orientation if enabled
+  if (settings.value.enableDeviceOrientation) {
+    await startDeviceOrientation()
+    
+    // Start compass calibration if auto-calibrate is enabled
+    if (settings.value.autoCalibrateCompass && isDeviceOrientationActive.value) {
+      startCompassCalibration()
+    }
+  }
 
   // Start real-time updates for time until pass
   timeUpdateInterval.value = setInterval(() => {
@@ -208,25 +309,68 @@ onMounted(async () => {
     }
   }, 1000)
 
-  // Background refresh: Check for stale data every 2 hours
+  // Check sound alerts every 5 seconds
+  if (settings.value.soundAlerts) {
+    soundAlertCheckInterval.value = setInterval(() => {
+      checkSoundAlerts()
+    }, 5000)
+  }
+
+  // Background refresh: Auto-update TLE and pass predictions every 6 hours
   // Only enabled if autoUpdateTLE is checked in settings
+  // Interval: 6 hours (TLE data is typically updated every 12-24 hours, so 6h is a good balance)
+  const AUTO_UPDATE_INTERVAL = 6 * 60 * 60 * 1000 // 6 hours in milliseconds
+  
   if (settings.value.autoUpdateTLE) {
-    console.log('✅ Auto-update TLE enabled - Starting 2-hour background refresh interval')
+    console.log(`✅ Auto-update TLE enabled - Starting ${AUTO_UPDATE_INTERVAL / (60 * 60 * 1000)}-hour background refresh interval`)
     
-    backgroundRefreshInterval.value = setInterval(async () => {
-      console.log('🔄 Background refresh: Checking if data needs refresh...')
-      
-      // Only refresh if we have existing data that's stale
-      if (passPredictions.value.size > 0 && isDataStale()) {
-        console.log('🔄 Data is stale, fetching fresh pass predictions...')
+    // Function to perform full refresh: TLE data + pass predictions
+    const performAutoUpdate = async () => {
+      try {
+        console.log('🔄 Auto-update: Starting full refresh (TLE + pass predictions)...')
+        
+        // Check if we have tracked satellites
+        if (!settings.value.trackedSatellites || settings.value.trackedSatellites.length === 0) {
+          console.log('ℹ️ No tracked satellites, skipping auto-update')
+          return
+        }
+
+        // Step 1: Fetch fresh TLE data (force refresh) and save to IndexedDB
+        console.log('📥 Step 1: Fetching fresh TLE data...')
+        await fetchTLEData(
+          settings.value.trackedSatellites,
+          settings.value.spaceTrackUsername,
+          settings.value.spaceTrackPassword,
+          settings.value.satnogsToken,
+          true // forceRefresh = true to always get latest data
+        )
+        console.log('✅ TLE data fetched and saved to IndexedDB')
+
+        // Step 2: Calculate fresh pass predictions using new TLE data
+        console.log('📊 Step 2: Calculating fresh pass predictions...')
         await calculateFreshPassPredictions()
+        console.log('✅ Pass predictions calculated')
+
+        // Step 3: Reload stored transmitter data to update combined data
         await loadStoredTransmitterData()
-      } else if (passPredictions.value.size === 0) {
-        console.log('ℹ️ No cached data, skipping auto-refresh. Fetch data from Settings page.')
-      } else {
-        console.log('✅ Data is still fresh, no refresh needed')
+        console.log('✅ Auto-update completed successfully')
+        
+      } catch (error) {
+        console.error('❌ Auto-update failed:', error)
+        // Don't throw - allow app to continue with cached data
       }
-    }, 2 * 60 * 60 * 1000) // 2 hours in milliseconds
+    }
+
+    // Run immediately on mount if data is stale
+    if (isDataStale() || passPredictions.value.size === 0) {
+      console.log('🔄 Data is stale or missing, running initial auto-update...')
+      performAutoUpdate()
+    }
+
+    // Set up periodic refresh
+    backgroundRefreshInterval.value = setInterval(() => {
+      performAutoUpdate()
+    }, AUTO_UPDATE_INTERVAL)
   } else {
     console.log('⏸️ Auto-update TLE disabled - Background refresh will not run')
   }
@@ -242,6 +386,50 @@ onUnmounted(() => {
   }
   if (backgroundRefreshInterval.value) {
     clearInterval(backgroundRefreshInterval.value)
+  }
+  if (soundAlertCheckInterval.value) {
+    clearInterval(soundAlertCheckInterval.value)
+  }
+  
+  // Stop device orientation
+  stopDeviceOrientation()
+  
+  // Disable sound alerts
+  disableSoundAlerts()
+})
+
+// Watch for settings changes
+watch(() => settings.value.soundAlerts, (enabled) => {
+  if (enabled) {
+    enableSoundAlerts()
+    if (!soundAlertCheckInterval.value) {
+      soundAlertCheckInterval.value = setInterval(() => {
+        checkSoundAlerts()
+      }, 5000)
+    }
+  } else {
+    disableSoundAlerts()
+    if (soundAlertCheckInterval.value) {
+      clearInterval(soundAlertCheckInterval.value)
+      soundAlertCheckInterval.value = null
+    }
+  }
+})
+
+watch(() => settings.value.enableDeviceOrientation, async (enabled) => {
+  if (enabled) {
+    await startDeviceOrientation()
+    if (settings.value.autoCalibrateCompass && isDeviceOrientationActive.value) {
+      startCompassCalibration()
+    }
+  } else {
+    stopDeviceOrientation()
+  }
+})
+
+watch(() => settings.value.autoCalibrateCompass, (enabled) => {
+  if (enabled && isDeviceOrientationActive.value) {
+    startCompassCalibration()
   }
 })
 </script>

@@ -11,8 +11,8 @@
       <div class="flex flex-col w-full">
         <!-- First row: Satellite name + max elevation -->
         <div class="flex items-center pt-0 pb-1 leading-1">
-          <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out w-[60%] py-0.5 pb-2">
-            {{ pass.satelliteName }}
+          <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out w-[60%] py-0.5 pb-2 truncate">
+            {{ truncateSatelliteName(pass.satelliteName) }}
           </div>
           <span class="text-xs text-green-400 group-hover:text-green-300 transition-colors duration-300 ease-in-out w-[40%] text-right flex-shrink-0 mr-2 font-medium">
             {{ Math.round(pass.maxElevation) }}° max
@@ -43,6 +43,8 @@
 </template>
 
 <script setup>
+import { truncateSatelliteName } from '~/utils/satelliteNameUtils'
+
 const props = defineProps({
   pass: {
     type: Object,

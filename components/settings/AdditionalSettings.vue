@@ -96,20 +96,6 @@
           </div>
         </div>
 
-        <!-- Update Interval -->
-        <div>
-          <label class="block text-xs font-medium text-space-300 mb-1">Update Interval</label>
-          <select
-            v-model="updateInterval"
-            class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
-          >
-            <option value="1000">1 second</option>
-            <option value="2000">2 seconds</option>
-            <option value="5000">5 seconds</option>
-            <option value="10000">10 seconds</option>
-          </select>
-        </div>
-
         <!-- Units -->
         <div>
           <label class="block text-xs font-medium text-space-300 mb-1">Distance Units</label>
@@ -122,25 +108,10 @@
           </select>
         </div>
 
-        <!-- Compass Type -->
-        <div>
-          <label class="block text-xs font-medium text-space-300 mb-1">Compass Type</label>
-          <select
-            v-model="compassType"
-            class="w-full bg-space-800 border border-space-700 rounded px-1 py-0.5 text-xs text-white focus:border-primary-500 focus:outline-none"
-          >
-            <option value="magnetic">Magnetic</option>
-            <option value="true">True North</option>
-          </select>
-          <div class="text-xs text-space-500 mt-1">
-            Uses GPS heading for maximum accuracy
-          </div>
-        </div>
-
         <!-- Auto-update TLE -->
         <div>
           <div class="flex items-center justify-between">
-            <label class="text-sm text-space-300">Auto-update pass predictions</label>
+            <label class="text-sm text-space-300">Auto-update TLE & pass predictions</label>
             <input
               v-model="autoUpdateTLE"
               type="checkbox"
@@ -148,23 +119,35 @@
             />
           </div>
           <div class="text-xs text-space-500 mt-1">
-            Automatically refresh pass predictions every 2 hours
+            Automatically fetch fresh TLE data and recalculate pass predictions every 6 hours
           </div>
         </div>
 
         <!-- Sound alerts -->
-        <div class="flex items-center justify-between">
-          <label class="text-sm text-space-300">Sound alerts</label>
-          <input
-            v-model="soundAlerts"
-            type="checkbox"
-            class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
-          />
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex flex-col">
+              <label class="text-sm text-space-300">Sound alerts</label>
+              <div class="text-xs text-space-500 mt-1">
+                Play sonar-like sounds for pass start, max elevation, and pass end
+              </div>
+            </div>
+            <input
+              v-model="soundAlerts"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
+            />
+          </div>
         </div>
 
         <!-- High accuracy mode -->
         <div class="flex items-center justify-between">
-          <label class="text-sm text-space-300">High accuracy GPS</label>
+          <div class="flex flex-col">
+            <label class="text-sm text-space-300">High accuracy GPS</label>
+            <div class="text-xs text-space-500 mt-1">
+              Use more precise GPS positioning (may use more battery)
+            </div>
+          </div>
           <input
             v-model="highAccuracyGPS"
             type="checkbox"
@@ -174,12 +157,42 @@
 
         <!-- Magnetometer calibration -->
         <div class="flex items-center justify-between">
-          <label class="text-sm text-space-300">Auto-calibrate compass</label>
+          <div class="flex flex-col">
+            <label class="text-sm text-space-300">Auto-calibrate compass</label>
+            <div class="text-xs text-space-500 mt-1">
+              Automatically calibrate compass using device motion sensors
+            </div>
+          </div>
           <input
             v-model="autoCalibrateCompass"
             type="checkbox"
             class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
           />
+        </div>
+
+        <!-- Device Orientation -->
+        <div class="flex items-center justify-between">
+          <div class="flex flex-col">
+            <label class="text-sm text-space-300">Device orientation tracking</label>
+            <div class="text-xs text-space-500 mt-1">
+              Use phone sensors (gyroscope, accelerometer, magnetometer) for satellite tracking
+            </div>
+            <div class="text-xs text-space-400 mt-1 italic">
+              Note: Uses True North for compass heading (azimuth) to match satellite coordinates
+            </div>
+          </div>
+          <input
+            v-model="enableDeviceOrientation"
+            type="checkbox"
+            class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
+            @change="handleDeviceOrientationToggle"
+          />
+        </div>
+        <div v-if="deviceOrientationError" class="text-red-400 text-xs mt-1">
+          {{ deviceOrientationError }}
+        </div>
+        <div v-if="deviceOrientationSuccess" class="text-green-400 text-xs mt-1">
+          {{ deviceOrientationSuccess }}
         </div>
 
         <!-- Transmitter Filters -->
@@ -222,6 +235,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useDeviceOrientation } from '~/composables/useDeviceOrientation'
 
 // Props
 const props = defineProps({
@@ -252,20 +266,15 @@ const isFetchingAltitude = ref(false)
 const altitudeError = ref('')
 const altitudeSuccess = ref('')
 
+// Device orientation state
+const deviceOrientationError = ref('')
+const deviceOrientationSuccess = ref('')
+const { requestPermission, checkSupport, isSupported } = useDeviceOrientation()
+
 // Computed properties for form fields
 const distanceUnits = computed({
   get: () => props.settings.distanceUnits || 'km',
   set: (value) => props.updateSettings({ distanceUnits: value })
-})
-
-const compassType = computed({
-  get: () => props.settings.compassType || 'magnetic',
-  set: (value) => props.updateSettings({ compassType: value })
-})
-
-const updateInterval = computed({
-  get: () => props.settings.updateInterval || 5000,
-  set: (value) => props.updateSettings({ updateInterval: parseInt(value) })
 })
 
 const autoUpdateTLE = computed({
@@ -286,6 +295,11 @@ const highAccuracyGPS = computed({
 const autoCalibrateCompass = computed({
   get: () => props.settings.autoCalibrateCompass || false,
   set: (value) => props.updateSettings({ autoCalibrateCompass: value })
+})
+
+const enableDeviceOrientation = computed({
+  get: () => props.settings.enableDeviceOrientation || false,
+  set: (value) => props.updateSettings({ enableDeviceOrientation: value })
 })
 
 // Transmitter filter computed property
@@ -317,7 +331,7 @@ const getLocationFromGPS = async () => {
         resolve,
         reject,
         {
-          enableHighAccuracy: true,
+          enableHighAccuracy: props.settings.highAccuracyGPS || false,
           timeout: 10000,
           maximumAge: 0
         }
@@ -446,6 +460,54 @@ const getAltitudeFromCoordinates = async () => {
   } finally {
     isFetchingAltitude.value = false
   }
+}
+
+// Handle device orientation toggle
+const handleDeviceOrientationToggle = async () => {
+  deviceOrientationError.value = ''
+  deviceOrientationSuccess.value = ''
+
+  // If enabling, request permission immediately
+  if (enableDeviceOrientation.value) {
+    // Check if supported
+    if (!checkSupport()) {
+      deviceOrientationError.value = 'Device orientation is not supported in this browser'
+      enableDeviceOrientation.value = false
+      props.updateSettings({ enableDeviceOrientation: false })
+      setTimeout(() => {
+        deviceOrientationError.value = ''
+      }, 5000)
+      return
+    }
+
+    // Request permission
+    try {
+      const granted = await requestPermission()
+      
+      if (granted) {
+        deviceOrientationSuccess.value = 'Device orientation permission granted'
+        setTimeout(() => {
+          deviceOrientationSuccess.value = ''
+        }, 3000)
+      } else {
+        deviceOrientationError.value = 'Device orientation permission denied. Please enable it in browser settings.'
+        enableDeviceOrientation.value = false
+        props.updateSettings({ enableDeviceOrientation: false })
+        setTimeout(() => {
+          deviceOrientationError.value = ''
+        }, 5000)
+      }
+    } catch (error) {
+      console.error('Error requesting device orientation permission:', error)
+      deviceOrientationError.value = 'Failed to request device orientation permission'
+      enableDeviceOrientation.value = false
+      props.updateSettings({ enableDeviceOrientation: false })
+      setTimeout(() => {
+        deviceOrientationError.value = ''
+      }, 5000)
+    }
+  }
+  // If disabling, no action needed - permission stays but we won't use it
 }
 </script>
 

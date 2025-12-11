@@ -33,8 +33,8 @@
               <div class="flex flex-col w-full">
         <!-- First row: Main satellite name -->
         <div class="flex items-center pt-0 pb-1 leading-1">
-          <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out py-0.5">
-            {{ getFormattedSatelliteName(data.satellite, noradId).primary }}
+          <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out py-0.5 truncate">
+            {{ truncateSatelliteName(getFormattedSatelliteName(data.satellite, noradId).primary) }}
           </div>
         </div>
                 <!-- Second row: Secondary name + NORAD ID (proper spacing) -->
@@ -253,7 +253,7 @@
 <script setup>
 import { ref, watch } from 'vue'
 // Import satellite name utilities
-import { getFullSatelliteName, formatSatelliteNameForDisplay } from '~/utils/satelliteNameUtils'
+import { getFullSatelliteName, formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
 // Props
 const props = defineProps({

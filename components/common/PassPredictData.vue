@@ -23,8 +23,8 @@
               <div class="flex flex-col w-full">
         <!-- First row: Main satellite name + timestamp -->
         <div class="flex items-center pt-0 pb-1 leading-1">
-          <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out w-[60%] py-0.5">
-            {{ getFormattedSatelliteName(data.satellite, noradId).primary }}
+          <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out w-[60%] py-0.5 truncate">
+            {{ truncateSatelliteName(getFormattedSatelliteName(data.satellite, noradId).primary) }}
           </div>
           <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out w-[40%] text-right flex-shrink-0 mr-2">
             {{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}
@@ -122,7 +122,7 @@
 <script setup>
 import { ref } from 'vue'
 // Import satellite name utilities
-import { getFullSatelliteName, formatSatelliteNameForDisplay } from '~/utils/satelliteNameUtils'
+import { getFullSatelliteName, formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
 // Props
 defineProps({

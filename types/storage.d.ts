@@ -21,6 +21,7 @@ export interface StorageSettings {
   soundAlerts: boolean
   highAccuracyGPS: boolean
   autoCalibrateCompass: boolean
+  enableDeviceOrientation: boolean
 }
 
 export interface TransmitterFilters {

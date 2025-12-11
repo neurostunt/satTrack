@@ -22,11 +22,12 @@ const defaultSettings: StorageSettings = {
   useGPS: true,
   minElevation: 20,
   distanceUnits: 'km',
-  compassType: 'magnetic',
+  compassType: 'true', // Always use True North for satellite tracking (azimuth coordinates are in True North)
   autoUpdateTLE: false,
   soundAlerts: false,
   highAccuracyGPS: false,
-  autoCalibrateCompass: false
+  autoCalibrateCompass: false,
+  enableDeviceOrientation: false
 }
 
 // Reactive state
@@ -114,7 +115,8 @@ const saveSettings = async (): Promise<void> => {
       autoUpdateTLE: settings.value.autoUpdateTLE,
       soundAlerts: settings.value.soundAlerts,
       highAccuracyGPS: settings.value.highAccuracyGPS,
-      autoCalibrateCompass: settings.value.autoCalibrateCompass
+      autoCalibrateCompass: settings.value.autoCalibrateCompass,
+      enableDeviceOrientation: settings.value.enableDeviceOrientation
     }
 
     await storage.storeSettings(cleanSettings)

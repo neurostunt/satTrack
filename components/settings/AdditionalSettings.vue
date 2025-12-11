@@ -271,7 +271,7 @@ const altitudeSuccess = ref('')
 // Device orientation state
 const deviceOrientationError = ref('')
 const deviceOrientationSuccess = ref('')
-const { requestPermission, checkSupport, isSupported } = useDeviceOrientation()
+const { requestPermission, checkSupport } = useDeviceOrientation()
 
 // Computed properties for form fields
 const distanceUnits = computed({
@@ -485,7 +485,7 @@ const handleDeviceOrientationToggle = async () => {
     // Request permission
     try {
       const granted = await requestPermission()
-      
+
       if (granted) {
         deviceOrientationSuccess.value = 'Device orientation permission granted'
         setTimeout(() => {

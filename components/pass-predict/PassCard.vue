@@ -124,12 +124,7 @@ const {
   stopTracking
 } = useRealTimePosition()
 
-const {
-  shouldShowRealTimeTracking,
-  shouldShowPredictedPath,
-  getPastPositions,
-  getFuturePositions
-} = useSatellitePath(ref(props.pass))
+const { getPastPositions } = useSatellitePath()
 
 // Get distance units from settings
 const { settings } = useSettings()
@@ -191,7 +186,7 @@ const fetchGeostationaryPosition = async () => {
 // IMPORTANT: Only track when BOTH conditions are met:
 // 1. Card is expanded (user clicked to view details)
 // 2. Satellite is actively passing (within pass window)
-watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing], [prevExpanded, prevPassing]) => {
+watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing]) => {
   // Special handling for geostationary satellites
   if (isGeostationarySatellite.value) {
     if (expanded && !geostationaryPosition.value) {

@@ -291,15 +291,15 @@ class IndexedDBStorage {
   async getCredentials(): Promise<{ username: string; password: string; satnogsToken: string; n2yoApiKey: string } | null> {
     await this.ensureDB()
 
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([this.credentialsStoreName], 'readonly')
       const store = transaction.objectStore(this.credentialsStoreName)
       const request = store.get('credentials')
 
-      request.onsuccess = async () => {
+      request.onsuccess = () => {
         const result = request.result
         if (result) {
-          try {
+          ;(async () => {
             // Import secure storage utility
             const secureStorage = (await import('./secureStorage')).default
 
@@ -316,7 +316,7 @@ class IndexedDBStorage {
               satnogsToken: decryptedSatnogsToken,
               n2yoApiKey: decryptedN2yoApiKey
             })
-          } catch (error) {
+          })().catch(error => {
             console.error('Failed to decrypt credentials:', error)
             // If decryption fails completely, return empty credentials
             // User will need to re-enter them
@@ -327,7 +327,7 @@ class IndexedDBStorage {
               satnogsToken: '',
               n2yoApiKey: ''
             })
-          }
+          })
         } else {
           resolve(null)
         }
@@ -383,7 +383,7 @@ class IndexedDBStorage {
         const result = request.result
         if (result) {
           // Remove metadata fields
-          const { id, timestamp, ...settings } = result
+          const { id: _id, timestamp: _timestamp, ...settings } = result
           resolve(settings)
         } else {
           resolve({})
@@ -477,7 +477,6 @@ class IndexedDBStorage {
         getStoreSize(this.credentialsStoreName)
       ]).then(([tleSize, settingsSize, credentialsSize]: [number, number, number]) => {
         const totalBytes = tleSize + settingsSize + credentialsSize
-        const totalMB = Math.round(totalBytes / 1024 / 1024 * 100) / 100
 
         // Also get browser storage quota info
         if (navigator.storage && navigator.storage.estimate) {

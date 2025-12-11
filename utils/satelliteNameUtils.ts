@@ -3,13 +3,6 @@
  * Handles extraction and formatting of satellite names
  */
 /**
- * Get user-friendly satellite name
- */
-const getUserFriendlyName = (name: string): string => {
-  return name
-}
-
-/**
  * Extract the first part of a satellite name
  * Examples:
  * - "FOX-1C - AO-95Fox-1Cliff" -> "AO-95"
@@ -65,7 +58,7 @@ export const extractFirstSatelliteName = (name: string): string => {
   }
 
   // If no pattern matches, split by common separators and take first meaningful part
-  const parts = name.split(/[\s\-,\|]+/).filter(part => part.trim() !== '')
+  const parts = name.split(/[\s\-,|]+/).filter(part => part.trim() !== '')
 
   if (parts.length === 0) return name
 

@@ -135,7 +135,7 @@
 </template>
 
 <script setup>
-import { calculateDopplerShift, formatDopplerShift } from '~/utils/dopplerCalculations'
+import { calculateDopplerShift } from '~/utils/dopplerCalculations'
 import { matchesTransmitterFilters } from '~/utils/transmitterCategorization'
 import { useSettings } from '~/composables/storage/useSettings'
 

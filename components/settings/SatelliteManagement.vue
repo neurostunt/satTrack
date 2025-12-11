@@ -172,7 +172,7 @@
 
 <script setup>
 // Import satellite name utilities
-import { getFullSatelliteName, formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
+import { formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
 // Props
 const props = defineProps({

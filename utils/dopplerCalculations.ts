@@ -8,7 +8,7 @@ const SPEED_OF_LIGHT_KMS = 299792.458 // Speed of light in km/s
 /**
  * Calculate distance between observer and satellite
  * Uses haversine formula for great circle distance + altitude difference
- * 
+ *
  * @param observerLat Observer latitude (degrees)
  * @param observerLng Observer longitude (degrees)
  * @param observerAlt Observer altitude (meters)
@@ -27,41 +27,40 @@ export function calculateDistance(
 ): number {
   // Convert observer altitude from meters to km
   const obsAltKm = observerAlt / 1000
-  
+
   // Convert degrees to radians
   const lat1Rad = (observerLat * Math.PI) / 180
   const lat2Rad = (satLat * Math.PI) / 180
   const deltaLatRad = ((satLat - observerLat) * Math.PI) / 180
   const deltaLngRad = ((satLng - observerLng) * Math.PI) / 180
-  
+
   // Haversine formula for great circle distance on Earth's surface
-  const a = 
+  const a =
     Math.sin(deltaLatRad / 2) * Math.sin(deltaLatRad / 2) +
     Math.cos(lat1Rad) * Math.cos(lat2Rad) *
     Math.sin(deltaLngRad / 2) * Math.sin(deltaLngRad / 2)
-  
+
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  const surfaceDistance = EARTH_RADIUS_KM * c
-  
+
   // Calculate 3D distance using Pythagorean theorem
   // Observer and satellite are at different altitudes
   const obsRadiusFromCenter = EARTH_RADIUS_KM + obsAltKm
   const satRadiusFromCenter = EARTH_RADIUS_KM + satAlt
-  
+
   // Law of cosines in 3D
   const distance = Math.sqrt(
     obsRadiusFromCenter * obsRadiusFromCenter +
     satRadiusFromCenter * satRadiusFromCenter -
     2 * obsRadiusFromCenter * satRadiusFromCenter * Math.cos(c)
   )
-  
+
   return distance
 }
 
 /**
  * Calculate radial velocity (rate of change of distance)
  * Positive = satellite moving away, Negative = satellite approaching
- * 
+ *
  * @param distance1 Previous distance (km)
  * @param distance2 Current distance (km)
  * @param timeDiff Time difference (seconds)
@@ -78,7 +77,7 @@ export function calculateRadialVelocity(
 
 /**
  * Calculate Doppler shift for a given frequency
- * 
+ *
  * @param frequency Transmitted frequency (Hz)
  * @param radialVelocity Radial velocity (km/s) - positive = moving away, negative = approaching
  * @returns Object with shifted frequency and shift amount
@@ -93,7 +92,7 @@ export function calculateDopplerShift(
   const shiftedFrequency = frequency * (1 - radialVelocity / SPEED_OF_LIGHT_KMS)
   const shift = shiftedFrequency - frequency
   const shiftKHz = shift / 1000 // Convert to kHz for easier reading
-  
+
   return {
     shiftedFrequency,
     shift, // Hz
@@ -103,7 +102,7 @@ export function calculateDopplerShift(
 
 /**
  * Format Doppler shift for display
- * 
+ *
  * @param shiftKHz Doppler shift in kHz
  * @returns Formatted string (e.g., "+2.5 kHz" or "-1.2 kHz")
  */

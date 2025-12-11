@@ -113,7 +113,7 @@
 <script setup>
 import { ref } from 'vue'
 // Import satellite name utilities
-import { getFullSatelliteName, formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
+import { formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
 // Props
 defineProps({

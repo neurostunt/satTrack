@@ -234,7 +234,6 @@ const props = defineProps({
 // Constants
 // ============================================================================
 const center = 200 // Center of SVG (400/2)
-const radius = 180 // Outer radius (horizon)
 
 // Use preloaded background composable
 const { backgroundSVG, elevationToRadius } = usePolarPlotBackground()
@@ -383,11 +382,11 @@ const currentPosition = computed(() => {
 // Computed Properties - Predicted Pass Points
 // ============================================================================
 
-/** 
+/**
  * Entry point - represents the satellite's position at pass start time (entry)
  * Always calculated at t=0 (pass start time), regardless of current time or tracking state
  * This ensures the entry dot always shows where the satellite actually entered, even during active passes
- * 
+ *
  * IMPORTANT: This is calculated from pass.startTime, NOT from when the card was opened or tracking started
  */
 const entryPoint = computed(() => {
@@ -401,7 +400,7 @@ const entryPoint = computed(() => {
   // - Whether pass has started
   // - Whether card is open
   // - Whether real-time tracking is active
-  // 
+  //
   // At t=0 (pass start time): elevation = 0 (horizon), azimuth = startAzimuth
   // This is the actual satellite entry position, calculated from pass.startTime
   const entryElevation = 0
@@ -455,7 +454,7 @@ const peakPoint = computed(() => {
  * Predicted path arc - draws circular arc through entry → peak → exit
  * Uses true circular arc calculation (like compass drawing)
  * For geostationary satellites, returns null (no path needed)
- * 
+ *
  * IMPORTANT: Path is calculated from pass start time (entry), not from tab open time
  */
 const predictedPath = computed(() => {
@@ -513,18 +512,18 @@ const predictedPath = computed(() => {
   return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
 })
 
-/** 
+/**
  * Combined actual path (past + future positions from API) - dashed green line
  * When tab opens mid-pass, we need to combine past and future positions
  * to show the complete actual path the satellite has taken and will take
- * 
+ *
  * IMPORTANT: Uses timestamp to properly merge and sort positions, removing duplicates
  */
 const futurePath = computed(() => {
   // Combine past and future positions to show complete actual path
   const allActualPositions = []
   const seenTimestamps = new Set()
-  
+
   // Add past positions (already traveled path)
   if (props.pastPositions && props.pastPositions.length > 0) {
     props.pastPositions.forEach(pos => {
@@ -536,7 +535,7 @@ const futurePath = computed(() => {
       }
     })
   }
-  
+
   // Add future positions (upcoming path)
   if (props.futurePositions && props.futurePositions.length > 0) {
     props.futurePositions.forEach(pos => {
@@ -548,13 +547,13 @@ const futurePath = computed(() => {
       }
     })
   }
-  
+
   // Need at least 2 positions to draw a path
   if (allActualPositions.length < 2) return null
-  
+
   // Sort by timestamp to ensure proper path order (chronological)
   const sortedPositions = [...allActualPositions].sort((a, b) => a.timestamp - b.timestamp)
-  
+
   return generatePathWithWraparound(sortedPositions)
 })
 </script>

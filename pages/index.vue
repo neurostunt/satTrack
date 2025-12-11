@@ -45,28 +45,6 @@ const {
 // Reactive state
 const combinedData = ref({})
 
-// CTCSS parsing function
-const parseCTCSS = (description) => {
-  if (!description) return null
-
-  // Look for CTCSS/subtone patterns like "67.0 Hz", "67.0", "CTCSS 67.0", etc.
-  const ctcssPatterns = [
-    /(\d+\.?\d*)\s*Hz/i,
-    /CTCSS\s*(\d+\.?\d*)/i,
-    /subtone\s*(\d+\.?\d*)/i,
-    /(\d+\.?\d*)\s*CTCSS/i
-  ]
-
-  for (const pattern of ctcssPatterns) {
-    const match = description.match(pattern)
-    if (match) {
-      return parseFloat(match[1])
-    }
-  }
-
-  return null
-}
-
 // Load stored transmitter data
 const loadStoredTransmitterData = async () => {
   try {
@@ -170,14 +148,14 @@ const loadStoredTransmitterData = async () => {
     combinedData.value = combined
     console.log('🔍 Debug: Final combined data:', Object.keys(combinedData.value))
     console.log('🔍 Debug: ISS combined data:', combinedData.value['25544'])
-    
+
     // Load recommended satellites descriptions as fallback (before API fetching)
     await loadRecommendedSatellitesDescriptions()
-    
+
     // Fetch missing satellite images and descriptions from SatNOGS API
     await fetchMissingSatelliteImages()
     await fetchMissingSatelliteDescriptions()
-    
+
     // Fetch additional satellite information from CelesTrak SATCAT API
     await fetchSatcatData()
   } catch (error) {
@@ -191,18 +169,18 @@ const loadStoredTransmitterData = async () => {
  */
 const fetchMissingSatelliteDescriptions = async () => {
   if (!settings.value.trackedSatellites) return
-  
+
   const satellitesNeedingInfo = settings.value.trackedSatellites.filter(
     sat => sat.noradId && !combinedData.value[sat.noradId]?.satellite?.launchDate
   )
-  
+
   if (satellitesNeedingInfo.length === 0) {
     console.log('All satellites already have additional info')
     return
   }
-  
+
   console.log(`Fetching additional info for ${satellitesNeedingInfo.length} satellites`)
-  
+
   // Fetch additional info for each satellite
   for (const satellite of satellitesNeedingInfo) {
     try {
@@ -215,16 +193,16 @@ const fetchMissingSatelliteDescriptions = async () => {
           noradId: satellite.noradId
         }
       })
-      
+
       // Try to get satellite data from response
       let satData = null
       if (response?.success && Array.isArray(response.data)) {
         satData = response.data.find(s => s.norad_cat_id === satellite.noradId)
       }
-      
+
       // Debug: log what fields are available in satData
       console.log(`SatNOGS data for ${satellite.name} (${satellite.noradId}):`, Object.keys(satData || {}))
-      
+
       // Extract additional satellite information from SatNOGS API
       const launchDate = satData?.launched ? new Date(satData.launched).toLocaleDateString() : null
       const operator = satData?.operator && satData.operator !== 'None' ? satData.operator : null
@@ -232,7 +210,7 @@ const fetchMissingSatelliteDescriptions = async () => {
       const website = satData?.website || null
       const decayed = satData?.decayed ? new Date(satData.decayed).toLocaleDateString() : null
       const deployed = satData?.deployed ? new Date(satData.deployed).toLocaleDateString() : null
-      
+
       // If we found satellite data, update it with all available information
       if (satData && combinedData.value[satellite.noradId]) {
         // Update the combined data reactively using a new object to ensure reactivity
@@ -269,7 +247,7 @@ const fetchMissingSatelliteDescriptions = async () => {
 /**
  * Fetch SATCAT (Satellite Catalog) data from CelesTrak API
  * Provides detailed information: launch site, object type, size (RCS), orbital parameters, etc.
- * 
+ *
  * IMPORTANT: CelesTrak has rate limits - we cache data and limit requests to avoid 403 errors
  * Cache duration: 2 hours (matches CelesTrak update frequency)
  */
@@ -277,28 +255,28 @@ const satcatCache = new Map() // Cache: noradId -> { data, timestamp }
 
 const fetchSatcatData = async () => {
   if (!settings.value.trackedSatellites) return
-  
+
   const satellitesNeedingSatcat = settings.value.trackedSatellites.filter(
     sat => sat.noradId && !combinedData.value[sat.noradId]?.satellite?.launchSite
   )
-  
+
   if (satellitesNeedingSatcat.length === 0) {
     console.log('All satellites already have SATCAT data')
     return
   }
-  
+
   console.log(`Fetching SATCAT data for ${satellitesNeedingSatcat.length} satellites`)
-  
+
   // Fetch SATCAT data for each satellite with rate limiting
   // Add delay between requests to avoid rate limiting (500ms between requests)
   for (let i = 0; i < satellitesNeedingSatcat.length; i++) {
     const satellite = satellitesNeedingSatcat[i]
-    
+
     // Check cache first (2 hour cache duration)
     const cached = satcatCache.get(satellite.noradId)
     const cacheAge = cached ? (Date.now() - cached.timestamp) / 1000 / 60 : Infinity // minutes
     const CACHE_DURATION_MINUTES = 120 // 2 hours - matches CelesTrak update frequency
-    
+
     if (cached && cacheAge < CACHE_DURATION_MINUTES) {
       // Use cached data
       if (combinedData.value[satellite.noradId]) {
@@ -328,12 +306,12 @@ const fetchSatcatData = async () => {
       }
       continue
     }
-    
+
     // Add delay between requests to avoid rate limiting (except for first request)
     if (i > 0) {
       await new Promise(resolve => setTimeout(resolve, 500)) // 500ms delay
     }
-    
+
     try {
       // Fetch SATCAT data from CelesTrak API
       const response = await $fetch('/api/celestrak', {
@@ -343,16 +321,16 @@ const fetchSatcatData = async () => {
           noradId: satellite.noradId
         }
       })
-      
+
       if (response?.success && response.data && combinedData.value[satellite.noradId]) {
         const satcatData = response.data
-        
+
         // Cache the data
         satcatCache.set(satellite.noradId, {
           data: satcatData,
           timestamp: Date.now()
         })
-        
+
         // Update the combined data with SATCAT information
         combinedData.value = {
           ...combinedData.value,
@@ -401,18 +379,18 @@ const fetchSatcatData = async () => {
  */
 const fetchMissingSatelliteImages = async () => {
   if (!settings.value.trackedSatellites) return
-  
+
   const satellitesWithoutImages = settings.value.trackedSatellites.filter(
     sat => sat.noradId && !sat.image
   )
-  
+
   if (satellitesWithoutImages.length === 0) {
     console.log('All satellites already have images')
     return
   }
-  
+
   console.log(`Fetching images for ${satellitesWithoutImages.length} satellites without images`)
-  
+
   // Fetch images for each satellite
   for (const satellite of satellitesWithoutImages) {
     try {
@@ -425,17 +403,17 @@ const fetchMissingSatelliteImages = async () => {
           noradId: satellite.noradId
         }
       })
-      
+
       // Try to get satellite data from response
       let satData = null
       if (response?.success && Array.isArray(response.data)) {
         satData = response.data.find(s => s.norad_cat_id === satellite.noradId)
       }
-      
+
       // If we found satellite data with an image, update it
       if (satData?.image) {
         const imageUrl = getSatnogsImageUrl(satData.image)
-        
+
         if (imageUrl) {
           // Update the satellite in settings
           const satIndex = settings.value.trackedSatellites.findIndex(s => s.noradId === satellite.noradId)
@@ -443,12 +421,12 @@ const fetchMissingSatelliteImages = async () => {
             settings.value.trackedSatellites[satIndex].image = satData.image
             await saveSettings()
           }
-          
+
           // Update the combined data reactively
           if (combinedData.value[satellite.noradId]) {
             combinedData.value[satellite.noradId].satellite.image = imageUrl
           }
-          
+
           console.log(`✓ Fetched image for ${satellite.name} (${satellite.noradId})`)
         }
       }
@@ -572,7 +550,7 @@ const loadRecommendedSatellitesDescriptions = async () => {
           console.log(`📝 Found description for NORAD ${sat.noradId}: ${sat.description.substring(0, 50)}...`)
         }
       })
-      
+
       // Update combined data with descriptions from recommended file if not already present
       // Use a new object to ensure reactivity
       const updatedData = { ...combinedData.value }
@@ -589,7 +567,7 @@ const loadRecommendedSatellitesDescriptions = async () => {
         }
       })
       combinedData.value = updatedData
-      
+
       console.log('📝 Descriptions map:', descriptionsMap)
       console.log('📝 Combined data after loading descriptions:', Object.keys(combinedData.value).map(id => ({
         noradId: id,

@@ -3,6 +3,8 @@
  * TypeScript definitions for storage-related interfaces
  */
 
+import type { Satellite, ObservationLocation } from './satellite'
+
 export interface StorageSettings {
   trackedSatellites: Satellite[]
   spaceTrackUsername: string

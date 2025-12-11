@@ -1,4 +1,4 @@
-import { ref, computed, readonly } from 'vue'
+import { ref, computed } from 'vue'
 import { useSecureStorage } from './useSecureStorage'
 import type { StorageSettings } from '~/types/storage'
 
@@ -46,7 +46,7 @@ const loadSettings = async (): Promise<void> => {
     if (storedSettings) {
       // Migrate old transmitterFilters format to new format if needed
       let transmitterFilters: any = storedSettings.transmitterFilters || defaultSettings.transmitterFilters
-      
+
       // Check if old format exists and migrate to new simple format
       if (transmitterFilters && typeof transmitterFilters === 'object') {
         // If it has old format fields, migrate to new format
@@ -64,12 +64,12 @@ const loadSettings = async (): Promise<void> => {
       } else {
         transmitterFilters = { ...defaultSettings.transmitterFilters }
       }
-      
+
       // Ensure the field exists with proper default
       if (transmitterFilters.showOnly2m70cm === undefined) {
         transmitterFilters.showOnly2m70cm = false
       }
-      
+
       // Deep clone to ensure nested objects are mutable
       settings.value = {
         ...defaultSettings,

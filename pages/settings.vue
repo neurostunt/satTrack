@@ -97,7 +97,6 @@ const {
   storeTransponderData,
   getStorageInfo,
   storeCredentials,
-  getCredentials,
   clearTLEData: clearIndexedDBTLEData,
   clearTransmitterData: clearIndexedDBTransmitterData,
   clearAll: clearIndexedDBAllData,
@@ -600,15 +599,15 @@ const clearAllData = async () => {
   try {
     // Clear IndexedDB data
     await clearIndexedDBAllData()
-    
+
     // Reset settings to default (this clears tracked satellites)
     resetSettings()
-    
+
     // Save reset settings to storage
     await saveSettingsToStorage()
-    
+
     console.log('All data cleared successfully, including tracked satellites')
-    
+
     // Update storage info display after clearing
     const info = await getStorageInfo()
     storageInfo.value = info
@@ -676,7 +675,7 @@ watch(searchQuery, async (newQuery) => {
 // Load settings and initial storage info on mount
 onMounted(async () => {
   await loadSettings()
-  
+
   // Load storage info once on mount (no manual refresh button)
   try {
     const info = await getStorageInfo()

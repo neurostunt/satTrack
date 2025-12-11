@@ -78,7 +78,6 @@ const {
 } = useTLEData()
 
 const {
-  calculatePassesForSatellites,
   getNextPassTime,
   formatPassTime,
   formatPassDuration,
@@ -98,11 +97,9 @@ const {
 const {
   passPredictions,
   combinedData,
-  observerLocation,
   loadPassPredictions,
   loadStoredTransmitterData,
   calculateFreshPassPredictions,
-  clearAndRefreshPassPredictions,
   isDataStale
 } = usePassData(settings, getNextPassTime, formatPassTime)
 
@@ -224,14 +221,14 @@ const checkSoundAlerts = () => {
     if (isGeostationary(pass)) {
       return
     }
-    
+
     // Additional safety check: ensure pass meets minElevation requirement
     // (should already be filtered, but double-check for safety)
     const minElevation = settings.value?.minElevation || 20
     if (pass.maxElevation < minElevation) {
       return // Skip passes below minimum elevation
     }
-    
+
     // Only alert for passes that are upcoming or currently passing
     // Don't alert for passes that have already ended (more than 10 seconds ago)
     const passStatus = getPassStatus(pass.startTime, pass.endTime, pass.noradId, pass)
@@ -317,7 +314,7 @@ onMounted(async () => {
   // Start device orientation if enabled
   if (settings.value.enableDeviceOrientation) {
     await startDeviceOrientation()
-    
+
     // Start compass calibration if auto-calibrate is enabled
     if (settings.value.autoCalibrateCompass && isDeviceOrientationActive.value) {
       startCompassCalibration()
@@ -327,10 +324,10 @@ onMounted(async () => {
   // Start real-time updates for time until pass
   timeUpdateInterval.value = setInterval(() => {
     updateCurrentTime()
-    
+
     // Handle auto-removal of passed satellites (every second)
     handleAutoRemoval()
-    
+
     // Also cleanup expired passes every 30 seconds
     if (Date.now() % 30000 < 1000) {
       cleanupExpiredPasses()
@@ -348,15 +345,15 @@ onMounted(async () => {
   // Only enabled if autoUpdateTLE is checked in settings
   // Interval: 6 hours (TLE data is typically updated every 12-24 hours, so 6h is a good balance)
   const AUTO_UPDATE_INTERVAL = 6 * 60 * 60 * 1000 // 6 hours in milliseconds
-  
+
   if (settings.value.autoUpdateTLE) {
     console.log(`✅ Auto-update TLE enabled - Starting ${AUTO_UPDATE_INTERVAL / (60 * 60 * 1000)}-hour background refresh interval`)
-    
+
     // Function to perform full refresh: TLE data + pass predictions
     const performAutoUpdate = async () => {
       try {
         console.log('🔄 Auto-update: Starting full refresh (TLE + pass predictions)...')
-        
+
         // Check if we have tracked satellites
         if (!settings.value.trackedSatellites || settings.value.trackedSatellites.length === 0) {
           console.log('ℹ️ No tracked satellites, skipping auto-update')
@@ -382,7 +379,7 @@ onMounted(async () => {
         // Step 3: Reload stored transmitter data to update combined data
         await loadStoredTransmitterData()
         console.log('✅ Auto-update completed successfully')
-        
+
       } catch (error) {
         console.error('❌ Auto-update failed:', error)
         // Don't throw - allow app to continue with cached data
@@ -418,10 +415,10 @@ onUnmounted(() => {
   if (soundAlertCheckInterval.value) {
     clearInterval(soundAlertCheckInterval.value)
   }
-  
+
   // Stop device orientation
   stopDeviceOrientation()
-  
+
   // Disable sound alerts
   disableSoundAlerts()
 })

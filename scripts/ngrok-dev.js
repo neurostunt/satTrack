@@ -4,32 +4,30 @@
  * Script to start ngrok tunnel, display QR code, then start nuxt dev
  */
 
-const { spawn } = require('child_process')
 const qrcode = require('qrcode-terminal')
 const http = require('http')
 
-const PORT = 3000
 const NGROK_API_URL = 'http://127.0.0.1:4040/api/tunnels'
 
 // Function to get ngrok URL from local API
 function getNgrokUrl(retries = 15, delay = 1000) {
   return new Promise((resolve) => {
     let attempts = 0
-    
+
     const tryGetUrl = () => {
       attempts++
-      
+
       const req = http.get(NGROK_API_URL, (res) => {
         let data = ''
-        
+
         res.on('data', (chunk) => {
           data += chunk
         })
-        
+
         res.on('end', () => {
           try {
             const json = JSON.parse(data)
-            
+
             if (json.tunnels && json.tunnels.length > 0) {
               // Prefer HTTPS tunnel if available
               const httpsTunnel = json.tunnels.find(t => t.proto === 'https')
@@ -37,10 +35,10 @@ function getNgrokUrl(retries = 15, delay = 1000) {
               resolve(tunnel.public_url)
               return
             }
-          } catch (error) {
+          } catch (_error) {
             // JSON parse error, continue retrying
           }
-          
+
           // If no valid URL found and more retries available
           if (attempts < retries) {
             setTimeout(tryGetUrl, delay)
@@ -49,7 +47,7 @@ function getNgrokUrl(retries = 15, delay = 1000) {
           }
         })
       })
-      
+
       req.on('error', () => {
         // ngrok API not ready yet, wait and retry
         if (attempts < retries) {
@@ -58,7 +56,7 @@ function getNgrokUrl(retries = 15, delay = 1000) {
           resolve(null)
         }
       })
-      
+
       req.setTimeout(2000, () => {
         req.destroy()
         if (attempts < retries) {
@@ -68,7 +66,7 @@ function getNgrokUrl(retries = 15, delay = 1000) {
         }
       })
     }
-    
+
     tryGetUrl()
   })
 }
@@ -80,7 +78,7 @@ function displayQRCode(url) {
   console.log('🌐  ngrok Tunnel - Scan QR Code or Open URL')
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
   console.log(`\n🔗 URL: ${url}\n`)
-  
+
   // Generate QR code
   qrcode.generate(url, { small: true }, (qr) => {
     console.log(qr)
@@ -91,10 +89,10 @@ function displayQRCode(url) {
 // Main function
 async function main() {
   console.log('🚀 Waiting for ngrok to start...')
-  
+
   // Wait for ngrok API to be ready and get URL
   const url = await getNgrokUrl()
-  
+
   if (url) {
     displayQRCode(url)
   } else {

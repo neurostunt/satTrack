@@ -148,7 +148,7 @@ export const useTLEData = () => {
   /**
    * Fetch TLE data from SatNOGS as backup
    */
-  const fetchTLEDataFromSatNOGS = async (satellites: Satellite[], satnogsToken: string | null = null): Promise<TLEData[]> => {
+  const fetchTLEDataFromSatNOGS = async (satellites: Satellite[], _satnogsToken: string | null = null): Promise<TLEData[]> => {
     // Note: SatNOGS API doesn't require authentication for TLE read operations
     const tleData: Record<number, TLEData> = {}
     const noradIds = satellites.map(sat => sat.noradId)
@@ -328,10 +328,10 @@ export const useTLEData = () => {
       rawTLEData.forEach(tle => {
         // Handle different data formats from Space-Track vs SatNOGS vs CelesTrak
         const noradId = (tle as any).NORAD_CAT_ID || (tle as any).norad_cat_id || (tle as any).noradId
-        const name = (tle as any).OBJECT_NAME || (tle as any).tle0 || `Satellite ${noradId}`
+        const _name = (tle as any).OBJECT_NAME || (tle as any).tle0 || `Satellite ${noradId}`
         const tle1 = (tle as any).TLE_LINE1 || (tle as any).tle1
         const tle2 = (tle as any).TLE_LINE2 || (tle as any).tle2
-        const epoch = (tle as any).EPOCH || (tle as any).updated
+        const _epoch = (tle as any).EPOCH || (tle as any).updated
 
         if (!noradId || !tle1 || !tle2) {
           console.warn('⚠️ Skipping incomplete TLE data:', { noradId, hasLine1: !!tle1, hasLine2: !!tle2 })

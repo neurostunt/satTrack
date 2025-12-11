@@ -65,7 +65,7 @@
                 Get your free API key from <a href="https://www.n2yo.com/api/" target="_blank" class="text-primary-400 hover:text-primary-300">n2yo.com</a>
               </div>
             </div>
-            
+
             <div class="relative">
               <label class="block text-xs font-medium text-space-300 mb-1">
                 Minimum Elevation (degrees)
@@ -121,9 +121,6 @@ const props = defineProps({
     required: true
   }
 })
-
-// Emits
-const emit = defineEmits(['save-settings'])
 
 // Local reactive state for form inputs
 const localSettings = ref({

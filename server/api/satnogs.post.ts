@@ -90,8 +90,10 @@ function buildSatnogsUrl(action: string, params: any): string | null {
       if (params.noradId) {
         return `${baseUrl}/satellites/?norad_cat_id=${params.noradId}`
       }
+    {
       const limit = params.limit || 100
       return `${baseUrl}/satellites/?limit=${limit}`
+    }
 
     case 'search':
       validateRequired(params, ['query'], 'SatNOGS')

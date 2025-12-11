@@ -10,7 +10,6 @@
  * - Maximum 300 seconds per request
  */
 
-import type { Ref } from 'vue'
 import { calculateDistance, calculateRadialVelocity } from '~/utils/dopplerCalculations'
 import { useN2YO } from '../api/useN2YO'
 
@@ -47,7 +46,7 @@ export const useRealTimePosition = () => {
   // Tracking state
   const isTracking = ref(false)
   const lastFetchTime = ref(0)
-  
+
   // Server-side timestamp for consistent time calculations across devices
   // This is updated when we fetch positions from the API
   const serverTimestamp = ref<number>(0)
@@ -61,7 +60,6 @@ export const useRealTimePosition = () => {
 
   // Animation frame ID for cleanup
   let animationFrameId: number | null = null
-  let fetchIntervalId: number | null = null
   let isFetching = ref(false) // Prevent duplicate fetches
 
   /**
@@ -153,7 +151,7 @@ export const useRealTimePosition = () => {
    * Fetch satellite positions from N2YO API
    * Gets 300 seconds (5 minutes) worth of positions (one position per second)
    * This maximizes API efficiency while staying within the 300s limit
-   * 
+   *
    * Uses server-side timestamp for all time calculations to ensure consistency
    * across devices. This eliminates differences due to system clock drift or
    * timezone differences between devices.
@@ -175,14 +173,13 @@ export const useRealTimePosition = () => {
       // Calculate current server time for consistent calculations
       // Use server-side timestamp if available, otherwise fallback to client time
       const clientNow = Date.now()
-      const currentServerTime = serverTimestamp.value > 0 
-        ? clientNow + serverTimestampOffset.value 
+      const currentServerTime = serverTimestamp.value > 0
+        ? clientNow + serverTimestampOffset.value
         : clientNow
 
       // Check cache first
       const cached = positionCache.get(noradId)
       if (cached) {
-        const cacheAge = (currentServerTime - cached.fetchTime) / 1000 // seconds
         const hasFutureData = cached.positions.some(pos => pos.timestamp > currentServerTime)
 
         // Use cache if:
@@ -195,14 +192,14 @@ export const useRealTimePosition = () => {
         if (hasFutureData && locationMatch) {
           // Filter cached positions to only include future ones from current server time
           const futurePositionsFromCache = cached.positions.filter(pos => pos.timestamp >= currentServerTime)
-          
+
           // When tab opens mid-pass, also extract past positions from cache to show complete path
           const pastThreshold = currentServerTime - 1000 // 1 second ago
-          const pastPositionsFromCache = cached.positions.filter(pos => 
-            pos.timestamp < pastThreshold && 
+          const pastPositionsFromCache = cached.positions.filter(pos =>
+            pos.timestamp < pastThreshold &&
             pos.timestamp > (currentServerTime - 5 * 60 * 1000) // Last 5 minutes only
           )
-          
+
           // Add past positions to history if they don't already exist
           if (pastPositionsFromCache.length > 0) {
             const existingHistoryTimestamps = new Set(positionHistory.value.map(p => p.timestamp))
@@ -244,11 +241,11 @@ export const useRealTimePosition = () => {
       // Use server-side timestamp for all time calculations to ensure consistency across devices
       const fetchedServerTimestamp = (positions as any).serverTimestamp || Date.now()
       const clientTime = Date.now()
-      
+
       // Update server timestamp and calculate offset for future calculations
       serverTimestamp.value = fetchedServerTimestamp
       serverTimestampOffset.value = fetchedServerTimestamp - clientTime
-      
+
       console.log(`🕐 Server timestamp: ${new Date(fetchedServerTimestamp).toISOString()}, Client offset: ${serverTimestampOffset.value}ms`)
 
       // Calculate distance for each position
@@ -278,13 +275,13 @@ export const useRealTimePosition = () => {
 
       // Merge and sort by timestamp to ensure proper ordering
       const allMergedPositions = [...existingFuture, ...newPositions].sort((a, b) => a.timestamp - b.timestamp)
-      
+
       // When tab opens mid-pass, some positions in futurePositions may be in the past
       // Move past positions to history immediately so they can be drawn as part of the green path
       const pastThreshold = currentTime - 1000 // 1 second ago (to account for timing differences)
       const pastPositions = allMergedPositions.filter(pos => pos.timestamp < pastThreshold)
       const futurePositionsOnly = allMergedPositions.filter(pos => pos.timestamp >= pastThreshold)
-      
+
       // Add past positions to history if they don't already exist
       if (pastPositions.length > 0) {
         const existingHistoryTimestamps = new Set(positionHistory.value.map(p => p.timestamp))
@@ -298,7 +295,7 @@ export const useRealTimePosition = () => {
           positionHistory.value.sort((a, b) => a.timestamp - b.timestamp)
         }
       }
-      
+
       futurePositions.value = futurePositionsOnly
       lastFetchTime.value = currentTime // Use server-side timestamp
 
@@ -340,8 +337,8 @@ export const useRealTimePosition = () => {
       // Use server-side timestamp for position calculations to ensure consistency across devices
       // Calculate current server time based on offset from last fetch
       const clientNow = Date.now()
-      const serverNow = serverTimestamp.value > 0 
-        ? clientNow + serverTimestampOffset.value 
+      const serverNow = serverTimestamp.value > 0
+        ? clientNow + serverTimestampOffset.value
         : clientNow // Fallback to client time if server timestamp not available
 
       // Check buffer status and fetch more positions if running low or exhausted

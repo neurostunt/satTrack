@@ -86,7 +86,7 @@ export function validateRequired(params: Record<string, any>, required: string[]
   if (missing.length > 0) {
     throw createError({
       statusCode: 400,
-      statusMessage: `Missing required parameters: ${missing.join(', ')}`
+      statusMessage: `${apiName}: Missing required parameters: ${missing.join(', ')}`
     })
   }
 }

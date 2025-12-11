@@ -7,9 +7,7 @@
 import type { Ref } from 'vue'
 import type { SatellitePosition } from './useRealTimePosition'
 
-export const useSatellitePath = (
-  passPrediction: Ref<any>
-) => {
+export const useSatellitePath = () => {
   /**
    * Get positions for "past path" drawing
    * Returns positions where satellite has already been
@@ -36,7 +34,7 @@ export const useSatellitePath = (
     const now = (serverTimestamp && serverTimestamp > 0 && serverTimestampOffset !== undefined)
       ? clientNow + serverTimestampOffset
       : clientNow
-    
+
     // Return only future positions (from now onwards)
     // API provides up to 300 seconds of future data
     return futurePositions.filter(pos => pos.timestamp >= now)
@@ -63,7 +61,7 @@ export const useSatellitePath = (
   ): boolean => {
     const now = Date.now()
     const tenMinutesBeforePass = startTime - (10 * 60 * 1000)
-    
+
     return now >= tenMinutesBeforePass && now < startTime
   }
 
@@ -77,7 +75,7 @@ export const useSatellitePath = (
   ): number => {
     const timeSinceLastFetch = Date.now() - lastFetchTime
     const timeRemaining = updateInterval - timeSinceLastFetch
-    
+
     return Math.max(0, timeRemaining)
   }
 
@@ -114,12 +112,12 @@ export const useSatellitePath = (
     // Path helpers
     getPastPositions,
     getFuturePositions,
-    
+
     // Display logic
     shouldShowRealTimeTracking,
     shouldShowPredictedPath,
     getTimeUntilNextUpdate,
-    
+
     // Formatting
     formatPositionInfo,
     getCompassDirection

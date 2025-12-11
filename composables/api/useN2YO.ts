@@ -254,13 +254,19 @@ export const useN2YO = () => {
       }
 
       const positionsData = (response as any).data
+      
+      // Get server-side timestamp for consistent time calculations across devices
+      // This ensures all devices use the same reference time, eliminating differences
+      // due to system clock drift or timezone differences
+      const serverTimestamp = positionsData.serverTimestamp || Date.now()
 
       // Increment request counter after successful API call
       incrementRequestCount()
       console.log(`📊 API requests used this hour (after): ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR} (positions endpoint)`)
 
       console.log(`✅ N2YO positions API success for NORAD ${noradId}:`, {
-        positionsCount: positionsData.positions?.length || 0
+        positionsCount: positionsData.positions?.length || 0,
+        serverTimestamp: new Date(serverTimestamp).toISOString()
       })
 
       // Debug: Log first position to see what fields are available
@@ -279,6 +285,10 @@ export const useN2YO = () => {
         satAltitude: pos.sataltitude,
         distance: 0 // Will be calculated from coordinates
       }))
+
+      // Add server-side timestamp to positions array metadata
+      // This allows useRealTimePosition to use server time for all calculations
+      ;(positions as any).serverTimestamp = serverTimestamp
 
       console.log('🔍 Mapped first position:', positions[0])
 

@@ -22,6 +22,7 @@ export const useSoundAlerts = () => {
   /**
    * Initialize audio context (required for Web Audio API)
    * Web Audio API requires user interaction before playing sounds
+   * This will be called lazily when first sound needs to play (after user interaction)
    */
   const initAudioContext = async () => {
     if (typeof window === 'undefined') return
@@ -31,16 +32,32 @@ export const useSoundAlerts = () => {
         audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
         
         // Resume audio context if suspended (required after user interaction)
+        // If resume fails, it means user hasn't interacted yet - that's OK, we'll try again later
         if (audioContext.state === 'suspended') {
-          await audioContext.resume()
+          try {
+            await audioContext.resume()
+          } catch (error) {
+            // AudioContext can't be resumed without user interaction - this is expected
+            // Will be retried on next play attempt
+            console.log('AudioContext suspended - will resume on next user interaction')
+            return
+          }
         }
       } catch (error) {
+        // Failed to create AudioContext - might be browser limitation
         console.error('Failed to initialize audio context:', error)
+        return
       }
     } else {
       // Resume if already exists but suspended
       if (audioContext.state === 'suspended') {
-        await audioContext.resume()
+        try {
+          await audioContext.resume()
+        } catch (error) {
+          // Can't resume without user interaction - will retry later
+          console.log('AudioContext suspended - will resume on next user interaction')
+          return
+        }
       }
     }
   }
@@ -88,17 +105,32 @@ export const useSoundAlerts = () => {
     if (!isEnabled.value) return
     if (typeof window === 'undefined') return
 
+    // Initialize AudioContext (will be created/resumed on first user interaction)
     await initAudioContext()
-    if (!audioContext) return
+    if (!audioContext) {
+      // AudioContext not available - user hasn't interacted yet
+      // Silently fail - sound will work after user interaction
+      return
+    }
     
     // Ensure audio context is running
     if (audioContext.state === 'suspended') {
-      await audioContext.resume()
+      try {
+        await audioContext.resume()
+      } catch (error) {
+        // Can't resume without user interaction - silently fail
+        return
+      }
+    }
+
+    // If still suspended after resume attempt, can't play
+    if (audioContext.state === 'suspended') {
+      return
     }
 
     const buffer = await loadAudioBuffer()
     if (!buffer) {
-      console.error('Failed to load audio buffer')
+      // Failed to load buffer - silently fail
       return
     }
 
@@ -120,7 +152,8 @@ export const useSoundAlerts = () => {
       
       source.start(playAt)
     } catch (error) {
-      console.error('Failed to play sonar ping:', error)
+      // Failed to play - silently fail (might be browser limitation)
+      console.debug('Failed to play sonar ping:', error)
     }
   }
 
@@ -207,10 +240,12 @@ export const useSoundAlerts = () => {
 
   /**
    * Enable sound alerts
+   * Note: AudioContext will be initialized lazily on first sound play (after user interaction)
    */
   const enable = async () => {
     isEnabled.value = true
-    await initAudioContext()
+    // Don't initialize AudioContext here - it requires user interaction
+    // It will be initialized automatically when first sound needs to play
   }
 
   /**

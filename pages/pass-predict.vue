@@ -204,13 +204,41 @@ const passesWithTransmitters = computed(() => {
 })
 
 // Check and play sound alerts for passes
+// IMPORTANT: Only alert for passes that are actually displayed on the page
+// This means they must:
+// 1. Pass minElevation filter (already filtered in sortedPasses)
+// 2. Have available transmitters (filtered in passesWithTransmitters)
+// 3. Not be geostationary
 const checkSoundAlerts = () => {
   if (!settings.value.soundAlerts) return
 
   const now = currentTime.value
   const TEN_MINUTES = 10 * 60 * 1000
 
+  // Use passesWithTransmitters which already includes all filters:
+  // - minElevation filter (from sortedPasses)
+  // - transmitter availability filter
+  // This ensures we only alert for passes that are actually displayed on the page
   passesWithTransmitters.value.forEach(pass => {
+    // Skip geostationary satellites - no alerts needed for stationary satellites
+    if (isGeostationary(pass)) {
+      return
+    }
+    
+    // Additional safety check: ensure pass meets minElevation requirement
+    // (should already be filtered, but double-check for safety)
+    const minElevation = settings.value?.minElevation || 20
+    if (pass.maxElevation < minElevation) {
+      return // Skip passes below minimum elevation
+    }
+    
+    // Only alert for passes that are upcoming or currently passing
+    // Don't alert for passes that have already ended (more than 10 seconds ago)
+    const passStatus = getPassStatus(pass.startTime, pass.endTime, pass.noradId, pass)
+    if (passStatus === 'passed') {
+      return // Skip passes that have already ended
+    }
+
     const passKey = `${pass.noradId}-${pass.startTime}`
     const alerted = alertedPasses.value.get(passKey) || {
       warning10min: false,

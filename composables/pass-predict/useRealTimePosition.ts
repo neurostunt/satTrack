@@ -47,6 +47,11 @@ export const useRealTimePosition = () => {
   // Tracking state
   const isTracking = ref(false)
   const lastFetchTime = ref(0)
+  
+  // Server-side timestamp for consistent time calculations across devices
+  // This is updated when we fetch positions from the API
+  const serverTimestamp = ref<number>(0)
+  const serverTimestampOffset = ref<number>(0) // Offset between server and client time
 
   // Radial velocity (km/s)
   const radialVelocity = ref<number>(0)
@@ -139,6 +144,8 @@ export const useRealTimePosition = () => {
     positionHistory.value = []
     futurePositions.value = [] // Will be repopulated from cache if reopened
     radialVelocity.value = 0
+    serverTimestamp.value = 0
+    serverTimestampOffset.value = 0
     // Don't clear observerLocation - keep for next time
   }
 
@@ -146,6 +153,10 @@ export const useRealTimePosition = () => {
    * Fetch satellite positions from N2YO API
    * Gets 300 seconds (5 minutes) worth of positions (one position per second)
    * This maximizes API efficiency while staying within the 300s limit
+   * 
+   * Uses server-side timestamp for all time calculations to ensure consistency
+   * across devices. This eliminates differences due to system clock drift or
+   * timezone differences between devices.
    */
   const fetchPositions = async (
     noradId: number,
@@ -161,13 +172,18 @@ export const useRealTimePosition = () => {
 
     try {
       isFetching.value = true
-      const now = Date.now()
+      // Calculate current server time for consistent calculations
+      // Use server-side timestamp if available, otherwise fallback to client time
+      const clientNow = Date.now()
+      const currentServerTime = serverTimestamp.value > 0 
+        ? clientNow + serverTimestampOffset.value 
+        : clientNow
 
       // Check cache first
       const cached = positionCache.get(noradId)
       if (cached) {
-        const cacheAge = (now - cached.fetchTime) / 1000 // seconds
-        const hasFutureData = cached.positions.some(pos => pos.timestamp > now)
+        const cacheAge = (currentServerTime - cached.fetchTime) / 1000 // seconds
+        const hasFutureData = cached.positions.some(pos => pos.timestamp > currentServerTime)
 
         // Use cache if:
         // 1. It still has future position data
@@ -177,11 +193,11 @@ export const useRealTimePosition = () => {
           Math.abs(cached.observerLocation.lng - observerLng) < 0.01
 
         if (hasFutureData && locationMatch) {
-          // Filter cached positions to only include future ones from current time
-          const futurePositionsFromCache = cached.positions.filter(pos => pos.timestamp >= now)
+          // Filter cached positions to only include future ones from current server time
+          const futurePositionsFromCache = cached.positions.filter(pos => pos.timestamp >= currentServerTime)
 
           // Merge with any existing buffer
-          const existingFuture = futurePositions.value.filter(pos => pos.timestamp >= now)
+          const existingFuture = futurePositions.value.filter(pos => pos.timestamp >= currentServerTime)
           const newPositions = futurePositionsFromCache.filter(pos =>
             !existingFuture.some(existing => existing.timestamp === pos.timestamp)
           )
@@ -203,6 +219,16 @@ export const useRealTimePosition = () => {
         apiKey
       )
 
+      // Get server-side timestamp from positions array (added by useN2YO)
+      // Use server-side timestamp for all time calculations to ensure consistency across devices
+      const fetchedServerTimestamp = (positions as any).serverTimestamp || Date.now()
+      const clientTime = Date.now()
+      
+      // Update server timestamp and calculate offset for future calculations
+      serverTimestamp.value = fetchedServerTimestamp
+      serverTimestampOffset.value = fetchedServerTimestamp - clientTime
+      
+      console.log(`🕐 Server timestamp: ${new Date(fetchedServerTimestamp).toISOString()}, Client offset: ${serverTimestampOffset.value}ms`)
 
       // Calculate distance for each position
       if (observerLocation.value) {
@@ -220,7 +246,8 @@ export const useRealTimePosition = () => {
 
       // Merge with existing buffer, removing any overlaps
       // The animation loop moves consumed positions to history, so we combine remaining + new
-      const currentTime = Date.now()
+      // Use server-side timestamp for consistent time calculations across devices
+      const currentTime = fetchedServerTimestamp
       const existingFuture = futurePositions.value.filter((pos: SatellitePosition) => pos.timestamp >= currentTime)
 
       // Only add new positions that don't overlap with existing ones
@@ -230,13 +257,13 @@ export const useRealTimePosition = () => {
 
       // Merge and sort by timestamp to ensure proper ordering
       futurePositions.value = [...existingFuture, ...newPositions].sort((a, b) => a.timestamp - b.timestamp)
-      lastFetchTime.value = currentTime
+      lastFetchTime.value = currentTime // Use server-side timestamp
 
       // Store in cache for reuse
       positionCache.set(noradId, {
         noradId,
         positions: positions,
-        fetchTime: currentTime,
+        fetchTime: currentTime, // Use server-side timestamp
         observerLocation: {
           lat: observerLat,
           lng: observerLng,
@@ -267,14 +294,19 @@ export const useRealTimePosition = () => {
     const animate = () => {
       if (!isTracking.value) return
 
-      const now = Date.now()
+      // Use server-side timestamp for position calculations to ensure consistency across devices
+      // Calculate current server time based on offset from last fetch
+      const clientNow = Date.now()
+      const serverNow = serverTimestamp.value > 0 
+        ? clientNow + serverTimestampOffset.value 
+        : clientNow // Fallback to client time if server timestamp not available
 
       // Check buffer status and fetch more positions if running low or exhausted
       // Fetch when less than 90 seconds of data remain OR buffer is exhausted
       if (futurePositions.value.length > 0 && !isFetching.value) {
         const latestPosition = futurePositions.value[futurePositions.value.length - 1]
         if (latestPosition) {
-          const timeRemaining = (latestPosition.timestamp - now) / 1000 // seconds
+          const timeRemaining = (latestPosition.timestamp - serverNow) / 1000 // seconds
 
           // Fetch if buffer is low (< 90s) OR already exhausted (< 0s)
           if (timeRemaining < 90) {
@@ -289,7 +321,8 @@ export const useRealTimePosition = () => {
       // Find the current position from future positions buffer
       if (futurePositions.value.length > 0) {
         // Find position closest to current time (or interpolate between two positions)
-        const futureIdx = futurePositions.value.findIndex(pos => pos.timestamp >= now)
+        // Use server-side timestamp for consistent position calculations
+        const futureIdx = futurePositions.value.findIndex(pos => pos.timestamp >= serverNow)
 
         if (futureIdx >= 0) {
           const futurePos = futurePositions.value[futureIdx]
@@ -302,7 +335,7 @@ export const useRealTimePosition = () => {
 
             if (prevPos) {
               const timeDiff = futurePos.timestamp - prevPos.timestamp
-              const timeProgress = (now - prevPos.timestamp) / timeDiff
+              const timeProgress = (serverNow - prevPos.timestamp) / timeDiff
 
               // Interpolate for smooth movement
               const interpolatedPos = interpolatePosition(prevPos, futurePos, timeProgress)
@@ -330,13 +363,14 @@ export const useRealTimePosition = () => {
           }
 
           // Move consumed positions to history (only move fully consumed ones)
-          const consumedPositions = futurePositions.value.filter(pos => pos.timestamp < (now - 1000))
+          // Use server-side timestamp for consistent time calculations
+          const consumedPositions = futurePositions.value.filter(pos => pos.timestamp < (serverNow - 1000))
           if (consumedPositions.length > 0) {
             positionHistory.value.push(...consumedPositions)
-            futurePositions.value = futurePositions.value.filter(pos => pos.timestamp >= (now - 1000))
+            futurePositions.value = futurePositions.value.filter(pos => pos.timestamp >= (serverNow - 1000))
 
             // Keep only last 5 minutes of history (300 positions max)
-            const fiveMinutesAgo = now - (5 * 60 * 1000)
+            const fiveMinutesAgo = serverNow - (5 * 60 * 1000)
             positionHistory.value = positionHistory.value.filter(pos => pos.timestamp > fiveMinutesAgo)
           }
         } else {

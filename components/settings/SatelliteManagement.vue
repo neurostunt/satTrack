@@ -104,8 +104,8 @@
               'hover:bg-space-700': selectedIndex !== index
             }"
           >
-            <div class="text-sm font-medium text-space-200">
-              {{ satellite.name }} (NORAD: {{ satellite.norad_cat_id }})
+            <div class="text-sm font-medium text-space-200 break-words">
+              {{ truncateSatelliteName(satellite.name) }} (NORAD: {{ satellite.norad_cat_id }})
             </div>
             <div class="text-xs text-space-400">
               Status: {{ satellite.status }} | Operator: {{ satellite.operator || 'Unknown' }}
@@ -144,21 +144,18 @@
         >
           <!-- Clickable Header -->
           <div class="flex items-center justify-between">
-            <div class="flex flex-col">
-              <div class="flex flex-col">
+            <div class="flex flex-col justify-center pt-1">
         <!-- First row: Main satellite name -->
-        <h4 class="font-semibold text-primary-300 pt-0 pb-0.5 leading-1">
-          {{ getFormattedSatelliteName(satellite).primary }}
+        <h4 class="font-semibold text-primary-300 leading-1 break-words">
+          {{ truncateSatelliteName(getFormattedSatelliteName(satellite).primary) }}
         </h4>
                 <!-- Second row: Secondary name + NORAD ID (proper spacing) -->
-                <div class="flex items-center gap-2 text-xs text-space-400 mt-1 pb-2">
+                <div class="flex items-center gap-2 text-xs text-space-400 mt-1.5">
                   <span v-if="getFormattedSatelliteName(satellite).secondary">
                     {{ getFormattedSatelliteName(satellite).secondary }} -
                   </span>
                   <span>NORAD ID: {{ satellite.noradId }}</span>
                 </div>
-              </div>
-              <!-- <span class="text-xs text-green-400 font-medium">{{ satellite.status || 'alive' }}</span> -->
             </div>
             <button
               @click="$emit('remove-satellite', satellite.noradId)"
@@ -175,7 +172,7 @@
 
 <script setup>
 // Import satellite name utilities
-import { getFullSatelliteName, formatSatelliteNameForDisplay } from '~/utils/satelliteNameUtils'
+import { getFullSatelliteName, formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
 // Props
 const props = defineProps({

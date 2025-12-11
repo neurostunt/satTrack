@@ -214,6 +214,7 @@ export const usePassData = (
 
   /**
    * Calculate fresh pass predictions using N2YO visual passes API
+   * IMPORTANT: Preserves active passes (currently passing) to prevent changing predicted path during active tracking
    */
   const calculateFreshPassPredictions = async () => {
     try {
@@ -246,8 +247,41 @@ export const usePassData = (
 
       console.log('✅ Fresh pass predictions calculated:', freshPasses.size, 'satellites')
 
-      // Update the pass predictions
-      passPredictions.value = freshPasses
+      // Preserve active passes (currently passing) to prevent changing predicted path during active tracking
+      const currentTime = Date.now()
+      const preservedPasses = new Map()
+
+      // First, identify and preserve active passes from existing predictions
+      for (const [noradId, existingPasses] of passPredictions.value.entries()) {
+        if (Array.isArray(existingPasses)) {
+          const activePasses = existingPasses.filter((pass: any) => {
+            // Pass is active if current time is between startTime and endTime
+            return currentTime >= pass.startTime && currentTime <= pass.endTime
+          })
+
+          if (activePasses.length > 0) {
+            preservedPasses.set(noradId, activePasses)
+            console.log(`🔒 Preserving ${activePasses.length} active pass(es) for NORAD ${noradId} to prevent path changes`)
+          }
+        }
+      }
+
+      // Merge fresh passes with preserved active passes
+      // For satellites with active passes, keep the active passes and add future passes from fresh data
+      for (const [noradId, freshPassesForSat] of freshPasses.entries()) {
+        if (preservedPasses.has(noradId)) {
+          // This satellite has an active pass - preserve it and add future passes
+          const activePasses = preservedPasses.get(noradId) || []
+          const futurePasses = (freshPassesForSat || []).filter((pass: any) => pass.startTime > currentTime)
+          preservedPasses.set(noradId, [...activePasses, ...futurePasses])
+        } else {
+          // No active pass - use fresh data
+          preservedPasses.set(noradId, freshPassesForSat)
+        }
+      }
+
+      // Update the pass predictions with merged data
+      passPredictions.value = preservedPasses
 
     } catch (error) {
       console.error('❌ Failed to calculate fresh pass predictions:', error)

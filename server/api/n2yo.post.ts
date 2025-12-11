@@ -52,7 +52,16 @@ export default defineEventHandler(async (event) => {
       passesCount: responseData.info?.passescount || responseData.passes?.length || 'N/A'
     })
 
-    return createSuccessResponse(responseData, action)
+    // Add server-side timestamp to response for consistent time calculations across devices
+    // This ensures all devices use the same reference time, eliminating differences due to
+    // system clock drift or timezone differences
+    const serverTimestamp = Date.now()
+    const responseWithTimestamp = {
+      ...responseData,
+      serverTimestamp // Server-side timestamp in milliseconds (UTC)
+    }
+
+    return createSuccessResponse(responseWithTimestamp, action)
 
   } catch (error) {
     handleApiError(error, 'N2YO')

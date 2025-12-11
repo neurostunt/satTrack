@@ -63,7 +63,7 @@ export const EXAMPLE_SATELLITES = [
   27607, // SO-50
   43013, // AO-91
   44909, // RS-44 (DOSAAF-85)
-  //33498, // KUKAI
+  33498, // KUKAI
   40069, // METEOR-M2
   43017, // AO-91 / FOX-1C
   40967, // FOX-1A

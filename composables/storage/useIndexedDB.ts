@@ -617,34 +617,20 @@ export const useIndexedDB = () => {
 
         request.onsuccess = () => {
           const result = request.result || []
-          console.log('📊 getAllPassPredictions raw result:', result)
-          console.log('📊 getAllPassPredictions result length:', result.length)
 
           // Filter out expired passes and sort by next pass time
           const validPasses = result
             .filter(pass => {
-              console.log(`📊 Filtering pass for NORAD ${pass.noradId}:`, {
-                hasNextPassTime: !!pass.nextPassTime,
-                nextPassTime: pass.nextPassTime,
-                timestamp: pass.timestamp,
-                ageInHours: pass.timestamp ? (Date.now() - pass.timestamp) / (1000 * 60 * 60) : 'no timestamp'
-              })
-
               // Keep passes that haven't ended yet (more lenient filtering)
               if (!pass.nextPassTime) {
-                console.log(`📊 Filtering out pass for NORAD ${pass.noradId}: no nextPassTime`)
                 return false
               }
 
               // For now, just check if the pass data exists and is recent
               const isValid = pass.timestamp && (Date.now() - pass.timestamp) < (24 * 60 * 60 * 1000) // Within 24 hours
-              console.log(`📊 Pass for NORAD ${pass.noradId} is valid:`, isValid)
               return isValid
             })
             .sort((a, b) => a.nextPassTime - b.nextPassTime)
-
-          console.log('📊 getAllPassPredictions filtered result:', validPasses)
-          console.log('📊 getAllPassPredictions valid passes count:', validPasses.length)
 
           isLoading.value = false
           resolve(validPasses)

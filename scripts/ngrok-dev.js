@@ -35,7 +35,7 @@ function getNgrokUrl(retries = 15, delay = 1000) {
               resolve(tunnel.public_url)
               return
             }
-          } catch (_error) {
+          } catch {
             // JSON parse error, continue retrying
           }
 

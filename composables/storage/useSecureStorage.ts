@@ -155,7 +155,7 @@ export const useSecureStorage = () => {
       // Clear potentially corrupted data
       try {
         localStorage.removeItem(key)
-      } catch (clearError) {
+      } catch {
         // Ignore clear errors
       }
       return null

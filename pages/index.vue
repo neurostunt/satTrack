@@ -24,6 +24,7 @@ import CombinedSatelliteData from '~/components/common/CombinedSatelliteData.vue
 import { useSettings } from '~/composables/storage/useSettings'
 import { useTLEData } from '~/composables/api/useTLEData'
 import { useIndexedDB } from '~/composables/storage/useIndexedDB'
+import indexedDBStorage from '~/utils/indexedDBStorage'
 import { getSatnogsImageUrl } from '~/utils/satelliteImageUtils'
 
 // Import composables
@@ -181,9 +182,24 @@ const fetchMissingSatelliteDescriptions = async () => {
 
   console.log(`Fetching additional info for ${satellitesNeedingInfo.length} satellites`)
 
+  const CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
+  const now = Date.now()
+
   // Fetch additional info for each satellite
   for (const satellite of satellitesNeedingInfo) {
     try {
+      // Check cache first
+      try {
+        const cached = await indexedDBStorage.getSatnogsInfo(satellite.noradId)
+        if (cached && (now - cached.timestamp) < CACHE_DURATION_MS) {
+          applySatnogsInfo(satellite.noradId, cached.data)
+          console.log(`✓ Loaded cached SatNOGS info for ${satellite.name} (${satellite.noradId})`)
+          continue
+        }
+      } catch (error) {
+        console.warn(`Failed to load cached SatNOGS info for ${satellite.noradId}:`, error)
+      }
+
       // Fetch satellite data from SatNOGS API
       const response = await $fetch('/api/satnogs', {
         method: 'POST',
@@ -203,38 +219,17 @@ const fetchMissingSatelliteDescriptions = async () => {
       // Debug: log what fields are available in satData
       console.log(`SatNOGS data for ${satellite.name} (${satellite.noradId}):`, Object.keys(satData || {}))
 
-      // Extract additional satellite information from SatNOGS API
-      const launchDate = satData?.launched ? new Date(satData.launched).toLocaleDateString() : null
-      const operator = satData?.operator && satData.operator !== 'None' ? satData.operator : null
-      const countries = satData?.countries || null
-      const website = satData?.website || null
-      const decayed = satData?.decayed ? new Date(satData.decayed).toLocaleDateString() : null
-      const deployed = satData?.deployed ? new Date(satData.deployed).toLocaleDateString() : null
-
       // If we found satellite data, update it with all available information
       if (satData && combinedData.value[satellite.noradId]) {
-        // Update the combined data reactively using a new object to ensure reactivity
-        combinedData.value = {
-          ...combinedData.value,
-          [satellite.noradId]: {
-            ...combinedData.value[satellite.noradId],
-            satellite: {
-              ...combinedData.value[satellite.noradId].satellite,
-              ...(launchDate && { launchDate }),
-              ...(operator && { operator }),
-              ...(countries && { countries }),
-              ...(website && { website }),
-              ...(decayed && { decayed }),
-              ...(deployed && { deployed })
-            }
-          }
+        applySatnogsInfo(satellite.noradId, satData)
+        console.log(`✓ Fetched additional info for ${satellite.name} (${satellite.noradId})`)
+
+        // Cache the SatNOGS info for future loads
+        try {
+          await indexedDBStorage.storeSatnogsInfo(satellite.noradId, satData)
+        } catch (error) {
+          console.warn(`Failed to cache SatNOGS info for ${satellite.noradId}:`, error)
         }
-        console.log(`✓ Fetched additional info for ${satellite.name} (${satellite.noradId}):`, {
-          launchDate,
-          operator,
-          countries,
-          website: website ? 'Yes' : 'No'
-        })
       } else {
         console.log(`No additional info found for ${satellite.name} (${satellite.noradId})`)
       }
@@ -245,16 +240,74 @@ const fetchMissingSatelliteDescriptions = async () => {
 }
 
 /**
+ * Helper function to apply SATCAT data to combined data
+ */
+const applySatcatData = (noradId, satcatData) => {
+  if (!combinedData.value[noradId]) return
+
+  combinedData.value = {
+    ...combinedData.value,
+    [noradId]: {
+      ...combinedData.value[noradId],
+      satellite: {
+        ...combinedData.value[noradId].satellite,
+        objectId: satcatData.objectId,
+        objectType: satcatData.objectType,
+        opsStatusCode: satcatData.opsStatusCode,
+        owner: satcatData.owner,
+        launchSite: satcatData.launchSite,
+        rcs: satcatData.rcs,
+        orbitCenter: satcatData.orbitCenter,
+        orbitType: satcatData.orbitType,
+        ...(satcatData.apogee && !combinedData.value[noradId].satellite.apogee && { apogee: satcatData.apogee }),
+        ...(satcatData.perigee && !combinedData.value[noradId].satellite.perigee && { perigee: satcatData.perigee }),
+        ...(satcatData.inclination && !combinedData.value[noradId].satellite.inclination && { inclination: satcatData.inclination }),
+        ...(satcatData.period && !combinedData.value[noradId].satellite.period && { period: satcatData.period })
+      }
+    }
+  }
+}
+
+/**
+ * Load SATCAT data from IndexedDB cache
+ */
+const loadSatcatDataFromCache = async () => {
+  if (!settings.value.trackedSatellites) return
+
+  try {
+    const CACHE_DURATION_MS = 120 * 60 * 1000 // 2 hours
+    const now = Date.now()
+
+    for (const satellite of settings.value.trackedSatellites) {
+      if (!satellite.noradId) continue
+
+      const cached = await indexedDBStorage.getSatcatData(satellite.noradId)
+      if (cached && (now - cached.timestamp) < CACHE_DURATION_MS) {
+        applySatcatData(satellite.noradId, cached.data)
+        console.log(`✓ Loaded cached SATCAT data for ${satellite.name} (${satellite.noradId})`)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load SATCAT data from cache:', error)
+  }
+}
+
+/**
  * Fetch SATCAT (Satellite Catalog) data from CelesTrak API
  * Provides detailed information: launch site, object type, size (RCS), orbital parameters, etc.
  *
- * IMPORTANT: CelesTrak has rate limits - we cache data and limit requests to avoid 403 errors
+ * IMPORTANT: CelesTrak has rate limits - we cache data in IndexedDB and limit requests to avoid 403 errors
  * Cache duration: 2 hours (matches CelesTrak update frequency)
  */
-const satcatCache = new Map() // Cache: noradId -> { data, timestamp }
+const satcatRateLimitUntil = ref(0) // timestamp until next allowed SATCAT call
 
 const fetchSatcatData = async () => {
   if (!settings.value.trackedSatellites) return
+
+  if (Date.now() < satcatRateLimitUntil.value) {
+    console.warn('⚠️ SATCAT fetch skipped due to recent rate limit window')
+    return
+  }
 
   const satellitesNeedingSatcat = settings.value.trackedSatellites.filter(
     sat => sat.noradId && !combinedData.value[sat.noradId]?.satellite?.launchSite
@@ -267,44 +320,24 @@ const fetchSatcatData = async () => {
 
   console.log(`Fetching SATCAT data for ${satellitesNeedingSatcat.length} satellites`)
 
+  const CACHE_DURATION_MS = 120 * 60 * 1000 // 2 hours
+  const now = Date.now()
+
   // Fetch SATCAT data for each satellite with rate limiting
   // Add delay between requests to avoid rate limiting (500ms between requests)
   for (let i = 0; i < satellitesNeedingSatcat.length; i++) {
     const satellite = satellitesNeedingSatcat[i]
 
-    // Check cache first (2 hour cache duration)
-    const cached = satcatCache.get(satellite.noradId)
-    const cacheAge = cached ? (Date.now() - cached.timestamp) / 1000 / 60 : Infinity // minutes
-    const CACHE_DURATION_MINUTES = 120 // 2 hours - matches CelesTrak update frequency
-
-    if (cached && cacheAge < CACHE_DURATION_MINUTES) {
-      // Use cached data
-      if (combinedData.value[satellite.noradId]) {
-        const satcatData = cached.data
-        combinedData.value = {
-          ...combinedData.value,
-          [satellite.noradId]: {
-            ...combinedData.value[satellite.noradId],
-            satellite: {
-              ...combinedData.value[satellite.noradId].satellite,
-              objectId: satcatData.objectId,
-              objectType: satcatData.objectType,
-              opsStatusCode: satcatData.opsStatusCode,
-              owner: satcatData.owner,
-              launchSite: satcatData.launchSite,
-              rcs: satcatData.rcs,
-              orbitCenter: satcatData.orbitCenter,
-              orbitType: satcatData.orbitType,
-              ...(satcatData.apogee && !combinedData.value[satellite.noradId].satellite.apogee && { apogee: satcatData.apogee }),
-              ...(satcatData.perigee && !combinedData.value[satellite.noradId].satellite.perigee && { perigee: satcatData.perigee }),
-              ...(satcatData.inclination && !combinedData.value[satellite.noradId].satellite.inclination && { inclination: satcatData.inclination }),
-              ...(satcatData.period && !combinedData.value[satellite.noradId].satellite.period && { period: satcatData.period })
-            }
-          }
-        }
+    // Check IndexedDB cache first (2 hour cache duration)
+    try {
+      const cached = await indexedDBStorage.getSatcatData(satellite.noradId)
+      if (cached && (now - cached.timestamp) < CACHE_DURATION_MS) {
+        applySatcatData(satellite.noradId, cached.data)
         console.log(`✓ Using cached SATCAT data for ${satellite.name} (${satellite.noradId})`)
+        continue
       }
-      continue
+    } catch (error) {
+      console.warn(`Failed to check cache for ${satellite.noradId}:`, error)
     }
 
     // Add delay between requests to avoid rate limiting (except for first request)
@@ -325,36 +358,16 @@ const fetchSatcatData = async () => {
       if (response?.success && response.data && combinedData.value[satellite.noradId]) {
         const satcatData = response.data
 
-        // Cache the data
-        satcatCache.set(satellite.noradId, {
-          data: satcatData,
-          timestamp: Date.now()
-        })
+        // Store in IndexedDB cache
+        try {
+          await indexedDBStorage.storeSatcatData(satellite.noradId, satcatData)
+        } catch (error) {
+          console.warn(`Failed to cache SATCAT data for ${satellite.noradId}:`, error)
+        }
 
         // Update the combined data with SATCAT information
-        combinedData.value = {
-          ...combinedData.value,
-          [satellite.noradId]: {
-            ...combinedData.value[satellite.noradId],
-            satellite: {
-              ...combinedData.value[satellite.noradId].satellite,
-              // Add SATCAT fields
-              objectId: satcatData.objectId, // International Designator (e.g., "1998-067A")
-              objectType: satcatData.objectType, // PAY, R/B, DEB, etc.
-              opsStatusCode: satcatData.opsStatusCode, // + (operational), - (non-operational)
-              owner: satcatData.owner,
-              launchSite: satcatData.launchSite, // Launch site code
-              rcs: satcatData.rcs, // Radar Cross Section (size indicator) in m²
-              orbitCenter: satcatData.orbitCenter,
-              orbitType: satcatData.orbitType,
-              // Update orbital parameters if not already set
-              ...(satcatData.apogee && !combinedData.value[satellite.noradId].satellite.apogee && { apogee: satcatData.apogee }),
-              ...(satcatData.perigee && !combinedData.value[satellite.noradId].satellite.perigee && { perigee: satcatData.perigee }),
-              ...(satcatData.inclination && !combinedData.value[satellite.noradId].satellite.inclination && { inclination: satcatData.inclination }),
-              ...(satcatData.period && !combinedData.value[satellite.noradId].satellite.period && { period: satcatData.period })
-            }
-          }
-        }
+        applySatcatData(satellite.noradId, satcatData)
+
         console.log(`✓ Fetched SATCAT data for ${satellite.name} (${satellite.noradId}):`, {
           objectType: satcatData.objectType,
           launchSite: satcatData.launchSite,
@@ -366,7 +379,8 @@ const fetchSatcatData = async () => {
       // Handle 403 errors gracefully - don't retry immediately
       if (error?.statusCode === 403 || error?.statusMessage?.includes('403')) {
         console.warn(`⚠️ CelesTrak rate limit reached for ${satellite.name} (${satellite.noradId}). Skipping remaining requests.`)
-        // Stop fetching to avoid further rate limiting
+        // Stop fetching to avoid further rate limiting and set cooldown (60 minutes)
+        satcatRateLimitUntil.value = Date.now() + (60 * 60 * 1000)
         break
       }
       console.log(`Could not fetch SATCAT data for ${satellite.name} (${satellite.noradId}):`, error)
@@ -580,12 +594,79 @@ const loadRecommendedSatellitesDescriptions = async () => {
   }
 }
 
+/**
+ * Apply SatNOGS info (launch date, operator, countries, website, decayed/deployed, description, image)
+ */
+const applySatnogsInfo = (noradId, satData) => {
+  if (!combinedData.value[noradId] || !satData) return
+
+  const launchDate = satData?.launched ? new Date(satData.launched).toLocaleDateString() : null
+  const operator = satData?.operator && satData.operator !== 'None' ? satData.operator : null
+  const countries = satData?.countries || null
+  const website = satData?.website || null
+  const decayed = satData?.decayed ? new Date(satData.decayed).toLocaleDateString() : null
+  const deployed = satData?.deployed ? new Date(satData.deployed).toLocaleDateString() : null
+  const description = satData?.description || satData?.names || null
+
+  // Update the combined data reactively
+  combinedData.value = {
+    ...combinedData.value,
+    [noradId]: {
+      ...combinedData.value[noradId],
+      satellite: {
+        ...combinedData.value[noradId].satellite,
+        ...(launchDate && { launchDate }),
+        ...(operator && { operator }),
+        ...(countries && { countries }),
+        ...(website && { website }),
+        ...(decayed && { decayed }),
+        ...(deployed && { deployed }),
+        ...(description && !combinedData.value[noradId].satellite.description && { description }),
+        // If SatNOGS provides an image, keep the stored path (converted later)
+        ...(satData.image && !combinedData.value[noradId].satellite.image && { image: getSatnogsImageUrl(satData.image) || combinedData.value[noradId].satellite.image })
+      }
+    }
+  }
+}
+
+/**
+ * Load SatNOGS info from IndexedDB cache (24h TTL)
+ */
+const loadSatnogsInfoFromCache = async () => {
+  if (!settings.value.trackedSatellites) return
+
+  try {
+    const CACHE_DURATION_MS = 24 * 60 * 60 * 1000 // 24 hours
+    const now = Date.now()
+
+    for (const satellite of settings.value.trackedSatellites) {
+      if (!satellite.noradId) continue
+
+      const cached = await indexedDBStorage.getSatnogsInfo(satellite.noradId)
+      if (cached && (now - cached.timestamp) < CACHE_DURATION_MS) {
+        applySatnogsInfo(satellite.noradId, cached.data)
+        console.log(`✓ Loaded cached SatNOGS info for ${satellite.name} (${satellite.noradId})`)
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load SatNOGS info from cache:', error)
+  }
+}
+
 // Load data on mount
 onMounted(async () => {
   await loadSettings()
   console.log('🔍 Debug: Settings loaded:', settings.value.transmitterFilters)
   await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
   await loadStoredTransmitterData()
+  // Load cached SatNOGS info (launch date, operator, countries, website, etc.)
+  await loadSatnogsInfoFromCache()
+  // Load cached SatNOGS info before fetching
+  // (handled inside fetchMissingSatelliteDescriptions via cache check)
+  // Load SATCAT data from IndexedDB cache first
+  await loadSatcatDataFromCache()
+  // Then fetch any missing SATCAT data
+  await fetchSatcatData()
 })
 </script>
 

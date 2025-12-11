@@ -13,13 +13,16 @@ export const useIndexedDB = () => {
 
   // Database configuration
   const dbName = 'SatTrackDB'
-  const dbVersion = 3
+  // Keep in sync with utils/indexedDBStorage (currently v5)
+  const dbVersion = 5
   const db = ref<IDBDatabase | null>(null)
   const tleStoreName = 'tleData'
   const settingsStoreName = 'settings'
   const credentialsStoreName = 'credentials'
   const transponderStoreName = 'transponderData'
   const passPredictionStoreName = 'passPredictions'
+  const satcatStoreName = 'satcatData'
+  const satnogsInfoStoreName = 'satnogsInfo'
 
   /**
    * Initialize IndexedDB connection
@@ -84,6 +87,20 @@ export const useIndexedDB = () => {
             passStore.createIndex('nextPassTime', 'nextPassTime', { unique: false })
             passStore.createIndex('timestamp', 'timestamp', { unique: false })
             console.log('Pass prediction store created')
+          }
+
+          // Create SATCAT data store
+          if (!database.objectStoreNames.contains(satcatStoreName)) {
+            const satcatStore = database.createObjectStore(satcatStoreName, { keyPath: 'noradId' })
+            satcatStore.createIndex('timestamp', 'timestamp', { unique: false })
+            console.log('SATCAT data store created')
+          }
+
+          // Create SatNOGS info store
+          if (!database.objectStoreNames.contains(satnogsInfoStoreName)) {
+            const satnogsStore = database.createObjectStore(satnogsInfoStoreName, { keyPath: 'noradId' })
+            satnogsStore.createIndex('timestamp', 'timestamp', { unique: false })
+            console.log('SatNOGS info store created')
           }
         }
       } catch (err) {
@@ -420,7 +437,15 @@ export const useIndexedDB = () => {
       isLoading.value = true
       error.value = null
 
-      const storeNames = [tleStoreName, settingsStoreName, credentialsStoreName, transponderStoreName]
+      const storeNames = [
+        tleStoreName,
+        settingsStoreName,
+        credentialsStoreName,
+        transponderStoreName,
+        passPredictionStoreName,
+        satcatStoreName,
+        satnogsInfoStoreName
+      ]
 
       for (const storeName of storeNames) {
         const transaction = db.value!.transaction([storeName], 'readwrite')

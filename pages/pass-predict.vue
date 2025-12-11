@@ -296,15 +296,20 @@ const checkSoundAlerts = () => {
   })
 }
 
-onMounted(async () => {
+// Function to initialize page data
+const initializePageData = async () => {
   await loadSettings()
   await initializeTLEData(settings.value.trackedSatellites, settings.value.spaceTrackUsername, settings.value.spaceTrackPassword, settings.value.satnogsToken)
 
   // Load stored pass predictions from IndexedDB (no API calls)
   await loadPassPredictions()
 
-  // Load stored transmitter data
+  // Load stored transmitter data (must be called after loadPassPredictions)
   await loadStoredTransmitterData()
+}
+
+onMounted(async () => {
+  await initializePageData()
 
   // Enable sound alerts if setting is enabled
   if (settings.value.soundAlerts) {
@@ -457,6 +462,16 @@ watch(() => settings.value.autoCalibrateCompass, (enabled) => {
     startCompassCalibration()
   }
 })
+
+// Watch for route changes to reload data when navigating via SPA
+const route = useRoute()
+watch(() => route.path, async (newPath) => {
+  if (newPath === '/pass-predict') {
+    // Reload data when navigating to pass-predict page
+    console.log('🔄 Route changed to pass-predict, reloading data...')
+    await initializePageData()
+  }
+}, { immediate: false })
 </script>
 
 <style scoped>

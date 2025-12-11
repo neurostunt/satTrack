@@ -87,9 +87,17 @@ export const usePassData = (
 
   /**
    * Load stored transmitter data
+   * IMPORTANT: This must be called after loadPassPredictions() to ensure passPredictions is populated
    */
   const loadStoredTransmitterData = async () => {
     try {
+      // Ensure we have settings and tracked satellites
+      if (!settings.value?.trackedSatellites || settings.value.trackedSatellites.length === 0) {
+        console.warn('⚠️ No tracked satellites found, skipping transmitter data load')
+        combinedData.value = {}
+        return
+      }
+
       const transmitterData = await getAllTransponderData()
 
       // Convert array to object keyed by NORAD ID
@@ -180,7 +188,7 @@ export const usePassData = (
    */
   const filterTransmitters = (transmitters: any[]) => {
     if (!transmitters || !Array.isArray(transmitters)) return transmitters
-    
+
     // Don't filter here - let PassDetails component handle filtering
     // This ensures consistent filtering logic
     return transmitters

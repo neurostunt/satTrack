@@ -12,16 +12,20 @@ class IndexedDBStorage {
   private credentialsStoreName: string
   private transponderStoreName: string
   private passPredictionStoreName: string
+  private satcatStoreName: string
+  private satnogsInfoStoreName: string
 
   constructor() {
     this.dbName = 'SatTrackDB'
-    this.dbVersion = 3
+    this.dbVersion = 5
     this.db = null
     this.tleStoreName = 'tleData'
     this.settingsStoreName = 'settings'
     this.credentialsStoreName = 'credentials'
     this.transponderStoreName = 'transponderData'
     this.passPredictionStoreName = 'passPredictions'
+    this.satcatStoreName = 'satcatData'
+    this.satnogsInfoStoreName = 'satnogsInfo'
   }
 
   /**
@@ -79,6 +83,20 @@ class IndexedDBStorage {
           passStore.createIndex('nextPassTime', 'nextPassTime', { unique: false })
           passStore.createIndex('timestamp', 'timestamp', { unique: false })
           console.log('Pass prediction store created')
+        }
+
+        // Create SATCAT data store
+        if (!db.objectStoreNames.contains(this.satcatStoreName)) {
+          const satcatStore = db.createObjectStore(this.satcatStoreName, { keyPath: 'noradId' })
+          satcatStore.createIndex('timestamp', 'timestamp', { unique: false })
+          console.log('SATCAT data store created')
+        }
+
+        // Create SatNOGS info store (launchDate/operator/countries/etc.)
+        if (!db.objectStoreNames.contains(this.satnogsInfoStoreName)) {
+          const satnogsStore = db.createObjectStore(this.satnogsInfoStoreName, { keyPath: 'noradId' })
+          satnogsStore.createIndex('timestamp', 'timestamp', { unique: false })
+          console.log('SatNOGS info store created')
         }
       }
     })
@@ -961,6 +979,224 @@ class IndexedDBStorage {
 
       request.onerror = () => {
         console.error(`Failed to clear pass prediction data for NORAD ID: ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Store SATCAT data for a satellite
+   */
+  async storeSatcatData(noradId: number, satcatData: any): Promise<void> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.satcatStoreName], 'readwrite')
+      const store = transaction.objectStore(this.satcatStoreName)
+
+      const data = {
+        noradId,
+        data: satcatData,
+        timestamp: Date.now()
+      }
+
+      const request = store.put(data)
+
+      request.onsuccess = () => {
+        console.log(`Stored SATCAT data for NORAD ID: ${noradId}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to store SATCAT data for NORAD ID ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Retrieve SATCAT data for a satellite
+   */
+  async getSatcatData(noradId: number): Promise<any | null> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.satcatStoreName], 'readonly')
+      const store = transaction.objectStore(this.satcatStoreName)
+      const request = store.get(noradId)
+
+      request.onsuccess = () => {
+        resolve(request.result || null)
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to get SATCAT data for NORAD ID ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Get all SATCAT data
+   */
+  async getAllSatcatData(): Promise<any[]> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.satcatStoreName], 'readonly')
+      const store = transaction.objectStore(this.satcatStoreName)
+      const request = store.getAll()
+
+      request.onsuccess = () => {
+        resolve(request.result || [])
+      }
+
+      request.onerror = () => {
+        console.error('Failed to get all SATCAT data:', request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Clear SATCAT data for a specific satellite
+   */
+  async clearSatcatData(noradId: number): Promise<void> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.satcatStoreName], 'readwrite')
+      const store = transaction.objectStore(this.satcatStoreName)
+      const request = store.delete(noradId)
+
+      request.onsuccess = () => {
+        console.log(`SATCAT data cleared for NORAD ID: ${noradId}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to clear SATCAT data for NORAD ID ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Clear all SATCAT data
+   */
+  async clearAllSatcatData(): Promise<void> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.satcatStoreName], 'readwrite')
+      const store = transaction.objectStore(this.satcatStoreName)
+      const request = store.clear()
+
+      request.onsuccess = () => {
+        console.log('All SATCAT data cleared')
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error('Failed to clear all SATCAT data:', request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Store SatNOGS satellite info (launchDate/operator/countries/etc.)
+   */
+  async storeSatnogsInfo(noradId: number, satnogsData: any): Promise<void> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.satnogsInfoStoreName], 'readwrite')
+      const store = transaction.objectStore(this.satnogsInfoStoreName)
+
+      const data = {
+        noradId,
+        data: satnogsData,
+        timestamp: Date.now()
+      }
+
+      const request = store.put(data)
+
+      request.onsuccess = () => {
+        console.log(`Stored SatNOGS info for NORAD ID: ${noradId}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to store SatNOGS info for NORAD ID ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Retrieve SatNOGS satellite info
+   */
+  async getSatnogsInfo(noradId: number): Promise<any | null> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.satnogsInfoStoreName], 'readonly')
+      const store = transaction.objectStore(this.satnogsInfoStoreName)
+      const request = store.get(noradId)
+
+      request.onsuccess = () => {
+        resolve(request.result || null)
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to get SatNOGS info for NORAD ID ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Clear SatNOGS info for a specific satellite
+   */
+  async clearSatnogsInfo(noradId: number): Promise<void> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.satnogsInfoStoreName], 'readwrite')
+      const store = transaction.objectStore(this.satnogsInfoStoreName)
+      const request = store.delete(noradId)
+
+      request.onsuccess = () => {
+        console.log(`SatNOGS info cleared for NORAD ID: ${noradId}`)
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error(`Failed to clear SatNOGS info for NORAD ID ${noradId}:`, request.error)
+        reject(request.error)
+      }
+    })
+  }
+
+  /**
+   * Clear all SatNOGS info
+   */
+  async clearAllSatnogsInfo(): Promise<void> {
+    await this.ensureDB()
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([this.satnogsInfoStoreName], 'readwrite')
+      const store = transaction.objectStore(this.satnogsInfoStoreName)
+      const request = store.clear()
+
+      request.onsuccess = () => {
+        console.log('All SatNOGS info cleared')
+        resolve()
+      }
+
+      request.onerror = () => {
+        console.error('Failed to clear all SatNOGS info:', request.error)
         reject(request.error)
       }
     })

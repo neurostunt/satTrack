@@ -1,8 +1,8 @@
 # Deployment Guide - SatTrack
 
-## Quick Deploy to Vercel (Recommended - FREE)
+## Deploy to Vercel (FREE)
 
-### Option 1: Deploy via Vercel Dashboard (Easiest)
+### Initial Setup
 
 1. **Push your code to GitHub** (if not already):
    ```bash
@@ -28,9 +28,9 @@
    - `SPACE_TRACK_BASE_URL` (optional, defaults to https://www.space-track.org)
    - `SATNOGS_BASE_URL` (optional, defaults to https://db.satnogs.org/api)
 
-5. **Disable Auto-Deployments** (Optional but Recommended): 
+5. **Disable Auto-Deployments** (Recommended): 
    - Go to Project Settings → Git
-   - You can disable "Automatic deployments from Git" for the `main` branch
+   - Disable "Automatic deployments from Git" for the `main` branch
    - This prevents accidental deployments (tag-based deployment via GitHub Actions will still work)
 
 6. **Get Vercel Credentials for GitHub Actions**:
@@ -39,51 +39,51 @@
    - Go to your [Vercel Account Settings](https://vercel.com/account/tokens)
    - Create a new token (name it "GitHub Actions")
    - Copy the token
-   - Go to your Organization settings to get `Organization ID`
+   - Go to your Team/Organization Settings → General to get `Team ID` (this is your `VERCEL_ORG_ID`)
 
-### Option 2: Deploy via Vercel CLI
-
-1. **Install Vercel CLI**:
-   ```bash
-   npm i -g vercel
-   ```
-
-2. **Login**:
-   ```bash
-   vercel login
-   ```
-
-3. **Deploy**:
-   ```bash
-   vercel
-   ```
-
-4. **Set environment variables**:
-   ```bash
-   vercel env add N2YO_API_KEY
-   vercel env add SATNOGS_API_TOKEN
-   vercel env add SPACE_TRACK_USERNAME
-   vercel env add SPACE_TRACK_PASSWORD
-   ```
-
-5. **Deploy to production**:
-   ```bash
-   vercel --prod
-   ```
-
-## Tag-Based Deployment (Recommended)
+## Tag-Based Deployment
 
 Deployments only happen when you push a tag to the `main` branch. This gives you control over when new versions go live.
 
 ### Setup GitHub Actions
 
 1. **Add GitHub Secrets**:
-   Go to your GitHub repository → Settings → Secrets and variables → Actions → New repository secret
    
-   Add these secrets:
-   - `VERCEL_TOKEN` - Your Vercel token (from Account Settings → Tokens)
-   - `VERCEL_ORG_ID` - Your Vercel Organization ID (from Organization settings)
-   - `VERCEL_PROJECT_ID` - Your Vercel Project ID (from Project Settings → General)
+   **How GitHub Secrets Work:**
+   - ✅ Secrets are **encrypted** and stored separately from code
+   - ✅ **Never** appear in code or commits
+   - ✅ **Never** displayed in logs (GitHub automatically masks them)
+   - ✅ Only accessible to GitHub Actions workflows
+   - ✅ **Secure** even for public repositories
+   
+   **How to Add Secrets:**
+   
+   1. Go to your GitHub repository → **Settings** (top right)
+   2. In the left menu: **Secrets and variables** → **Actions**
+   3. Click **New repository secret**
+   4. Add these three secrets:
+   
+      - **Name:** `VERCEL_TOKEN`
+        - **Value:** Go to [Vercel Account Settings → Tokens](https://vercel.com/account/tokens)
+        - Click "Create Token"
+        - Name: "GitHub Actions"
+        - Copy the token and paste here
+      
+      - **Name:** `VERCEL_ORG_ID`
+        - **Value:** This is your **Team ID** in Vercel (they're the same!)
+        - Go to Vercel Dashboard → **Settings** → **General**
+        - Find "Team ID" (or "Organization ID") and copy it
+        - **Note:** Team ID = Organization ID (same thing in Vercel)
+        - Alternative: Run `vercel whoami` in terminal, then `vercel orgs ls`
+      
+      - **Name:** `VERCEL_PROJECT_ID`
+        - **Value:** Go to Vercel Project → **Settings** → **General**
+        - Find "Project ID" and copy it
+   
+   5. Click **Add secret** for each one
+   
+   **⚠️ IMPORTANT:** After adding secrets, they will **never appear** in your code. 
+   In the workflow file, you'll only see `${{ secrets.VERCEL_TOKEN }}` - this is a placeholder that GitHub replaces with the actual value only during execution.
 
 2. **How to Deploy**:
 
@@ -130,24 +130,6 @@ Deployments only happen when you push a tag to the `main` branch. This gives you
 - ✅ Easy rollback (just deploy a previous tag)
 - ✅ No accidental deployments from WIP commits
 
-## Alternative: Deploy to Netlify (Also FREE)
-
-1. **Push to GitHub** (same as above)
-
-2. **Go to [netlify.com](https://netlify.com)** and sign up/login
-
-3. **Import from Git**:
-   - Click "Add new site" → "Import an existing project"
-   - Connect GitHub and select your repo
-
-4. **Build settings** (auto-detected, but verify):
-   - Build command: `npm run build`
-   - Publish directory: `.output/public`
-
-5. **Add environment variables** in Site settings → Environment variables
-
-6. **Deploy**: Click "Deploy site"
-
 ## Vercel Free Tier Limits
 
 - ✅ 100GB bandwidth/month
@@ -163,7 +145,8 @@ Perfect for non-profit/ham radio projects!
 
 ### Build fails
 - Check that all dependencies are in `package.json`
-- Verify Node.js version (check `.nvmrc` if present)
+- Verify Node.js version (check `.nvmrc` - should be Node 24.x)
+- Ensure `package.json` has `engines.node` set to `>=24.0.0 <25.0.0`
 
 ### API routes not working
 - Vercel automatically handles `server/api/*` as serverless functions
@@ -177,24 +160,15 @@ Perfect for non-profit/ham radio projects!
 - Verify all three secrets are set correctly (VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID)
 - Check that the tag follows the `v*` pattern (e.g., `v1.0.0`)
 - Ensure Vercel project is linked to your GitHub repo
+- Check GitHub Actions logs (secrets are automatically masked, so you won't see actual values)
 
-## Cost Comparison
+### Security FAQ
 
-| Platform | Cost | Best For |
-|----------|------|----------|
-| **Vercel** | FREE | Nuxt apps, best DX |
-| **Netlify** | FREE | Static + functions |
-| **Cloudflare Pages** | FREE | Static only (needs Workers for APIs) |
-| **Render** | FREE* | Full-stack (spins down) |
+**Q: Are secrets safe in a public repository?**
+A: **YES!** GitHub Secrets are encrypted and never appear in code. Even if someone sees the workflow file, they'll only see `${{ secrets.NAME }}` - not the actual value.
 
-*Render free tier spins down after 15min inactivity (cold starts)
+**Q: Can I see secrets in logs?**
+A: **NO.** GitHub automatically masks (hides) all secrets in logs. If you accidentally try to print them, you'll see `***` instead of the actual value.
 
-## Recommended: Vercel
-
-Vercel is the best choice because:
-- ✅ Built by Nuxt creators (same team)
-- ✅ Zero configuration needed
-- ✅ Best performance
-- ✅ Free custom domain
-- ✅ Automatic deployments
-- ✅ Perfect for non-profit projects
+**Q: Who can access secrets?**
+A: Only GitHub Actions workflows in your repository. Even other collaborators cannot see the secret values (only that they exist).

@@ -58,10 +58,6 @@ const generateBackgroundSVG = () => {
 // Cache the background SVG - initialize immediately for preloading
 const backgroundSVG = ref(generateBackgroundSVG())
 
-// Preload the background SVG immediately when this module is imported
-// This ensures the SVG is ready before any component needs it
-console.log('🎨 Preloading polar plot background SVG...')
-
 export const usePolarPlotBackground = () => {
   return {
     backgroundSVG: computed(() => backgroundSVG.value),
@@ -80,5 +76,4 @@ export const preloadPolarPlotBackground = () => {
   if (!backgroundSVG.value) {
     backgroundSVG.value = generateBackgroundSVG()
   }
-  console.log('✅ Polar plot background SVG preloaded')
 }

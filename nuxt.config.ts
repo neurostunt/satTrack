@@ -48,14 +48,67 @@ export default defineNuxtConfig({
     registerType: 'autoUpdate',
     workbox: {
       navigateFallback: undefined, // Disable navigate fallback to prevent route blocking
-      globPatterns: ['**/*.{js,css,html,png,svg,ico}']
+      // Suppress warnings about non-matching glob patterns
+      mode: 'production',
+      // Only precache HTML files - let runtime caching handle JS/CSS/assets
+      // This avoids warnings about _nuxt paths and absolute file paths
+      globPatterns: [
+        '**/*.html'
+      ],
+      // Exclude problematic paths from being handled by workbox
+      globIgnores: [
+        '**/node_modules/**/*',
+        '**/_nuxt/**/*',
+        '**/@vite/**/*',
+        '**/entry.*.js',
+        '**/client.*.js',
+        '_nuxt/builds/**/*.json',
+        '**/_nuxt/builds/**/*.json',
+        'sw.js',
+        'workbox-*.js'
+      ],
+      // Suppress warnings (this is handled at workbox level)
+      dontCacheBustURLsMatching: /\.\w{8}\./,
+      // Don't cache _nuxt files - let them be served directly
+      runtimeCaching: [
+        {
+          // Exclude _nuxt paths and absolute file paths - use NetworkOnly to bypass workbox
+          urlPattern: ({ url }) => {
+            const pathname = url.pathname
+            // Match problematic paths that should bypass workbox completely
+            return (
+              pathname.startsWith('/_nuxt/') ||
+              pathname.includes('node_modules') ||
+              pathname.includes('/Users/') ||
+              pathname.startsWith('/@vite/') ||
+              pathname.includes('entry.async.js')
+            )
+          },
+          handler: 'NetworkOnly', // Always fetch from network, bypass workbox cache
+          options: {
+            cacheName: 'bypass-cache'
+          }
+        },
+        {
+          // Only cache external API calls
+          urlPattern: /^https:\/\/api\.n2yo\.com\/.*/i,
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'n2yo-api-cache',
+            expiration: {
+              maxEntries: 50,
+              maxAgeSeconds: 60 * 60 // 1 hour
+            }
+          }
+        }
+      ]
     },
     client: {
       installPrompt: true
     },
     devOptions: {
-      enabled: false, // Disable PWA in dev to avoid service worker issues
-      suppressWarnings: true,
+      enabled: true, // Enable PWA in dev to test install button on localhost HTTP
+      suppressWarnings: true, // Suppress workbox warnings
       navigateFallbackAllowlist: [/^\/.*/],
       type: 'module'
     },
@@ -64,12 +117,25 @@ export default defineNuxtConfig({
       short_name: 'SatTrack',
       description: 'Track satellites in real-time',
       theme_color: '#1a1a1a',
-      background_color: '#ffffff',
+      background_color: '#1a1a1a',
       display: 'standalone',
-      orientation: 'portrait',
+      orientation: 'any',
       scope: '/',
       start_url: '/',
-      icons: []
+      icons: [
+        {
+          src: '/icon-192x192.png',
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any'
+        },
+        {
+          src: '/icon-512x512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any'
+        }
+      ]
     }
   },
   css: ['~/assets/css/main.css'],
@@ -91,7 +157,7 @@ export default defineNuxtConfig({
       link: [
         { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
-        { rel: 'manifest', href: '/manifest.json' }
+        { rel: 'manifest', href: '/manifest.webmanifest' }
       ]
     }
   },

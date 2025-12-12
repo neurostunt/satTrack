@@ -1,0 +1,92 @@
+name: Auto Tag Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for tags
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if merge commit
+        id: check_merge
+        run: |
+          # Check if commit message starts with "Merge"
+          if [[ "${{ github.event.head_commit.message }}" == Merge* ]]; then
+            echo "is_merge=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_merge=false" >> $GITHUB_OUTPUT
+            echo "Not a merge commit, skipping tag creation"
+          fi
+
+      - name: Get latest tag
+        if: steps.check_merge.outputs.is_merge == 'true'
+        id: get_tag
+        run: |
+          # Get the latest tag, or use v0.0.0 if no tags exist
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+
+      - name: Generate new version tag
+        id: new_tag
+        if: steps.check_merge.outputs.is_merge == 'true'
+        run: |
+          LATEST_TAG="${{ steps.get_tag.outputs.latest_tag }}"
+          
+          # Extract version number (remove 'v' prefix)
+          VERSION=$(echo $LATEST_TAG | sed 's/^v//')
+          
+          # Split version into parts
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Increment patch version
+          PATCH=$((PATCH + 1))
+          
+          # Create new tag
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "New tag: $NEW_TAG"
+
+      - name: Create and push tag
+        if: steps.check_merge.outputs.is_merge == 'true'
+        run: |
+          NEW_TAG="${{ steps.new_tag.outputs.new_tag }}"
+          COMMIT_SHA="${{ github.sha }}"
+          
+          # Create annotated tag
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEW_TAG" -m "Release $NEW_TAG - Auto-generated on merge to main"
+          
+          # Push tag to remote
+          git push origin "$NEW_TAG"
+          
+          echo "✅ Created and pushed tag: $NEW_TAG"
+
+      - name: Create GitHub Release
+        if: steps.check_merge.outputs.is_merge == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.new_tag.outputs.new_tag }}
+          release_name: Release ${{ steps.new_tag.outputs.new_tag }}
+          body: |
+            ## Release ${{ steps.new_tag.outputs.new_tag }}
+            
+            Auto-generated release from merge to main.
+            
+            **Commit:** ${{ github.sha }}
+            **Merged by:** ${{ github.actor }}
+            **Date:** ${{ github.event.head_commit.timestamp }}
+          draft: false
+          prerelease: false

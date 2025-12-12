@@ -93,7 +93,8 @@ const commonGlobals = {
   useDeviceOrientation: 'readonly',
   useTLEData: 'readonly',
   usePolarPlotBackground: 'readonly',
-  useCredentials: 'readonly'
+  useCredentials: 'readonly',
+  usePWAInstall: 'readonly'
 }
 
 const commonTsRules = {

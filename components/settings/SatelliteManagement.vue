@@ -240,8 +240,6 @@ const formatSatellite = (satellite) => {
 
 // Click handler
 const handleClick = (satellite) => {
-  console.log('🚀 handleClick called!')
-  console.log('🔍 handleClick called with:', satellite)
   emit('add-satellite', formatSatellite(satellite))
   showResults.value = false
   selectedIndex.value = -1
@@ -249,10 +247,8 @@ const handleClick = (satellite) => {
 
 // Keyboard navigation functions
 const handleEnterKey = () => {
-  console.log('🔍 handleEnterKey called, selectedIndex:', selectedIndex.value)
   if (props.searchResults.length > 0 && selectedIndex.value >= 0) {
     const satellite = props.searchResults[selectedIndex.value]
-    console.log('🔍 Emitting add-satellite with:', satellite)
     emit('add-satellite', formatSatellite(satellite))
     showResults.value = false
     selectedIndex.value = -1

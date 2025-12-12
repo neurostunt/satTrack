@@ -2,6 +2,10 @@
   <div class="min-h-screen space-gradient">
     <PWAStatus />
     <NuxtPage />
+    <!-- PWA Install Button -->
+    <ClientOnly>
+      <PWAInstallButton />
+    </ClientOnly>
   </div>
 </template>
 

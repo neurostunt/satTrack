@@ -72,8 +72,6 @@ export const usePassPrediction = () => {
     apiKey: string
   ): Promise<PassPrediction[]> => {
     try {
-      console.log(`🛰️ Fetching N2YO radio passes for NORAD ID: ${noradId}`)
-
       const n2yoResponse = await getRadioPasses(
         noradId,
         observerLocation.lat,
@@ -84,38 +82,15 @@ export const usePassPrediction = () => {
         apiKey
       )
 
-      console.log(`🔍 N2YO Response for NORAD ${noradId}:`, n2yoResponse)
-      console.log(`🔍 Response keys:`, Object.keys(n2yoResponse || {}))
-      console.log(`🔍 Response.passes type:`, typeof n2yoResponse?.passes)
-      console.log(`🔍 Response.passes isArray:`, Array.isArray(n2yoResponse?.passes))
-      console.log(`🔍 Response.passes length:`, n2yoResponse?.passes?.length)
-      console.log(`🔍 Response.info:`, n2yoResponse?.info)
-
       // Check if response has the expected structure
       if (!n2yoResponse || !n2yoResponse.passes || !Array.isArray(n2yoResponse.passes)) {
-        console.warn(`⚠️ Invalid N2YO response structure for NORAD ID: ${noradId}`)
-        console.warn('Response:', JSON.stringify(n2yoResponse, null, 2))
+        console.warn(`Invalid N2YO response structure for NORAD ID: ${noradId}`)
         return []
-      }
-
-      // Debug: Log the first pass to see what fields are available
-      if (n2yoResponse.passes.length > 0) {
-        const firstPass = n2yoResponse.passes[0]
-        if (firstPass) {
-          console.log(`🔍 First radio pass data for NORAD ${noradId}:`, firstPass)
-          console.log(`🔍 Available fields:`, Object.keys(firstPass))
-          console.log(`🔍 maxEl value:`, firstPass.maxEl)
-          console.log(`🔍 startAz value:`, firstPass.startAz)
-          console.log(`🔍 endAz value:`, firstPass.endAz)
-        }
       }
 
       // Convert N2YO radio passes to our format
       // Note: radio passes do NOT include startEl/endEl (not needed for radio ops)
       const allPasses: PassPrediction[] = n2yoResponse.passes.map(pass => {
-        console.log(`🔍 Processing radio pass:`, pass)
-        console.log(`🔍 maxEl: ${pass.maxEl}, maxAz: ${pass.maxAz}`)
-
         const maxElevation = pass.maxEl || 0
         const maxAzimuth = pass.maxAz || 0
 
@@ -136,17 +111,10 @@ export const usePassPrediction = () => {
       const currentTime = Date.now()
       const futurePasses = allPasses.filter(pass => pass.endTime > currentTime)
 
-      console.log(`📊 N2YO returned ${allPasses.length} total passes, ${futurePasses.length} future passes for NORAD ID: ${noradId}`)
-
-      if (allPasses.length > futurePasses.length) {
-        const pastPasses = allPasses.length - futurePasses.length
-        console.log(`⏰ Filtered out ${pastPasses} past passes for NORAD ID: ${noradId}`)
-      }
-
       return futurePasses
 
     } catch (err) {
-      console.error(`❌ Failed to get N2YO passes for NORAD ID: ${noradId}`, err)
+      console.error(`Failed to get N2YO passes for NORAD ID: ${noradId}`, err)
       // Return empty array instead of throwing to prevent breaking the entire process
       return []
     }
@@ -166,44 +134,26 @@ export const usePassPrediction = () => {
       isLoading.value = true
       error.value = null
 
-      console.log(`🔍 Checking cache for NORAD ID: ${noradId}`)
-
       // Check cache first
       const cachedData = await getPassPredictions(noradId, observerLocation)
-      console.log(`📋 Cache check result for ${noradId}:`, cachedData ? 'Found' : 'Not found')
 
       if (cachedData && isCacheValid(cachedData.timestamp)) {
-        console.log(`📋 Using cached pass predictions for NORAD ID: ${noradId}`)
-        console.log(`📋 Cached passes count: ${cachedData.passes?.length || 0}`)
-
         // Filter out expired passes from cache
         const currentTime = Date.now()
         const futurePasses = cachedData.passes?.filter((pass: PassPrediction) => pass.endTime > currentTime) || []
-
-        if (cachedData.passes && cachedData.passes.length > futurePasses.length) {
-          const expiredPasses = cachedData.passes.length - futurePasses.length
-          console.log(`⏰ Filtered out ${expiredPasses} expired passes from cache for NORAD ID: ${noradId}`)
-        }
-
         return futurePasses
       }
 
-      console.log(`🔄 Cache miss or expired for ${noradId}, fetching from N2YO`)
-
       // Get passes from N2YO API
-      console.log(`🛰️ Getting passes from N2YO API for NORAD ID: ${noradId}`)
       const passes = await getPassesFromN2YO(noradId, observerLocation, minElevation, 7, n2yoApiKey)
-      console.log(`✅ Successfully got ${passes.length} passes from N2YO for NORAD ID: ${noradId}`)
 
       // If no passes returned, log a warning but continue
       if (passes.length === 0) {
-        console.warn(`⚠️ No passes returned for NORAD ID: ${noradId}. This might be due to API limits, invalid satellite, or no passes in the requested time period.`)
+        console.warn(`No passes returned for NORAD ID: ${noradId}`)
       }
 
       // Cache the results
-      console.log(`💾 Storing ${passes.length} passes for NORAD ID: ${noradId} in database`)
       await storePassPredictions(noradId, passes, observerLocation)
-      console.log(`✅ Successfully stored passes for NORAD ID: ${noradId}`)
 
       return passes
 
@@ -215,7 +165,6 @@ export const usePassPrediction = () => {
       // Return cached data even if expired as fallback
       const cachedData = await getPassPredictions(noradId, observerLocation)
       if (cachedData) {
-        console.log(`⚠️ Using expired cached data for NORAD ID: ${noradId}`)
         return cachedData.passes
       }
 
@@ -240,7 +189,6 @@ export const usePassPrediction = () => {
         .filter(pass => pass.nextPassTime && pass.nextPassTime > Date.now())
         .sort((a, b) => a.nextPassTime! - b.nextPassTime!)
 
-      console.log(`📊 Retrieved ${validPasses.length} valid pass predictions`)
       return validPasses
 
     } catch (err) {
@@ -268,20 +216,15 @@ export const usePassPrediction = () => {
 
       const results = new Map<number, PassPrediction[]>()
 
-      console.log(`🛰️ Calculating passes for ${satellites.length} satellites`)
-      console.log(`🛰️ Observer location:`, observerLocation)
-
       // Calculate passes for each satellite
       for (const satellite of satellites) {
         try {
-          console.log(`🔄 Processing satellite ${satellite.noradId}`)
           const passes = await getPassPredictionsWithCache(
             satellite.noradId,
             observerLocation,
             minElevation,
             n2yoApiKey
           )
-          console.log(`✅ Got ${passes.length} passes for satellite ${satellite.noradId}`)
           results.set(satellite.noradId, passes)
         } catch (err) {
           console.error(`Failed to calculate passes for NORAD ID: ${satellite.noradId}`, err)
@@ -289,7 +232,6 @@ export const usePassPrediction = () => {
         }
       }
 
-      console.log(`✅ Completed pass calculations for ${results.size} satellites`)
       return results
 
     } catch (err) {
@@ -343,7 +285,6 @@ export const usePassPrediction = () => {
       error.value = null
 
       await clearPassPredictions()
-      console.log('🗑️ Pass prediction cache cleared')
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to clear pass prediction cache'
@@ -367,8 +308,6 @@ export const usePassPrediction = () => {
    */
   const clearExpiredPasses = async (): Promise<void> => {
     try {
-      console.log('🧹 Clearing expired passes from cache...')
-
       // Get all cached pass predictions
       const allCachedData = await getAllPassPredictions()
       const currentTime = Date.now()
@@ -405,7 +344,6 @@ export const usePassPrediction = () => {
           let futurePasses: any[]
 
           if (hasGeostationaryPass) {
-            console.log(`🛰️ NORAD ID ${noradId} is geostationary - keeping all passes (stationary satellite)`)
             // For geostationary satellites, keep all passes as they don't "pass" in the traditional sense
             futurePasses = passes
           } else {
@@ -426,8 +364,6 @@ export const usePassPrediction = () => {
           const expiredCount = passes.length - futurePasses.length
 
           if (expiredCount > 0) {
-            console.log(`🧹 Clearing ${expiredCount} expired passes for NORAD ID: ${noradId}`)
-
             // Update cache with only future passes
             if (futurePasses.length > 0) {
               // Convert back to PassPrediction format
@@ -450,12 +386,6 @@ export const usePassPrediction = () => {
             totalExpired += expiredCount
           }
         }
-      }
-
-      if (totalExpired > 0) {
-        console.log(`✅ Cleared ${totalExpired} expired passes from cache`)
-      } else {
-        console.log('✅ No expired passes found in cache')
       }
 
     } catch (err) {

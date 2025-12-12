@@ -106,7 +106,6 @@ export const useN2YO = () => {
   const getCachedData = (cacheKey: string): N2YOResponse | null => {
     const cached = cache.value.get(cacheKey)
     if (cached && isCacheValid(cached.timestamp)) {
-      console.log(`📋 Using cached N2YO data for key: ${cacheKey}`)
       return cached.data
     }
     return null
@@ -121,7 +120,6 @@ export const useN2YO = () => {
       timestamp: Date.now(),
       cacheKey
     })
-    console.log(`💾 Cached N2YO data for key: ${cacheKey}`)
   }
 
   /**
@@ -147,7 +145,6 @@ export const useN2YO = () => {
       // Check cache first
       const cachedData = getCachedData(cacheKey)
       if (cachedData) {
-        console.log(`📋 Returning cached N2YO radio passes data for NORAD ${noradId}`)
         return cachedData
       }
 
@@ -155,9 +152,6 @@ export const useN2YO = () => {
       if (!checkRateLimit()) {
         throw new Error(`API rate limit exceeded. Maximum ${REQUEST_LIMIT_PER_HOUR} requests per hour. Please wait before making more requests.`)
       }
-
-      console.log(`🔄 Fetching fresh N2YO radio passes data for NORAD ${noradId}`)
-      console.log(`📊 API requests used: ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR}`)
 
       // Make API request
       const response = await $fetch('/api/n2yo', {
@@ -185,11 +179,6 @@ export const useN2YO = () => {
 
       // Cache the result
       setCachedData(cacheKey, n2yoData)
-
-      console.log(`✅ N2YO radio passes API success for NORAD ${noradId}:`, {
-        passesCount: n2yoData.info.passescount,
-        transactionsCount: n2yoData.info.transactionscount
-      })
 
       return n2yoData
 
@@ -233,8 +222,6 @@ export const useN2YO = () => {
         throw new Error(`API rate limit exceeded. Maximum ${REQUEST_LIMIT_PER_HOUR} requests per hour.`)
       }
 
-      console.log(`📡 Fetching satellite positions for NORAD ${noradId} (${seconds}s)`)
-      console.log(`📊 API requests used this hour (before): ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR} (positions endpoint)`)
 
       const response = await $fetch('/api/n2yo', {
         method: 'POST',
@@ -262,18 +249,6 @@ export const useN2YO = () => {
 
       // Increment request counter after successful API call
       incrementRequestCount()
-      console.log(`📊 API requests used this hour (after): ${requestCount.value}/${REQUEST_LIMIT_PER_HOUR} (positions endpoint)`)
-
-      console.log(`✅ N2YO positions API success for NORAD ${noradId}:`, {
-        positionsCount: positionsData.positions?.length || 0,
-        serverTimestamp: new Date(serverTimestamp).toISOString()
-      })
-
-      // Debug: Log first position to see what fields are available
-      if (positionsData.positions && positionsData.positions.length > 0) {
-        console.log('🔍 First position sample:', positionsData.positions[0])
-        console.log('🔍 Available fields:', Object.keys(positionsData.positions[0]))
-      }
 
       // Convert N2YO positions to our format
       const positions = positionsData.positions.map((pos: any) => ({
@@ -289,8 +264,6 @@ export const useN2YO = () => {
       // Add server-side timestamp to positions array metadata
       // This allows useRealTimePosition to use server time for all calculations
       ;(positions as any).serverTimestamp = serverTimestamp
-
-      console.log('🔍 Mapped first position:', positions[0])
 
       return positions
 
@@ -312,7 +285,6 @@ export const useN2YO = () => {
       isLoading.value = true
       error.value = null
 
-      console.log(`🔄 Fetching N2YO TLE data for NORAD ${noradId}`)
 
       const response = await $fetch('/api/n2yo', {
         method: 'POST',
@@ -327,7 +299,6 @@ export const useN2YO = () => {
         throw new Error((response as any).message || 'N2YO TLE request failed')
       }
 
-      console.log(`✅ N2YO TLE data retrieved for NORAD ${noradId}`)
       return (response as any).data
 
     } catch (err) {
@@ -348,7 +319,6 @@ export const useN2YO = () => {
       isLoading.value = true
       error.value = null
 
-      console.log('🔄 Testing N2YO API connection...')
 
       const response = await $fetch('/api/n2yo', {
         method: 'POST',
@@ -359,7 +329,6 @@ export const useN2YO = () => {
       })
 
       const success = response.success
-      console.log(success ? '✅ N2YO API connection successful' : '❌ N2YO API connection failed')
 
       return success
 
@@ -378,7 +347,6 @@ export const useN2YO = () => {
    */
   const clearCache = (): void => {
     cache.value.clear()
-    console.log('🗑️ N2YO cache cleared')
   }
 
   /**

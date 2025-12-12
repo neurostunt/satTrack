@@ -11,8 +11,7 @@
     "generate": "nuxt generate",
     "lint": "eslint .",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare",
-    "deploy": "node scripts/deploy.js"
+    "postinstall": "nuxt prepare"
   },
   "devDependencies": {
     "@nuxt/devtools": "latest",

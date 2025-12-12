@@ -1,5 +1,18 @@
 # Deployment Guide - SatTrack
 
+## Quick Start - Automatic Deployment (Recommended)
+
+**To enable automatic deployment on every push to main:**
+
+1. Go to Vercel Dashboard → Your Project → Settings → Git
+2. Scroll to "Ignored Build Step"
+3. Select **"Automatic"** (or leave it empty/default)
+4. Save changes
+
+That's it! Every push to `main` will now automatically deploy to Vercel.
+
+---
+
 ## Deploy to Vercel (FREE)
 
 ### Initial Setup
@@ -28,7 +41,7 @@
    - `SPACE_TRACK_BASE_URL` (optional, defaults to https://www.space-track.org)
    - `SATNOGS_BASE_URL` (optional, defaults to https://db.satnogs.org/api)
 
-5. **Configure Build Settings & Disable Auto-Deployments**:
+5. **Configure Build Settings**:
    
    **Step 1: Align Project Settings with Production Overrides**
    - Go to Project Settings → General (or Build & Development Settings)
@@ -43,123 +56,23 @@
      - **Development Command:** `npm run dev` (Override: ON)
    - This matches your `vercel.json` configuration and removes the warning
    
-   **Step 2: Disable Auto-Deployments (Recommended)**
-   
-   **Option A: Using Ignored Build Step (Recommended)**
+   **Step 2: Enable Automatic Deployments (Default)**
    - Go to Project Settings → Git
    - Scroll down to "Ignored Build Step"
-   - Select "Don't build anything" - this prevents Vercel from automatically deploying on every push
-   - GitHub Actions will still deploy when you push tags
-   - **Note:** Canceled builds still count towards deployment quotas, but won't execute the build step
-   
-   **Option B: Disable Automatic Deployments**
-   - Go to Project Settings → Git
-   - Disable "Automatic deployments from Git" for the `main` branch
-   - This prevents accidental deployments (tag-based deployment via GitHub Actions will still work)
+   - Select "Automatic" - this will deploy on every push to main branch
+   - **OR** leave it empty/default - Vercel will automatically deploy on every push
+   - This is the simplest setup - every push to main will trigger a deployment
    
    **Note about Production Overrides:**
    - You may see a warning that "Production Overrides" differ from "Project Settings"
    - Production Overrides cannot be edited directly - they reflect the current production deployment
    - They will automatically update to match Project Settings on your next deployment
-   - The warning will disappear after you deploy via GitHub Actions (when you push a tag)
+   - The warning will disappear after you deploy
    - This is normal and not a problem - just ensure Project Settings are correct
 
-6. **Get Vercel Credentials for GitHub Actions**:
-   - Go to Project Settings → General
-   - Copy your `Project ID`
-   - Go to your [Vercel Account Settings](https://vercel.com/account/tokens)
-   - Create a new token (name it "GitHub Actions")
-   - Copy the token
-   - Go to your Team/Organization Settings → General to get `Team ID` (this is your `VERCEL_ORG_ID`)
-
-## Tag-Based Deployment
-
-Deployments only happen when you push a tag to the `main` branch. This gives you control over when new versions go live.
-
-### Setup GitHub Actions
-
-1. **Add GitHub Secrets**:
-   
-   **How GitHub Secrets Work:**
-   - ✅ Secrets are **encrypted** and stored separately from code
-   - ✅ **Never** appear in code or commits
-   - ✅ **Never** displayed in logs (GitHub automatically masks them)
-   - ✅ Only accessible to GitHub Actions workflows
-   - ✅ **Secure** even for public repositories
-   
-   **How to Add Secrets:**
-   
-   1. Go to your GitHub repository → **Settings** (top right)
-   2. In the left menu: **Secrets and variables** → **Actions**
-   3. Click **New repository secret**
-   4. Add these three secrets:
-   
-      - **Name:** `VERCEL_TOKEN`
-        - **Value:** Go to [Vercel Account Settings → Tokens](https://vercel.com/account/tokens)
-        - Click "Create Token"
-        - Name: "GitHub Actions"
-        - Copy the token and paste here
-      
-      - **Name:** `VERCEL_ORG_ID`
-        - **Value:** This is your **Team ID** in Vercel (they're the same!)
-        - Go to Vercel Dashboard → **Settings** → **General**
-        - Find "Team ID" (or "Organization ID") and copy it
-        - **Note:** Team ID = Organization ID (same thing in Vercel)
-        - Alternative: Run `vercel whoami` in terminal, then `vercel orgs ls`
-      
-      - **Name:** `VERCEL_PROJECT_ID`
-        - **Value:** Go to Vercel Project → **Settings** → **General**
-        - Find "Project ID" and copy it
-   
-   5. Click **Add secret** for each one
-   
-   **⚠️ IMPORTANT:** After adding secrets, they will **never appear** in your code. 
-   In the workflow file, you'll only see `${{ secrets.VERCEL_TOKEN }}` - this is a placeholder that GitHub replaces with the actual value only during execution.
-
-2. **How to Deploy**:
-
-   **Option A: Using npm script (Recommended)**:
-   ```bash
-   # Make your changes and commit
-   git add .
-   git commit -m "Your changes"
-   git push origin main
-   
-   # Deploy using npm script
-   npm run deploy -- 1.0.0
-   # Or with custom message
-   npm run deploy -- 1.2.3 "Fixed satellite tracking bug"
-   ```
-
-   **Option B: Manual git commands**:
-   ```bash
-   # Make your changes and commit
-   git add .
-   git commit -m "Your changes"
-   git push origin main
-   
-   # Create and push a tag to trigger deployment
-   git tag -a v1.0.0 -m "Release version 1.0.0"
-   git push origin v1.0.0
-   ```
-
-3. **Tag Naming Convention**:
-   - Use semantic versioning: `v1.0.0`, `v1.2.3`, `v2.0.0`
-   - Tags must start with `v` (e.g., `v1.0.0`)
-   - The workflow will automatically deploy when you push the tag
-
-4. **Check Deployment Status**:
-   - Go to your GitHub repository → Actions tab
-   - You'll see the "Deploy to Vercel" workflow running
-   - Once complete, your app will be live on Vercel
-
-### Benefits of Tag-Based Deployment
-
-- ✅ Control when deployments happen
-- ✅ Only deploy stable, tested versions
-- ✅ Clear version history
-- ✅ Easy rollback (just deploy a previous tag)
-- ✅ No accidental deployments from WIP commits
+6. **You're all set!** 🎉
+   - Every push to `main` branch will automatically deploy to Vercel
+   - Your domain will be automatically connected to the latest deployment
 
 ## Vercel Free Tier Limits
 
@@ -187,19 +100,3 @@ Perfect for non-profit/ham radio projects!
 - Make sure they're set in Vercel project settings
 - Redeploy after adding new variables
 
-### GitHub Actions deployment fails
-- Verify all three secrets are set correctly (VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID)
-- Check that the tag follows the `v*` pattern (e.g., `v1.0.0`)
-- Ensure Vercel project is linked to your GitHub repo
-- Check GitHub Actions logs (secrets are automatically masked, so you won't see actual values)
-
-### Security FAQ
-
-**Q: Are secrets safe in a public repository?**
-A: **YES!** GitHub Secrets are encrypted and never appear in code. Even if someone sees the workflow file, they'll only see `${{ secrets.NAME }}` - not the actual value.
-
-**Q: Can I see secrets in logs?**
-A: **NO.** GitHub automatically masks (hides) all secrets in logs. If you accidentally try to print them, you'll see `***` instead of the actual value.
-
-**Q: Who can access secrets?**
-A: Only GitHub Actions workflows in your repository. Even other collaborators cannot see the secret values (only that they exist).

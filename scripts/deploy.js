@@ -51,6 +51,18 @@ try {
     process.exit(1);
   }
 
+  // Check if there are unpushed commits
+  try {
+    const unpushedCommits = execSync('git log origin/main..HEAD --oneline', { encoding: 'utf-8' }).trim();
+    if (unpushedCommits) {
+      console.log('📤 Pushing commits to main branch...');
+      execSync('git push origin main', { stdio: 'inherit' });
+      console.log('✅ Commits pushed successfully\n');
+    }
+  } catch (e) {
+    // No remote or no unpushed commits, continue
+  }
+
   // Check if tag already exists
   try {
     execSync(`git rev-parse ${tagName}`, { stdio: 'ignore' });

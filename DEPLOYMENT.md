@@ -32,6 +32,9 @@
    
    **Step 1: Align Project Settings with Production Overrides**
    - Go to Project Settings → General (or Build & Development Settings)
+   - **Root Directory:** Leave **completely empty** - your code is in the root of the repository
+     - ⚠️ **Important:** Do NOT use `.` or `./` - Vercel will show an error
+     - Empty field means root directory of the repository
    - You'll see a warning if Production Overrides differ from Project Settings
    - For each setting, enable "Override" toggle and set:
      - **Build Command:** `npm run build` (Override: ON)
@@ -45,10 +48,14 @@
    **Option A: Using Ignored Build Step (Recommended)**
    - Go to Project Settings → Git
    - Scroll down to "Ignored Build Step"
-   - Select "Run my Node script"
-   - Enter this command: `node scripts/ignore-build.js`
-   - This will prevent Vercel from automatically deploying on every push
+   - Select "Don't build anything" - this prevents Vercel from automatically deploying on every push
    - GitHub Actions will still deploy when you push tags
+   - **Note:** Canceled builds still count towards deployment quotas, but won't execute the build step
+   
+   **Option B: Disable Automatic Deployments**
+   - Go to Project Settings → Git
+   - Disable "Automatic deployments from Git" for the `main` branch
+   - This prevents accidental deployments (tag-based deployment via GitHub Actions will still work)
    
    **Note about Production Overrides:**
    - You may see a warning that "Production Overrides" differ from "Project Settings"
@@ -56,11 +63,6 @@
    - They will automatically update to match Project Settings on your next deployment
    - The warning will disappear after you deploy via GitHub Actions (when you push a tag)
    - This is normal and not a problem - just ensure Project Settings are correct
-   
-   **Option B: Disable Automatic Deployments**
-   - Go to Project Settings → Git
-   - Disable "Automatic deployments from Git" for the `main` branch
-   - This prevents accidental deployments (tag-based deployment via GitHub Actions will still work)
 
 6. **Get Vercel Credentials for GitHub Actions**:
    - Go to Project Settings → General

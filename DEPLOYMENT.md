@@ -28,7 +28,36 @@
    - `SPACE_TRACK_BASE_URL` (optional, defaults to https://www.space-track.org)
    - `SATNOGS_BASE_URL` (optional, defaults to https://db.satnogs.org/api)
 
-5. **Disable Auto-Deployments** (Recommended): 
+5. **Configure Build Settings & Disable Auto-Deployments**:
+   
+   **Step 1: Align Project Settings with Production Overrides**
+   - Go to Project Settings → General (or Build & Development Settings)
+   - You'll see a warning if Production Overrides differ from Project Settings
+   - For each setting, enable "Override" toggle and set:
+     - **Build Command:** `npm run build` (Override: ON)
+     - **Output Directory:** `.output/public` (Override: ON)
+     - **Install Command:** `npm install` (Override: ON)
+     - **Development Command:** `npm run dev` (Override: ON)
+   - This matches your `vercel.json` configuration and removes the warning
+   
+   **Step 2: Disable Auto-Deployments (Recommended)**
+   
+   **Option A: Using Ignored Build Step (Recommended)**
+   - Go to Project Settings → Git
+   - Scroll down to "Ignored Build Step"
+   - Select "Run my Node script"
+   - Enter this command: `node scripts/ignore-build.js`
+   - This will prevent Vercel from automatically deploying on every push
+   - GitHub Actions will still deploy when you push tags
+   
+   **Note about Production Overrides:**
+   - You may see a warning that "Production Overrides" differ from "Project Settings"
+   - Production Overrides cannot be edited directly - they reflect the current production deployment
+   - They will automatically update to match Project Settings on your next deployment
+   - The warning will disappear after you deploy via GitHub Actions (when you push a tag)
+   - This is normal and not a problem - just ensure Project Settings are correct
+   
+   **Option B: Disable Automatic Deployments**
    - Go to Project Settings → Git
    - Disable "Automatic deployments from Git" for the `main` branch
    - This prevents accidental deployments (tag-based deployment via GitHub Actions will still work)

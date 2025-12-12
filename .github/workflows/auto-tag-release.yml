@@ -8,6 +8,8 @@ on:
 jobs:
   create-tag:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to create tags and releases
     
     steps:
       - name: Checkout code
@@ -44,6 +46,8 @@ jobs:
           echo "New tag: $NEW_TAG"
 
       - name: Create and push tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           NEW_TAG="${{ steps.new_tag.outputs.new_tag }}"
           COMMIT_SHA="${{ github.sha }}"
@@ -53,7 +57,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$NEW_TAG" -m "Release $NEW_TAG - Auto-generated on push to main"
           
-          # Push tag to remote
+          # Push tag to remote using token
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git push origin "$NEW_TAG"
           
           echo "✅ Created and pushed tag: $NEW_TAG"

@@ -8,6 +8,8 @@ on:
 jobs:
   create-tag:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to create tags and releases
     
     steps:
       - name: Checkout code
@@ -16,19 +18,7 @@ jobs:
           fetch-depth: 0  # Fetch all history for tags
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check if merge commit
-        id: check_merge
-        run: |
-          # Check if commit message starts with "Merge"
-          if [[ "${{ github.event.head_commit.message }}" == Merge* ]]; then
-            echo "is_merge=true" >> $GITHUB_OUTPUT
-          else
-            echo "is_merge=false" >> $GITHUB_OUTPUT
-            echo "Not a merge commit, skipping tag creation"
-          fi
-
       - name: Get latest tag
-        if: steps.check_merge.outputs.is_merge == 'true'
         id: get_tag
         run: |
           # Get the latest tag, or use v0.0.0 if no tags exist
@@ -38,7 +28,6 @@ jobs:
 
       - name: Generate new version tag
         id: new_tag
-        if: steps.check_merge.outputs.is_merge == 'true'
         run: |
           LATEST_TAG="${{ steps.get_tag.outputs.latest_tag }}"
           
@@ -57,7 +46,8 @@ jobs:
           echo "New tag: $NEW_TAG"
 
       - name: Create and push tag
-        if: steps.check_merge.outputs.is_merge == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           NEW_TAG="${{ steps.new_tag.outputs.new_tag }}"
           COMMIT_SHA="${{ github.sha }}"
@@ -65,15 +55,15 @@ jobs:
           # Create annotated tag
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$NEW_TAG" -m "Release $NEW_TAG - Auto-generated on merge to main"
+          git tag -a "$NEW_TAG" -m "Release $NEW_TAG - Auto-generated on push to main"
           
-          # Push tag to remote
+          # Push tag to remote using token
+          git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git
           git push origin "$NEW_TAG"
           
           echo "✅ Created and pushed tag: $NEW_TAG"
 
       - name: Create GitHub Release
-        if: steps.check_merge.outputs.is_merge == 'true'
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -83,10 +73,10 @@ jobs:
           body: |
             ## Release ${{ steps.new_tag.outputs.new_tag }}
             
-            Auto-generated release from merge to main.
+            Auto-generated release from push to main.
             
             **Commit:** ${{ github.sha }}
-            **Merged by:** ${{ github.actor }}
+            **Author:** ${{ github.actor }}
             **Date:** ${{ github.event.head_commit.timestamp }}
           draft: false
           prerelease: false

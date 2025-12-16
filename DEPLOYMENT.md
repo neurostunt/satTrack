@@ -9,7 +9,9 @@
 3. Select **"Automatic"** (or leave it empty/default)
 4. Save changes
 
-That's it! Every push to `main` will now automatically deploy to Vercel.
+That's it! Every push to `main` will now automatically:
+- ✅ Create a new version tag (e.g., `v1.0.6`) via GitHub Actions
+- ✅ Deploy to Vercel automatically
 
 ---
 
@@ -42,7 +44,7 @@ That's it! Every push to `main` will now automatically deploy to Vercel.
    - `SATNOGS_BASE_URL` (optional, defaults to https://db.satnogs.org/api)
 
 5. **Configure Build Settings**:
-   
+
    **Step 1: Align Project Settings with Production Overrides**
    - Go to Project Settings → General (or Build & Development Settings)
    - **Root Directory:** Leave **completely empty** - your code is in the root of the repository
@@ -55,14 +57,14 @@ That's it! Every push to `main` will now automatically deploy to Vercel.
      - **Install Command:** `npm install` (Override: ON)
      - **Development Command:** `npm run dev` (Override: ON)
    - This matches your `vercel.json` configuration and removes the warning
-   
+
    **Step 2: Enable Automatic Deployments (Default)**
    - Go to Project Settings → Git
    - Scroll down to "Ignored Build Step"
    - Select "Automatic" - this will deploy on every push to main branch
    - **OR** leave it empty/default - Vercel will automatically deploy on every push
    - This is the simplest setup - every push to main will trigger a deployment
-   
+
    **Note about Production Overrides:**
    - You may see a warning that "Production Overrides" differ from "Project Settings"
    - Production Overrides cannot be edited directly - they reflect the current production deployment
@@ -84,6 +86,46 @@ That's it! Every push to `main` will now automatically deploy to Vercel.
 - ✅ No credit card required
 
 Perfect for non-profit/ham radio projects!
+
+## Vercel Web Analytics (FREE)
+
+Vercel Web Analytics is already integrated into the app! Follow these steps to enable it:
+
+### Enable Web Analytics in Vercel Dashboard
+
+1. **Go to your Vercel project dashboard**
+2. **Click on the "Analytics" tab**
+3. **Click "Enable"** in the Web Analytics section
+4. **Deploy your app** (or wait for the next automatic deployment)
+
+That's it! Once enabled and deployed, Vercel will automatically start tracking:
+- Page views
+- Unique visitors
+- Top pages
+- Referrers
+- Device types
+- Geographic data
+
+### View Your Analytics
+
+After deployment and some traffic:
+1. Go to your project → **Analytics** tab
+2. View real-time and historical data
+3. Filter by date range, pages, referrers, etc.
+
+### What's Included (Free Tier)
+
+- ✅ Page view tracking
+- ✅ Visitor analytics
+- ✅ Top pages
+- ✅ Referrer tracking
+- ✅ Device and browser data
+- ✅ Geographic data
+- ✅ Privacy-compliant (no cookies, GDPR-friendly)
+
+**Note:** The analytics plugin (`plugins/vercel-analytics.client.ts`) is already configured and will automatically start working once you enable Web Analytics in the Vercel dashboard.
+
+For more details, see: [Vercel Web Analytics Documentation](https://vercel.com/docs/analytics/quickstart)
 
 ## Troubleshooting
 

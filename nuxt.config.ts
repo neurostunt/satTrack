@@ -46,12 +46,11 @@ export default defineNuxtConfig({
   },
   pwa: {
     registerType: 'autoUpdate',
+    strategies: 'generateSW',
     workbox: {
       navigateFallback: undefined, // Disable navigate fallback to prevent route blocking
-      // Suppress warnings about non-matching glob patterns
       mode: 'production',
       // Only precache HTML files - let runtime caching handle JS/CSS/assets
-      // This avoids warnings about _nuxt paths and absolute file paths
       globPatterns: [
         '**/*.html'
       ],
@@ -62,13 +61,15 @@ export default defineNuxtConfig({
         '**/@vite/**/*',
         '**/entry.*.js',
         '**/client.*.js',
-        '_nuxt/builds/**/*.json',
-        '**/_nuxt/builds/**/*.json',
         'sw.js',
         'workbox-*.js'
       ],
-      // Suppress warnings (this is handled at workbox level)
+      maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+      cleanupOutdatedCaches: true,
       dontCacheBustURLsMatching: /\.\w{8}\./,
+      // Skip waiting and claim clients immediately
+      skipWaiting: true,
+      clientsClaim: true,
       // Don't cache _nuxt files - let them be served directly
       runtimeCaching: [
         {

@@ -22,18 +22,18 @@ const hasTouch = () => {
 // Detect mobile device
 const isMobile = () => {
   if (typeof window === 'undefined') return false
-  
+
   // Check user agent for mobile devices
   const userAgent = navigator.userAgent || ''
   const mobileRegex = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i
   const isMobileUserAgent = mobileRegex.test(userAgent)
-  
+
   // Check for touch support
   const hasTouchScreen = 'ontouchstart' in window || hasTouch()
-  
+
   // Check screen width (mobile typically < 768px)
   const isSmallScreen = window.innerWidth < 768
-  
+
   return isMobileUserAgent || (hasTouchScreen && isSmallScreen)
 }
 

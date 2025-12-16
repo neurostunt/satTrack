@@ -1,26 +1,18 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-10-10',
   devtools: { enabled: true },
-  ssr: false, // Disable SSR globally to prevent hydration issues
+  ssr: false,
   devServer: {
-    host: '0.0.0.0', // Listen on all network interfaces for phone testing
+    host: '0.0.0.0',
     port: 3000
   },
 
-  // Runtime configuration - accessible via useRuntimeConfig()
   runtimeConfig: {
-    // Public keys (exposed to client-side)
-    // Note: These are from .env file which is gitignored, so it's safe to expose
     public: {
-      // API Keys
       n2yoApiKey: process.env.N2YO_API_KEY || '',
       satnogsToken: process.env.SATNOGS_API_TOKEN || '',
-
-      // Space-Track credentials (from gitignored .env file)
       spaceTrackUsername: process.env.SPACE_TRACK_USERNAME || '',
       spaceTrackPassword: process.env.SPACE_TRACK_PASSWORD || '',
-
-      // API Base URLs
       n2yoBaseUrl: process.env.N2YO_BASE_URL || 'https://api.n2yo.com/rest/v1/satellite',
       spaceTrackBaseUrl: process.env.SPACE_TRACK_BASE_URL || 'https://www.space-track.org',
       satnogsBaseUrl: process.env.SATNOGS_BASE_URL || 'https://db.satnogs.org/api'
@@ -38,7 +30,7 @@ export default defineNuxtConfig({
   vite: {
     server: {
       watch: {
-        usePolling: true, // Use polling to avoid EMFILE error on macOS
+        usePolling: true,
         interval: 1000,
         ignored: ['**/node_modules/**', '**/.git/**', '**/.nuxt/**', '**/.output/**']
       }
@@ -48,13 +40,9 @@ export default defineNuxtConfig({
     registerType: 'autoUpdate',
     strategies: 'generateSW',
     workbox: {
-      navigateFallback: undefined, // Disable navigate fallback to prevent route blocking
+      navigateFallback: undefined,
       mode: 'production',
-      // Only precache HTML files - let runtime caching handle JS/CSS/assets
-      globPatterns: [
-        '**/*.html'
-      ],
-      // Exclude problematic paths from being handled by workbox
+      globPatterns: ['**/*.html'],
       globIgnores: [
         '**/node_modules/**/*',
         '**/_nuxt/**/*',
@@ -64,19 +52,15 @@ export default defineNuxtConfig({
         'sw.js',
         'workbox-*.js'
       ],
-      maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+      maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       cleanupOutdatedCaches: true,
       dontCacheBustURLsMatching: /\.\w{8}\./,
-      // Skip waiting and claim clients immediately
       skipWaiting: true,
       clientsClaim: true,
-      // Don't cache _nuxt files - let them be served directly
       runtimeCaching: [
         {
-          // Exclude _nuxt paths and absolute file paths - use NetworkOnly to bypass workbox
           urlPattern: ({ url }) => {
             const pathname = url.pathname
-            // Match problematic paths that should bypass workbox completely
             return (
               pathname.startsWith('/_nuxt/') ||
               pathname.includes('node_modules') ||
@@ -85,13 +69,12 @@ export default defineNuxtConfig({
               pathname.includes('entry.async.js')
             )
           },
-          handler: 'NetworkOnly', // Always fetch from network, bypass workbox cache
+          handler: 'NetworkOnly',
           options: {
             cacheName: 'bypass-cache'
           }
         },
         {
-          // Only cache external API calls
           urlPattern: /^https:\/\/api\.n2yo\.com\/.*/i,
           handler: 'NetworkFirst',
           options: {
@@ -108,8 +91,8 @@ export default defineNuxtConfig({
       installPrompt: true
     },
     devOptions: {
-      enabled: true, // Enable PWA in dev to test install button on localhost HTTP
-      suppressWarnings: true, // Suppress workbox warnings
+      enabled: true,
+      suppressWarnings: true,
       navigateFallbackAllowlist: [/^\/.*/],
       type: 'module'
     },
@@ -156,8 +139,8 @@ export default defineNuxtConfig({
         { name: 'msapplication-config', content: '/browserconfig.xml' }
       ],
       link: [
-        { rel: 'icon', type: 'image/x-icon', href: '/favicon.ico' },
-        { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' },
+        { rel: 'icon', type: 'image/png', href: '/favicon.png' },
+        { rel: 'apple-touch-icon', sizes: '192x192', href: '/apple-touch-icon.png' },
         { rel: 'manifest', href: '/manifest.webmanifest' }
       ]
     }

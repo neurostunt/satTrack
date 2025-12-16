@@ -312,7 +312,7 @@ export const usePassPrediction = () => {
       const allCachedData = await getAllPassPredictions()
       const currentTime = Date.now()
 
-      let totalExpired = 0
+      let _totalExpired = 0
 
       // Group passes by NORAD ID
       const passesByNoradId = new Map<number, any[]>()
@@ -383,7 +383,7 @@ export const usePassPrediction = () => {
               await clearPassPredictionsForSatellite(noradId)
             }
 
-            totalExpired += expiredCount
+            _totalExpired += expiredCount
           }
         }
       }

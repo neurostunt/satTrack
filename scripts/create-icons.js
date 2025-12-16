@@ -24,7 +24,6 @@ function createPNGIcon(size, outputPath) {
   const bgDark = { r: 15, g: 23, b: 42, a: 255 } // space-950
   const bluePrimary = { r: 14, g: 165, b: 233, a: 255 } // primary-500 #0ea5e9
   const blueLight = { r: 56, g: 189, b: 248, a: 255 } // primary-400 #38bdf8
-  const blueDark = { r: 2, g: 132, b: 199, a: 255 } // primary-600 #0284c7
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {

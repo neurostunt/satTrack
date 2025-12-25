@@ -214,33 +214,21 @@ const filterTransmitters = (transmitters) => {
   })
 }
 
+import { formatFrequencyValue } from '~/utils/frequencyUtils'
+
 const formatFrequency = (transmitter) => {
   if (!transmitter) return 'Unknown'
 
-  // Try different frequency field names from SatNOGS API
-  let frequency = transmitter.downlink_low ||
-                 transmitter.uplink_low ||
-                 transmitter.downlink_high ||
-                 transmitter.uplink_high ||
-                 transmitter.frequency ||
-                 transmitter.downlink_frequency ||
-                 transmitter.uplink_frequency
+  const frequency = transmitter.downlink_low ||
+                   transmitter.uplink_low ||
+                   transmitter.downlink_high ||
+                   transmitter.uplink_high ||
+                   transmitter.frequency ||
+                   transmitter.downlink_frequency ||
+                   transmitter.uplink_frequency
 
   if (!frequency) return 'Unknown'
-
-  // Handle different frequency formats
-  if (typeof frequency === 'number') {
-    if (frequency >= 1000000) {
-      return `${(frequency / 1000000).toFixed(3)} MHz`
-    } else if (frequency >= 1000) {
-      return `${(frequency / 1000).toFixed(0)} kHz`
-    } else {
-      return `${frequency} Hz`
-    }
-  }
-
-  // If it's already a string, return as-is
-  return frequency.toString()
+  return formatFrequencyValue(frequency, 3)
 }
 
 // Watch for changes in transmitter filters and reload data

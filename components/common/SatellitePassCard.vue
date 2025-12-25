@@ -23,7 +23,7 @@
     </div>
 
     <!-- Pass Details (Collapsible) -->
-    <div v-if="expandedPasses.has(pass.id)" class="mt-3 pt-3 border-t border-space-700">
+    <div v-if="isExpanded(pass.id)" class="mt-3 pt-3 border-t border-space-700">
       <!-- Pass Timing -->
       <div class="mb-3">
         <div class="text-sm text-space-300 mb-2">🕐 Pass Timing</div>
@@ -71,7 +71,7 @@
         @click="togglePass(pass.id)"
         class="text-space-400 hover:text-space-200 transition-colors"
       >
-        <div class="transform transition-transform duration-300" :class="{ 'rotate-180': expandedPasses.has(pass.id) }">
+        <div class="transform transition-transform duration-300" :class="{ 'rotate-180': isExpanded(pass.id) }">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
           </svg>
@@ -82,7 +82,8 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { getStatusColor, getStatusText } from '~/utils/satelliteStatusUtils'
+import { useExpandable } from '~/composables/useExpandable'
 
 defineProps({
   pass: {
@@ -91,41 +92,7 @@ defineProps({
   }
 })
 
-const expandedPasses = ref(new Set())
-
-const togglePass = (passId) => {
-  if (expandedPasses.value.has(passId)) {
-    expandedPasses.value.delete(passId)
-  } else {
-    expandedPasses.value.add(passId)
-  }
-}
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'alive':
-      return 'text-green-400'
-    case 'dead':
-      return 'text-red-400'
-    case 're-entered':
-      return 'text-orange-400'
-    default:
-      return 'text-space-400'
-  }
-}
-
-const getStatusText = (status) => {
-  switch (status) {
-    case 'alive':
-      return 'ACTIVE'
-    case 'dead':
-      return 'INACTIVE'
-    case 're-entered':
-      return 'RE-ENTERED'
-    default:
-      return 'UNKNOWN'
-  }
-}
+const { toggleItem: togglePass, isExpanded } = useExpandable()
 </script>
 
 <style scoped>

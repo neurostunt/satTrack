@@ -147,12 +147,12 @@
             <div class="flex flex-col justify-center pt-1">
         <!-- First row: Main satellite name -->
         <h4 class="font-semibold text-primary-300 leading-1 break-words">
-          {{ truncateSatelliteName(getFormattedSatelliteName(satellite).primary) }}
+          {{ truncateSatelliteName(formatSatelliteNameForDisplay(satellite).primary) }}
         </h4>
                 <!-- Second row: Secondary name + NORAD ID (proper spacing) -->
                 <div class="flex items-center gap-2 text-xs text-space-400 mt-1.5">
-                  <span v-if="getFormattedSatelliteName(satellite).secondary">
-                    {{ getFormattedSatelliteName(satellite).secondary }} -
+                  <span v-if="formatSatelliteNameForDisplay(satellite).secondary">
+                    {{ formatSatelliteNameForDisplay(satellite).secondary }} -
                   </span>
                   <span>NORAD ID: {{ satellite.noradId }}</span>
                 </div>
@@ -283,9 +283,6 @@ const handleClickOutside = () => {
   showResults.value = false
 }
 
-const getFormattedSatelliteName = (satellite) => {
-  return formatSatelliteNameForDisplay(satellite)
-}
 
 watch(() => props.searchResults, (newResults) => {
   selectedIndex.value = -1

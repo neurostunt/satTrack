@@ -22,16 +22,16 @@
         <!-- First row: Main satellite name + timestamp -->
         <div class="flex items-center pt-0 pb-1 leading-1">
           <div class="font-semibold text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out w-[60%] py-0.5 truncate">
-            {{ truncateSatelliteName(getFormattedSatelliteName(data.satellite, noradId).primary) }}
+            {{ truncateSatelliteName(formatSatelliteNameForDisplay(data.satellite, noradId).primary) }}
           </div>
           <span class="text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out w-[40%] text-right flex-shrink-0 mr-2">
-            {{ data.timestamp ? new Date(data.timestamp).toLocaleString() : 'Unknown' }}
+            {{ formatTimestamp(data.timestamp) }}
           </span>
         </div>
                 <!-- Second row: Secondary name + NORAD ID (proper spacing) -->
                 <div class="flex items-center gap-2 text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out mt-1 pb-2">
-                  <span v-if="getFormattedSatelliteName(data.satellite, noradId).secondary">
-                    {{ getFormattedSatelliteName(data.satellite, noradId).secondary }} -
+                  <span v-if="formatSatelliteNameForDisplay(data.satellite, noradId).secondary">
+                    {{ formatSatelliteNameForDisplay(data.satellite, noradId).secondary }} -
                   </span>
                   <span>NORAD ID: {{ noradId }}</span>
                 </div>
@@ -111,8 +111,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
+import { getStatusColor, getStatusText, getCleanDescription } from '~/utils/satelliteStatusUtils'
+import { formatTimestamp } from '~/utils/dateTimeUtils'
+import { useExpandable } from '~/composables/useExpandable'
 
 defineProps({
   combinedData: {
@@ -129,54 +131,7 @@ defineProps({
   }
 })
 
-const expandedSatellites = ref(new Set())
-
-const getFormattedSatelliteName = (satellite, noradId) => {
-  return formatSatelliteNameForDisplay(satellite, noradId)
-}
-
-const toggleSatelliteData = (noradId) => {
-  if (expandedSatellites.value.has(noradId)) {
-    expandedSatellites.value.delete(noradId)
-  } else {
-    expandedSatellites.value.add(noradId)
-  }
-}
-
-const isSatelliteExpanded = (noradId) => {
-  return expandedSatellites.value.has(noradId)
-}
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'alive':
-      return 'text-green-400'
-    case 'dead':
-      return 'text-red-400'
-    case 're-entered':
-      return 'text-orange-400'
-    default:
-      return 'text-space-400'
-  }
-}
-
-const getStatusText = (status) => {
-  switch (status) {
-    case 'alive':
-      return 'ACTIVE'
-    case 'dead':
-      return 'INACTIVE'
-    case 're-entered':
-      return 'RE-ENTERED'
-    default:
-      return 'UNKNOWN'
-  }
-}
-
-const getCleanDescription = (description) => {
-  if (!description) return 'Unknown'
-  return description.replace(/\(CTCSS:?\s*\d+(?:\.\d+)?\s*Hz\)/gi, '').trim()
-}
+const { toggleItem: toggleSatelliteData, isExpanded: isSatelliteExpanded } = useExpandable()
 </script>
 
 <style scoped>

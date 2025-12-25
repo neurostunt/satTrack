@@ -91,6 +91,7 @@
 
 <script setup>
 import { calculateDopplerShift } from '~/utils/dopplerCalculations'
+import { formatFrequencyHighPrecision } from '~/utils/frequencyUtils'
 
 const props = defineProps({
   // Current satellite position
@@ -244,20 +245,10 @@ const dopplerFrequencies = computed(() => {
       // Calculate Doppler shift
       const doppler = calculateDopplerShift(frequency, props.radialVelocity)
       
-      // Format frequencies
-      const formatFreq = (freq) => {
-        if (freq >= 1000000) {
-          return `${(freq / 1000000).toFixed(6)} MHz`
-        } else if (freq >= 1000) {
-          return `${(freq / 1000).toFixed(3)} kHz`
-        }
-        return `${freq} Hz`
-      }
-
       frequencies.push({
         label: transmitter.description || transmitter.mode || 'Frequency',
-        original: formatFreq(frequency),
-        shifted: formatFreq(doppler.shiftedFrequency),
+        original: formatFrequencyHighPrecision(frequency),
+        shifted: formatFrequencyHighPrecision(doppler.shiftedFrequency),
         shift: doppler.shiftKHz
       })
     })

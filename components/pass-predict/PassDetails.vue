@@ -149,6 +149,7 @@
 
 <script setup>
 import { calculateDopplerShift } from '~/utils/dopplerCalculations'
+import { formatFrequencyHighPrecision } from '~/utils/frequencyUtils'
 import { matchesTransmitterFilters } from '~/utils/transmitterCategorization'
 import { useSettings } from '~/composables/storage/useSettings'
 
@@ -220,15 +221,7 @@ const toggleTransmitters = () => {
 }
 
 const formatFrequency = (frequency) => {
-  if (!frequency) return 'Unknown'
-
-  if (frequency >= 1000000) {
-    return `${(frequency / 1000000).toFixed(6)} MHz`
-  } else if (frequency >= 1000) {
-    return `${(frequency / 1000).toFixed(3)} kHz`
-  } else {
-    return `${frequency} Hz`
-  }
+  return formatFrequencyHighPrecision(frequency)
 }
 
 const getShiftedFrequency = computed(() => {
@@ -242,8 +235,7 @@ const getShiftedFrequency = computed(() => {
     }
 
     const doppler = calculateDopplerShift(frequency, props.radialVelocity)
-
-    return formatFrequency(doppler.shiftedFrequency)
+    return formatFrequencyHighPrecision(doppler.shiftedFrequency)
   }
 })
 </script>

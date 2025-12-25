@@ -179,6 +179,7 @@
 
 <script setup>
 import { useSatnogs } from '~/composables/api/useSatnogs'
+import { getStatusColor } from '~/utils/satelliteStatusUtils'
 
 const props = defineProps({
   satelliteData: {
@@ -224,20 +225,6 @@ const formatDate = (dateString) => {
   } catch {
     return dateString
   }
-}
-
-const getStatusColor = (status) => {
-  if (!status) return 'text-space-400'
-
-  const statusLower = status.toLowerCase()
-  if (statusLower.includes('active') || statusLower.includes('operational')) {
-    return 'text-green-400'
-  } else if (statusLower.includes('inactive') || statusLower.includes('off')) {
-    return 'text-red-400'
-  } else if (statusLower.includes('unknown')) {
-    return 'text-yellow-400'
-  }
-  return 'text-space-400'
 }
 </script>
 

@@ -45,69 +45,69 @@
 
       <!-- Controls & Selection -->
       <div class="bg-space-800 border border-space-700 rounded-lg p-4 space-y-4">
-        <div class="flex items-center justify-between gap-4">
-          <div class="flex-1 flex items-end gap-3">
-            <div class="flex-1">
-              <label class="block text-xs text-space-400 mb-1 uppercase tracking-wider font-semibold">Active Passes</label>
-              <select
-                v-model="selectedPassId"
-                @change="onPassSelected"
-                class="w-full px-3 py-2 rounded bg-space-900 border border-space-600 text-space-200 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none"
-                :disabled="activePasses.length === 0"
-              >
-                <option v-if="activePasses.length === 0" value="" disabled>No active passes</option>
-                <option v-else value="">Select Satellite...</option>
-                <option
-                  v-for="pass in activePasses"
-                  :key="`${pass.noradId}-${pass.startTime}`"
-                  :value="`${pass.noradId}-${pass.startTime}`"
-                >
-                  {{ pass.satelliteName }}
-                </option>
-              </select>
-            </div>
-            <!-- Tracking indicator inline -->
-            <div v-if="isTrackingActive" class="flex items-center gap-2 px-3 py-2 rounded bg-green-600/20 border border-green-600/50 mb-0.5">
-              <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-              <span class="text-xs font-medium text-green-400">TRACKING</span>
-            </div>
-          </div>
-
-          <div class="flex gap-2">
-            <button
-              v-if="isDeviceOrientationActive"
-              @click="calibrateCompass"
-              class="p-2 rounded bg-space-700 border border-space-600 text-space-300 hover:text-white transition-colors"
-              title="Calibrate Compass"
+        <div class="flex items-end gap-3">
+          <div class="flex-1">
+            <label class="block text-xs text-space-400 mb-1 uppercase tracking-wider font-semibold">Active Passes</label>
+            <select
+              v-model="selectedPassId"
+              @change="onPassSelected"
+              class="w-full px-3 py-2 rounded bg-space-900 border border-space-600 text-space-200 text-sm focus:ring-1 focus:ring-primary-500 focus:border-primary-500 outline-none h-[38px]"
+              :disabled="activePasses.length === 0"
             >
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
+              <option v-if="activePasses.length === 0" value="" disabled>No active passes</option>
+              <option v-else value="">Select Satellite...</option>
+              <option
+                v-for="pass in activePasses"
+                :key="`${pass.noradId}-${pass.startTime}`"
+                :value="`${pass.noradId}-${pass.startTime}`"
+              >
+                {{ pass.satelliteName }}
+              </option>
+            </select>
           </div>
+          <!-- Tracking indicator inline -->
+          <div v-if="isTrackingActive" class="flex items-center gap-2 px-3 rounded bg-green-600/20 border border-green-600/50 h-[38px]">
+            <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span class="text-xs font-medium text-green-400 whitespace-nowrap">TRACKING</span>
+          </div>
+          <!-- Calibrate compass button inline -->
+          <button
+            v-if="isDeviceOrientationActive"
+            @click="calibrateCompass"
+            class="flex items-center justify-center px-3 rounded bg-space-700 border border-space-600 text-space-300 hover:text-white transition-colors h-[38px]"
+            title="Calibrate Compass"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
         </div>
       </div>
 
       <!-- AR Indicators -->
-      <div v-if="selectedPass && isTrackingActive" class="mt-6">
-        <div v-if="!currentPosition && !isGeostationarySatellite" class="text-center py-4 bg-space-800 border border-space-700 rounded-lg mb-4">
-          <div class="animate-spin w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-2"></div>
-          <p class="text-xs text-space-400">Waiting for real-time position data...</p>
+      <Transition name="fade" mode="out-in">
+        <div v-if="selectedPass" class="mt-6">
+          <div v-if="!isTrackingActive || (!currentPosition && !isGeostationarySatellite)" class="text-center py-4 bg-space-800 border border-space-700 rounded-lg mb-4">
+            <div class="animate-spin w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-2"></div>
+            <p class="text-xs text-space-400">{{ !isTrackingActive ? 'Initializing tracking...' : 'Waiting for real-time position data...' }}</p>
+          </div>
+          <ArTrackArIndicators
+            v-if="isTrackingActive"
+            :key="selectedPass.noradId"
+            :current-azimuth="isGeostationarySatellite ? (geostationaryPosition?.azimuth ?? selectedPass.maxAzimuth) : (currentPosition?.azimuth ?? 0)"
+            :current-elevation="isGeostationarySatellite ? (geostationaryPosition?.elevation ?? selectedPass.maxElevation) : (currentPosition?.elevation ?? 0)"
+            :current-distance="isGeostationarySatellite ? (geostationaryPosition?.distance ?? 0) : (currentPosition?.distance ?? 0)"
+            :distance-units="settings.distanceUnits || 'km'"
+            :compass-heading="compassHeading"
+            :device-pitch="devicePitch"
+            :compass-quality="compassQuality"
+            :radial-velocity="radialVelocity"
+            :is-passing="!isGeostationarySatellite"
+            :norad-id="selectedPass.noradId"
+            :get-satellite-data="getSatelliteData"
+          />
         </div>
-        <ArTrackArIndicators
-          :current-azimuth="isGeostationarySatellite ? (geostationaryPosition?.azimuth ?? selectedPass.maxAzimuth) : (currentPosition?.azimuth ?? 0)"
-          :current-elevation="isGeostationarySatellite ? (geostationaryPosition?.elevation ?? selectedPass.maxElevation) : (currentPosition?.elevation ?? 0)"
-          :current-distance="isGeostationarySatellite ? (geostationaryPosition?.distance ?? 0) : (currentPosition?.distance ?? 0)"
-          :distance-units="settings.distanceUnits || 'km'"
-          :compass-heading="compassHeading"
-          :device-pitch="devicePitch"
-          :compass-quality="compassQuality"
-          :radial-velocity="radialVelocity"
-          :is-passing="!isGeostationarySatellite"
-          :norad-id="selectedPass.noradId"
-          :get-satellite-data="getSatelliteData"
-        />
-      </div>
+      </Transition>
 
       <!-- Status Messages -->
       <Transition name="fade">
@@ -289,6 +289,10 @@ const onPassSelected = async () => {
 
   if (!selectedPassId.value) {
     selectedPass.value = null
+    // Clear URL parameters when no satellite is selected
+    await navigateTo({
+      query: {}
+    }, { replace: true })
     return
   }
 
@@ -312,6 +316,14 @@ const onPassSelected = async () => {
 
     selectedPass.value = pass
     showStatus('Satellite selected', 'success')
+    
+    // Update URL with satellite parameters
+    await navigateTo({
+      query: {
+        noradId: noradId,
+        startTime: startTime
+      }
+    }, { replace: true })
     
     if (canStartTracking.value) {
       const timeoutId = setTimeout(async () => {
@@ -440,7 +452,7 @@ const initialize = async () => {
   }, 1000)
 }
 
-const stopWatchActivePasses = watch(activePasses, (newPasses) => {
+const stopWatchActivePasses = watch(activePasses, async (newPasses) => {
   if (!isMounted.value) return
   
   if (selectedPass.value && selectedPassId.value) {
@@ -459,6 +471,10 @@ const stopWatchActivePasses = watch(activePasses, (newPasses) => {
         stopTracking()
         isTrackingActive.value = false
       }
+      // Clear URL parameters when pass ends
+      await navigateTo({
+        query: {}
+      }, { replace: true })
       showStatus('Satellite pass has ended', 'info')
     }
   }

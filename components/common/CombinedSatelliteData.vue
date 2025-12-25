@@ -1,12 +1,6 @@
 <template>
-  <div v-if="combinedData && Object.keys(combinedData).length > 0" class="max-w-lg mx-auto mb-6">
-    <div class="bg-space-800 border border-space-700 rounded-lg p-4">
-      <h3 class="text-lg font-semibold text-primary-400 mb-4 flex items-center">
-        📡 Combined Satellite Data
-        <span class="ml-2 text-sm text-space-300">({{ Object.keys(combinedData).length }} satellites)</span>
-      </h3>
-
-      <div class="space-y-4">
+  <div v-if="combinedData && Object.keys(combinedData).length > 0" class="max-w-lg mx-auto pb-24">
+    <div class="space-y-4">
         <div
           v-for="(data, noradId) in combinedData"
           :key="noradId"
@@ -313,7 +307,6 @@
           </Transition>
         </div>
       </div>
-    </div>
   </div>
 </template>
 

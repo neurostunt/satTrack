@@ -36,9 +36,9 @@
         <div v-if="showVisualization" class="mb-4">
           <PassPredictPolarPlot
             :satellite-name="pass.satelliteName"
-            :current-elevation="isGeostationarySatellite ? (geostationaryPosition?.elevation || props.pass.maxElevation) : (currentPosition?.elevation || 0)"
-            :current-azimuth="isGeostationarySatellite ? (geostationaryPosition?.azimuth || props.pass.maxAzimuth) : (currentPosition?.azimuth || 0)"
-            :current-distance="isGeostationarySatellite ? (geostationaryPosition?.distance || 0) : (currentPosition?.distance || 0)"
+            :current-elevation="isGeostationarySatellite ? (geostationaryPosition?.elevation ?? pass.maxElevation) : (currentPosition?.elevation ?? null)"
+            :current-azimuth="isGeostationarySatellite ? (geostationaryPosition?.azimuth ?? pass.maxAzimuth) : (currentPosition?.azimuth ?? null)"
+            :current-distance="isGeostationarySatellite ? (geostationaryPosition?.distance ?? 0) : (currentPosition?.distance ?? 0)"
             :distance-units="settings.distanceUnits || 'km'"
             :past-positions="pastPositions"
             :future-positions="futurePositions"
@@ -49,6 +49,7 @@
             :norad-id="pass.noradId"
             :pass-start-time="pass.startTime"
             :pass-end-time="pass.endTime"
+            :is-passing="isPassing"
           />
         </div>
 
@@ -190,6 +191,8 @@ const pastPositions = computed(() => {
 // 1. Card is expanded (user clicked to view details)
 // 2. Satellite is actively passing (within pass window)
 watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing]) => {
+  if (!isMounted.value) return // Don't execute if component is unmounted
+  
   // Special handling for geostationary satellites - no API call needed, position is already known
   if (isGeostationarySatellite.value) {
     // Position is calculated from pass data, no API call needed
@@ -218,10 +221,18 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
     // Card closed OR pass ended - stop tracking to save API calls
     stopTracking()
   }
-}, { immediate: false })
+}, { immediate: false, flush: 'post' })
+
+// Track if component is mounted
+const isMounted = ref(false)
+
+onMounted(() => {
+  isMounted.value = true
+})
 
 // Cleanup when component is unmounted
 onUnmounted(() => {
+  isMounted.value = false
   if (isTracking.value) {
     stopTracking()
   }

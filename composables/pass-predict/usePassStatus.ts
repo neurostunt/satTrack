@@ -95,7 +95,7 @@ export const usePassStatus = () => {
 
   return {
     // State
-    currentTime: computed(() => currentTime.value),
+    currentTime,
 
     // Methods
     getPassStatus,

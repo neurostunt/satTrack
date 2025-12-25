@@ -9,50 +9,43 @@
     />
 
     <!-- Pass Prediction Data -->
-    <div v-if="passPredictions && passPredictions.size > 0" class="max-w-lg mx-auto mb-6">
-      <div class="bg-space-800 border border-space-700 rounded-lg p-4">
-        <h3 class="text-lg font-semibold text-primary-400 mb-4 flex items-center">
-          🛰️ Pass Predictions
-          <span class="ml-2 text-sm text-space-300">({{ passesWithTransmitters.length }} upcoming passes)</span>
-        </h3>
+    <div v-if="passPredictions && passPredictions.size > 0" class="max-w-lg mx-auto pb-24">
+      <!-- Loading State -->
+      <div v-if="isPassCalculating" class="text-center py-8">
+        <div class="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+        <p class="text-space-300">Calculating pass predictions...</p>
+      </div>
 
-        <!-- Loading State -->
-        <div v-if="isPassCalculating" class="text-center py-8">
-          <div class="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p class="text-space-300">Calculating pass predictions...</p>
-        </div>
+      <!-- No Passes -->
+      <div v-else-if="passesWithTransmitters.length === 0" class="text-center py-8">
+        <p class="text-space-400">No upcoming passes with available transmitters found</p>
+        <p class="text-space-500 text-sm mt-2">Make sure you have tracked satellites with transmitter data</p>
+      </div>
 
-        <!-- No Passes -->
-        <div v-else-if="passesWithTransmitters.length === 0" class="text-center py-8">
-          <p class="text-space-400">No upcoming passes with available transmitters found</p>
-          <p class="text-space-500 text-sm mt-2">Make sure you have tracked satellites with transmitter data</p>
-        </div>
-
-        <!-- Individual Pass Cards -->
-        <div v-else class="space-y-4">
-          <PassPredictPassCard
-            v-for="pass in passesWithTransmitters"
-            :key="`${pass.noradId}-${pass.startTime}`"
-            :pass="pass"
-            :is-expanded="isPassExpanded(pass.noradId, pass.startTime)"
-            :is-passing="(() => {
-              const status = getPassStatus(pass.startTime, pass.endTime, pass.noradId, pass)
-              // For geostationary satellites, consider them 'passing' (green) if within time window
-              if (status === 'stationary') {
-                const now = Date.now()
-                return now >= pass.startTime && now <= pass.endTime
-              }
-              return status === 'passing'
-            })()"
-            :format-time-until-pass="formatTimeUntilPass"
-            :get-pass-status="getPassStatus"
-            :get-t-l-e-data="getTLEData"
-            :get-satellite-data="getSatelliteData"
-            :format-pass-time="formatPassTime"
-            :format-pass-duration="formatPassDuration"
-            @toggle="togglePassData(pass.noradId, pass.startTime)"
-          />
-        </div>
+      <!-- Individual Pass Cards -->
+      <div v-else class="space-y-4">
+        <PassPredictPassCard
+          v-for="pass in passesWithTransmitters"
+          :key="`${pass.noradId}-${pass.startTime}`"
+          :pass="pass"
+          :is-expanded="isPassExpanded(pass.noradId, pass.startTime)"
+          :is-passing="(() => {
+            const status = getPassStatus(pass.startTime, pass.endTime, pass.noradId, pass)
+            // For geostationary satellites, consider them 'passing' (green) if within time window
+            if (status === 'stationary') {
+              const now = Date.now()
+              return now >= pass.startTime && now <= pass.endTime
+            }
+            return status === 'passing'
+          })()"
+          :format-time-until-pass="formatTimeUntilPass"
+          :get-pass-status="getPassStatus"
+          :get-t-l-e-data="getTLEData"
+          :get-satellite-data="getSatelliteData"
+          :format-pass-time="formatPassTime"
+          :format-pass-duration="formatPassDuration"
+          @toggle="togglePassData(pass.noradId, pass.startTime)"
+        />
       </div>
     </div>
 
@@ -82,7 +75,8 @@ const {
 const {
   getTLEData,
   initializeTLEData,
-  fetchTLEData
+  fetchTLEData,
+  stopCountdown
 } = useTLEData()
 
 const {
@@ -147,6 +141,7 @@ const timeUpdateInterval = ref(null)
 const backgroundRefreshInterval = ref(null)
 const soundAlertCheckInterval = ref(null)
 const alertedPasses = ref(new Map()) // Track which passes have triggered alerts
+const isMounted = ref(false) // Track if component is mounted
 
 // Collapsible functionality for individual passes
 const isPassExpanded = (noradId, startTime) => {
@@ -317,6 +312,7 @@ const initializePageData = async () => {
 }
 
 onMounted(async () => {
+  isMounted.value = true
   await initializePageData()
 
   // Enable sound alerts if setting is enabled
@@ -336,21 +332,37 @@ onMounted(async () => {
 
   // Start real-time updates for time until pass
   timeUpdateInterval.value = setInterval(() => {
-    updateCurrentTime()
+    if (!isMounted.value) return // Don't execute if component is unmounted
+    
+    try {
+      updateCurrentTime()
 
-    // Handle auto-removal of passed satellites (every second)
-    handleAutoRemoval()
+      // Handle auto-removal of passed satellites (every second)
+      handleAutoRemoval()
 
-    // Also cleanup expired passes every 30 seconds
-    if (Date.now() % 30000 < 1000) {
-      cleanupExpiredPasses()
+      // Also cleanup expired passes every 30 seconds
+      if (Date.now() % 30000 < 1000) {
+        cleanupExpiredPasses()
+      }
+    } catch (error) {
+      // Silently ignore errors during unmount
+      if (isMounted.value) {
+        console.error('Error in time update interval:', error)
+      }
     }
   }, 1000)
 
   // Check sound alerts every 5 seconds
   if (settings.value.soundAlerts) {
     soundAlertCheckInterval.value = setInterval(() => {
-      checkSoundAlerts()
+      if (!isMounted.value) return
+      try {
+        checkSoundAlerts()
+      } catch (error) {
+        if (isMounted.value) {
+          console.error('Error in sound alert check:', error)
+        }
+      }
     }, 5000)
   }
 
@@ -419,15 +431,25 @@ onMounted(async () => {
 
 // Cleanup interval on unmount
 onUnmounted(() => {
+  // Clear intervals FIRST to stop any pending callbacks
   if (timeUpdateInterval.value) {
     clearInterval(timeUpdateInterval.value)
+    timeUpdateInterval.value = null
   }
   if (backgroundRefreshInterval.value) {
     clearInterval(backgroundRefreshInterval.value)
+    backgroundRefreshInterval.value = null
   }
   if (soundAlertCheckInterval.value) {
     clearInterval(soundAlertCheckInterval.value)
+    soundAlertCheckInterval.value = null
   }
+  
+  // Mark as unmounted AFTER clearing intervals
+  isMounted.value = false
+
+  // Stop TLE countdown timer
+  stopCountdown()
 
   // Stop device orientation
   stopDeviceOrientation()
@@ -438,10 +460,13 @@ onUnmounted(() => {
 
 // Watch for settings changes
 watch(() => settings.value.soundAlerts, (enabled) => {
+  if (!isMounted.value) return
+  
   if (enabled) {
     enableSoundAlerts()
     if (!soundAlertCheckInterval.value) {
       soundAlertCheckInterval.value = setInterval(() => {
+        if (!isMounted.value) return
         checkSoundAlerts()
       }, 5000)
     }
@@ -455,6 +480,8 @@ watch(() => settings.value.soundAlerts, (enabled) => {
 })
 
 watch(() => settings.value.enableDeviceOrientation, async (enabled) => {
+  if (!isMounted.value) return
+  
   if (enabled) {
     await startDeviceOrientation()
     if (settings.value.autoCalibrateCompass && isDeviceOrientationActive.value) {
@@ -466,6 +493,8 @@ watch(() => settings.value.enableDeviceOrientation, async (enabled) => {
 })
 
 watch(() => settings.value.autoCalibrateCompass, (enabled) => {
+  if (!isMounted.value) return
+  
   if (enabled && isDeviceOrientationActive.value) {
     startCompassCalibration()
   }
@@ -474,6 +503,8 @@ watch(() => settings.value.autoCalibrateCompass, (enabled) => {
 // Watch for route changes to reload data when navigating via SPA
 const route = useRoute()
 watch(() => route.path, async (newPath) => {
+  if (!isMounted.value) return
+  
   if (newPath === '/pass-predict') {
     // Reload data when navigating to pass-predict page
     console.log('🔄 Route changed to pass-predict, reloading data...')

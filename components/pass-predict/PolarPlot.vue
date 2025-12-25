@@ -248,63 +248,37 @@ const props = defineProps({
   }
 })
 
-// ============================================================================
-// Constants
-// ============================================================================
-const center = 200 // Center of SVG (400/2)
-
-// Use preloaded background composable
+const center = 200
 const { backgroundSVG, elevationToRadius } = usePolarPlotBackground()
 
-// ============================================================================
-// Computed Properties - Geostationary Check
-// ============================================================================
 const isGeostationary = computed(() => {
-  // Detect geostationary based on pass characteristics
-  // If we have start and end azimuth, check if they're nearly the same
   if (props.startAzimuth !== null && props.endAzimuth !== null) {
     const azimuthDiff = Math.abs(props.startAzimuth - props.endAzimuth)
-    return azimuthDiff < 5 // Less than 5 degrees movement = geostationary
+    return azimuthDiff < 5
   }
   return false
 })
 
-// ============================================================================
-// Computed Properties - Distance Formatting
-// ============================================================================
 const formattedDistance = computed(() => {
   let distance = props.currentDistance
   let unit = 'km'
 
-  // Convert to miles if needed
   if (props.distanceUnits === 'miles') {
-    distance = distance * 0.621371 // km to miles conversion
+    distance = distance * 0.621371
     unit = 'mi'
   }
 
-  // Format with fixed width (5 chars + space + 2 char unit)
   return `${distance.toFixed(0).padStart(5, ' ')} ${unit}`
 })
 
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-/** Convert degrees to radians */
 const degreesToRadians = (degrees) => {
   return (degrees * Math.PI) / 180
 }
 
-/** Normalize azimuth to 0-360° */
 const normalizeAzimuth = (azimuth) => {
   return ((azimuth % 360) + 360) % 360
 }
 
-/**
- * Convert azimuth/elevation to SVG coordinates
- * Azimuth: 0° = North (top), 90° = East, 180° = South, 270° = West
- * Elevation: 90° = center, 0° = horizon
- */
 const polarToCartesian = (azimuth, elevation) => {
   const r = elevationToRadius(elevation)
   const angleRad = degreesToRadians(azimuth)
@@ -315,16 +289,13 @@ const polarToCartesian = (azimuth, elevation) => {
   }
 }
 
-/**
- * Calculate circle center through three points
- */
 const getCircleCenter = (p1, p2, p3) => {
   const ax = p1.x, ay = p1.y
   const bx = p2.x, by = p2.y
   const cx = p3.x, cy = p3.y
 
   const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
-  if (Math.abs(d) < 0.0001) return null // Points are collinear
+  if (Math.abs(d) < 0.0001) return null
 
   const ux = (
     (ax * ax + ay * ay) * (by - cy) +
@@ -341,10 +312,6 @@ const getCircleCenter = (p1, p2, p3) => {
   return { x: ux, y: uy }
 }
 
-/**
- * Generate SVG path with proper azimuth wraparound handling
- * Splits path into segments when crossing 0°/360° boundary
- */
 const generatePathWithWraparound = (positions) => {
   if (!positions || positions.length < 2) return null
 
@@ -355,27 +322,21 @@ const generatePathWithWraparound = (positions) => {
     const pos = positions[i]
     currentSegment.push(pos)
 
-    // Check if next position crosses 0°/360° boundary
     if (i < positions.length - 1) {
       const nextPos = positions[i + 1]
       const azDiff = Math.abs(nextPos.azimuth - pos.azimuth)
 
-      // If azimuth jumps more than 180°, we're crossing the boundary
       if (azDiff > 180) {
-        // Finish current segment
         segments.push([...currentSegment])
-        // Start new segment with next position
         currentSegment = []
       }
     }
   }
 
-  // Add final segment
   if (currentSegment.length > 0) {
     segments.push(currentSegment)
   }
 
-  // Convert segments to SVG paths
   let path = ''
   for (const segment of segments) {
     if (segment.length < 2) continue
@@ -396,11 +357,6 @@ const generatePathWithWraparound = (positions) => {
   return path || null
 }
 
-// ============================================================================
-// Computed Properties - Positions
-// ============================================================================
-
-/** Current satellite position (x, y coordinates) */
 const currentPosition = computed(() => {
   if (props.currentElevation === null || props.currentAzimuth === null || 
       props.currentElevation === undefined || props.currentAzimuth === undefined) {
@@ -409,48 +365,23 @@ const currentPosition = computed(() => {
   return polarToCartesian(props.currentAzimuth, props.currentElevation)
 })
 
-// ============================================================================
-// Computed Properties - Predicted Pass Points
-// ============================================================================
-
-/**
- * Entry point - represents the satellite's position at pass start time (entry)
- * Always calculated at t=0 (pass start time), regardless of current time or tracking state
- * This ensures the entry dot always shows where the satellite actually entered, even during active passes
- *
- * IMPORTANT: This is calculated from pass.startTime, NOT from when the card was opened or tracking started
- */
 const entryPoint = computed(() => {
-  // Don't show entry point for geostationary satellites
   if (isGeostationary.value) return null
   if (props.startAzimuth === null || props.startAzimuth === undefined) return null
   if (props.maxElevation === null || props.maxElevation === undefined) return null
 
-  // Entry point is ALWAYS at pass start time (t=0), regardless of:
-  // - Current time
-  // - Whether pass has started
-  // - Whether card is open
-  // - Whether real-time tracking is active
-  //
-  // At t=0 (pass start time): elevation = 0 (horizon), azimuth = startAzimuth
-  // This is the actual satellite entry position, calculated from pass.startTime
   const entryElevation = 0
   const entryAzimuth = props.startAzimuth
 
-  // Calculate the entry point position using the same method as predicted path
-  // This ensures perfect alignment with the predicted path arc
   return polarToCartesian(entryAzimuth, entryElevation)
 })
 
-/** Exit point (end azimuth at horizon) */
 const exitPoint = computed(() => {
-  // Don't show exit point for geostationary satellites
   if (isGeostationary.value) return null
   if (props.endAzimuth === null || props.endAzimuth === undefined) return null
   return polarToCartesian(props.endAzimuth, 0)
 })
 
-/** Peak azimuth value used for both predicted and current markers */
 const peakAzimuth = computed(() => {
   if (props.maxElevation === null || props.maxElevation === undefined) return null
 
@@ -461,7 +392,6 @@ const peakAzimuth = computed(() => {
   if (props.startAzimuth !== null && props.endAzimuth !== null) {
     let peakAzimuthValue = (props.startAzimuth + props.endAzimuth) / 2
 
-    // Handle wraparound: if the arc crosses 0°/360°, adjust the peak
     if (Math.abs(props.endAzimuth - props.startAzimuth) > 180) {
       if (props.endAzimuth > props.startAzimuth) {
         peakAzimuthValue = ((props.startAzimuth + props.endAzimuth + 360) / 2) % 360
@@ -476,26 +406,13 @@ const peakAzimuth = computed(() => {
   return null
 })
 
-/** Peak point (max elevation at actual azimuth from API) */
 const peakPoint = computed(() => {
   const peakAzimuthValue = peakAzimuth.value
   if (peakAzimuthValue === null) return null
   return polarToCartesian(peakAzimuthValue, props.maxElevation)
 })
 
-// ============================================================================
-// Computed Properties - Paths
-// ============================================================================
-
-/**
- * Predicted path arc - draws circular arc through entry → peak → exit
- * Uses true circular arc calculation (like compass drawing)
- * For geostationary satellites, returns null (no path needed)
- *
- * IMPORTANT: Path is calculated from pass start time (entry), not from tab open time
- */
 const predictedPath = computed(() => {
-  // Don't show path for geostationary satellites (they don't move)
   if (isGeostationary.value) return null
   if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
 
@@ -503,20 +420,16 @@ const predictedPath = computed(() => {
   const p2 = peakPoint.value
   const p3 = exitPoint.value
 
-  // Calculate circle center through three points
   const centerPoint = getCircleCenter(p1, p2, p3)
   if (!centerPoint) {
-    // Points are collinear - fall back to straight segments
     return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y}`
   }
 
-  // Calculate radius and angles
   const radius = Math.hypot(p1.x - centerPoint.x, p1.y - centerPoint.y)
   let angle1 = Math.atan2(p1.y - centerPoint.y, p1.x - centerPoint.x)
   let angle2 = Math.atan2(p2.y - centerPoint.y, p2.x - centerPoint.x)
   let angle3 = Math.atan2(p3.y - centerPoint.y, p3.x - centerPoint.x)
 
-  // Unwrap angles so they follow the pass order (entry -> peak -> exit)
   const unwrap = (base, angle) => {
     let a = angle
     while (a - base > Math.PI) a -= 2 * Math.PI
@@ -526,32 +439,19 @@ const predictedPath = computed(() => {
   angle2 = unwrap(angle1, angle2)
   angle3 = unwrap(angle2, angle3)
 
-  // Determine arc direction: SVG sweep-flag 1 = clockwise, 0 = counter-clockwise
   const sweepFlag = angle3 >= angle1 ? 1 : 0
-
-  // Large-arc flag if span exceeds 180°
   const angleSpan = Math.abs(angle3 - angle1)
   const largeArcFlag = angleSpan > Math.PI ? 1 : 0
 
   return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
 })
 
-/**
- * Combined actual path (past + future positions from API) - dashed green line
- * When tab opens mid-pass, we need to combine past and future positions
- * to show the complete actual path the satellite has taken and will take
- *
- * IMPORTANT: Uses timestamp to properly merge and sort positions, removing duplicates
- */
 const futurePath = computed(() => {
-  // Combine past and future positions to show complete actual path
   const allActualPositions = []
   const seenTimestamps = new Set()
 
-  // Add past positions (already traveled path)
   if (props.pastPositions && props.pastPositions.length > 0) {
     props.pastPositions.forEach(pos => {
-      // Remove duplicates based on timestamp (within 100ms tolerance)
       const roundedTimestamp = Math.round(pos.timestamp / 100) * 100
       if (!seenTimestamps.has(roundedTimestamp)) {
         seenTimestamps.add(roundedTimestamp)
@@ -560,10 +460,8 @@ const futurePath = computed(() => {
     })
   }
 
-  // Add future positions (upcoming path)
   if (props.futurePositions && props.futurePositions.length > 0) {
     props.futurePositions.forEach(pos => {
-      // Remove duplicates based on timestamp (within 100ms tolerance)
       const roundedTimestamp = Math.round(pos.timestamp / 100) * 100
       if (!seenTimestamps.has(roundedTimestamp)) {
         seenTimestamps.add(roundedTimestamp)
@@ -572,10 +470,8 @@ const futurePath = computed(() => {
     })
   }
 
-  // Need at least 2 positions to draw a path
   if (allActualPositions.length < 2) return null
 
-  // Sort by timestamp to ensure proper path order (chronological)
   const sortedPositions = [...allActualPositions].sort((a, b) => a.timestamp - b.timestamp)
 
   return generatePathWithWraparound(sortedPositions)
@@ -583,7 +479,6 @@ const futurePath = computed(() => {
 </script>
 
 <style scoped>
-/* Pulsing animation for current satellite position */
 @keyframes satellite-pulse {
   0%, 100% {
     r: 12;

@@ -319,10 +319,8 @@
 
 <script setup>
 import { ref } from 'vue'
-// Import satellite name utilities
 import { formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
-// Props
 defineProps({
   combinedData: {
     type: Object,
@@ -338,11 +336,9 @@ defineProps({
   }
 })
 
-// Format frequency value for display
 const formatFrequencyValue = (frequency) => {
   if (!frequency) return 'Unknown'
 
-  // Handle different frequency formats
   if (typeof frequency === 'number') {
     if (frequency >= 1000000) {
       return `${(frequency / 1000000).toFixed(3)} MHz`
@@ -353,18 +349,13 @@ const formatFrequencyValue = (frequency) => {
     }
   }
 
-  // If it's already a string, return as-is
   return frequency.toString()
 }
 
-// Reactive state
 const expandedSatellites = ref(new Set())
-// Track expanded sections per satellite (for non-image sections)
 const expandedSections = ref(new Map())
-// Track collapsed sections (for image sections which are expanded by default)
 const collapsedSections = ref(new Map())
 
-// Functions
 const getFormattedSatelliteName = (satellite, noradId) => {
   return formatSatelliteNameForDisplay(satellite, noradId)
 }
@@ -381,10 +372,8 @@ const isSatelliteExpanded = (noradId) => {
   return expandedSatellites.value.has(noradId)
 }
 
-// Toggle individual section (TLE, Transmitters, Status, Image)
 const toggleSection = (noradId, section) => {
   const key = `${noradId}-${section}`
-  // Image sections are expanded by default, so we track if they're collapsed
   if (section === 'image') {
     if (collapsedSections.value.has(key)) {
       collapsedSections.value.delete(key)
@@ -392,7 +381,6 @@ const toggleSection = (noradId, section) => {
       collapsedSections.value.set(key, true)
     }
   } else {
-    // Other sections: track if they're expanded
     if (expandedSections.value.has(key)) {
       expandedSections.value.delete(key)
     } else {
@@ -401,14 +389,11 @@ const toggleSection = (noradId, section) => {
   }
 }
 
-// Check if section is expanded
 const isSectionExpanded = (noradId, section) => {
   const key = `${noradId}-${section}`
-  // Image section is expanded by default unless explicitly collapsed
   if (section === 'image') {
     return !collapsedSections.value.has(key)
   }
-  // Other sections: check if they're in the expanded map
   return expandedSections.value.has(key)
 }
 
@@ -465,17 +450,13 @@ const getOpsStatusText = (opsStatusCode) => {
 
 const getCleanDescription = (description) => {
   if (!description) return 'Unknown'
-  // Remove CTCSS information from description
   return description.replace(/\(CTCSS:?\s*\d+(?:\.\d+)?\s*Hz\)/gi, '').trim()
 }
 
-// Handle image loading errors
 const handleImageError = (event) => {
-  // Hide broken images
   event.target.style.display = 'none'
 }
 </script>
 
 <style scoped>
-/* Custom styles if needed */
 </style>

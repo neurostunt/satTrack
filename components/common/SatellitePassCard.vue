@@ -84,7 +84,6 @@
 <script setup>
 import { ref } from 'vue'
 
-// Props
 defineProps({
   pass: {
     type: Object,
@@ -92,10 +91,8 @@ defineProps({
   }
 })
 
-// Reactive state
 const expandedPasses = ref(new Set())
 
-// Functions
 const togglePass = (passId) => {
   if (expandedPasses.value.has(passId)) {
     expandedPasses.value.delete(passId)
@@ -132,5 +129,4 @@ const getStatusText = (status) => {
 </script>
 
 <style scoped>
-/* Custom styles if needed */
 </style>

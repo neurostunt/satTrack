@@ -225,17 +225,8 @@ const props = defineProps({
   }
 })
 
-// ============================================================================
-// Constants
-// ============================================================================
-const center = 200 // Center of SVG (400/2)
-
-// Use preloaded background composable
+const center = 200
 const { backgroundSVG, elevationToRadius } = usePolarPlotBackground()
-
-// ============================================================================
-// Computed Properties - Rotation
-// ============================================================================
 /**
  * Rotation angle for SVG based on compass heading
  * Negative because we want to rotate the plot so that top = where phone points
@@ -251,9 +242,6 @@ const rotationAngle = computed(() => {
   return -props.compassHeading
 })
 
-// ============================================================================
-// Computed Properties - Geostationary Check
-// ============================================================================
 const isGeostationary = computed(() => {
   if (props.startAzimuth !== null && props.endAzimuth !== null) {
     const azimuthDiff = Math.abs(props.startAzimuth - props.endAzimuth)
@@ -262,25 +250,14 @@ const isGeostationary = computed(() => {
   return false
 })
 
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
-/** Convert degrees to radians */
 const degreesToRadians = (degrees) => {
   return (degrees * Math.PI) / 180
 }
 
-/** Normalize azimuth to 0-360° */
 const normalizeAzimuth = (azimuth) => {
   return ((azimuth % 360) + 360) % 360
 }
 
-/**
- * Convert azimuth/elevation to SVG coordinates
- * Azimuth: 0° = North (top), 90° = East, 180° = South, 270° = West
- * Elevation: 90° = center, 0° = horizon
- */
 const polarToCartesian = (azimuth, elevation) => {
   const r = elevationToRadius(elevation)
   const angleRad = degreesToRadians(azimuth)
@@ -291,9 +268,6 @@ const polarToCartesian = (azimuth, elevation) => {
   }
 }
 
-/**
- * Calculate circle center through three points
- */
 const getCircleCenter = (p1, p2, p3) => {
   const ax = p1.x, ay = p1.y
   const bx = p2.x, by = p2.y
@@ -317,9 +291,6 @@ const getCircleCenter = (p1, p2, p3) => {
   return { x: ux, y: uy }
 }
 
-/**
- * Generate SVG path with proper azimuth wraparound handling
- */
 const generatePathWithWraparound = (positions) => {
   if (!positions || positions.length < 2) return null
 
@@ -365,11 +336,6 @@ const generatePathWithWraparound = (positions) => {
   return path || null
 }
 
-// ============================================================================
-// Computed Properties - Positions
-// ============================================================================
-
-/** Current satellite position (x, y coordinates) */
 const currentPosition = computed(() => {
   if (props.currentElevation === null || props.currentAzimuth === null || 
       props.currentElevation === undefined || props.currentAzimuth === undefined) {
@@ -377,10 +343,6 @@ const currentPosition = computed(() => {
   }
   return polarToCartesian(props.currentAzimuth, props.currentElevation)
 })
-
-// ============================================================================
-// Computed Properties - Predicted Pass Points
-// ============================================================================
 
 const entryPoint = computed(() => {
   if (isGeostationary.value) return null
@@ -428,10 +390,6 @@ const peakPoint = computed(() => {
   if (peakAzimuthValue === null) return null
   return polarToCartesian(peakAzimuthValue, props.maxElevation)
 })
-
-// ============================================================================
-// Computed Properties - Paths
-// ============================================================================
 
 const predictedPath = computed(() => {
   if (isGeostationary.value) return null
@@ -497,11 +455,7 @@ const futurePath = computed(() => {
   }
 
   const sortedPositions = [...allActualPositions].sort((a, b) => a.timestamp - b.timestamp)
-  const path = generatePathWithWraparound(sortedPositions)
-  
-  // Removed verbose logging - computed runs on every position update
-  
-  return path
+  return generatePathWithWraparound(sortedPositions)
 })
 </script>
 

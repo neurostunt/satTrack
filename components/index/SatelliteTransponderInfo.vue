@@ -201,7 +201,6 @@ const props = defineProps({
 
 const { getTransponderFrequencies, formatFrequency } = useSatnogs()
 
-// Compute transponder frequencies
 const transponderFrequencies = computed(() => {
   if (!props.transmitters || props.transmitters.length === 0) {
     return null
@@ -209,7 +208,6 @@ const transponderFrequencies = computed(() => {
   return getTransponderFrequencies(props.transmitters)
 })
 
-// Check if satellite has transponders
 const hasTransponders = computed(() => {
   if (!transponderFrequencies.value) return false
 
@@ -219,7 +217,6 @@ const hasTransponders = computed(() => {
          transponderFrequencies.value.telemetry.length > 0
 })
 
-// Format date
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
   try {
@@ -229,7 +226,6 @@ const formatDate = (dateString) => {
   }
 }
 
-// Get status color
 const getStatusColor = (status) => {
   if (!status) return 'text-space-400'
 

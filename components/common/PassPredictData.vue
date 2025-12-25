@@ -121,10 +121,8 @@
 
 <script setup>
 import { ref } from 'vue'
-// Import satellite name utilities
 import { formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
-// Props
 defineProps({
   combinedData: {
     type: Object,
@@ -140,10 +138,8 @@ defineProps({
   }
 })
 
-// Reactive state
 const expandedSatellites = ref(new Set())
 
-// Functions
 const getFormattedSatelliteName = (satellite, noradId) => {
   return formatSatelliteNameForDisplay(satellite, noradId)
 }
@@ -199,5 +195,4 @@ const formatPassDuration = (durationMs) => {
 </script>
 
 <style scoped>
-/* Custom styles if needed */
 </style>

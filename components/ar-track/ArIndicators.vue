@@ -324,7 +324,6 @@ const getCompassQualityText = () => {
 </script>
 
 <style scoped>
-/* Inline classes used in template for UnoCSS compatibility */
 </style>
 
 

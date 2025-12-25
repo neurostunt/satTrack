@@ -193,21 +193,14 @@ const props = defineProps({
   }
 })
 
-// State for pass details expansion
 const showPassDetails = ref(false)
-
-// State for transmitter expansion
 const showTransmitters = ref(false)
 
-// Get transmitters from satellite data (filter out dead ones and apply frequency filters)
 const filteredTransmitters = computed(() => {
   const satData = props.getSatelliteData(props.pass.noradId)
   const allTransmitters = satData?.transmitters || []
-
-  // Filter out dead transmitters
   const aliveTransmitters = allTransmitters.filter(t => t.alive !== false)
 
-  // Apply frequency type filters if settings are available
   if (settings.value?.transmitterFilters) {
     const filters = settings.value.transmitterFilters
     return aliveTransmitters.filter(transmitter =>
@@ -215,21 +208,17 @@ const filteredTransmitters = computed(() => {
     )
   }
 
-  // If no filters configured, show all
   return aliveTransmitters
 })
 
-// Toggle pass details
 const togglePassDetails = () => {
   showPassDetails.value = !showPassDetails.value
 }
 
-// Toggle transmitter list
 const toggleTransmitters = () => {
   showTransmitters.value = !showTransmitters.value
 }
 
-// Format frequency
 const formatFrequency = (frequency) => {
   if (!frequency) return 'Unknown'
 
@@ -242,19 +231,12 @@ const formatFrequency = (frequency) => {
   }
 }
 
-// Get Doppler-shifted frequency for display
-// Make this a computed property that returns a function, so it's reactive to radialVelocity changes
 const getShiftedFrequency = computed(() => {
-  // Return a function that calculates Doppler shift for a given frequency
-  // This computed property will re-run whenever radialVelocity, isPassing, or isGeostationary changes
   return (frequency) => {
-    // Only calculate if satellite is passing (not stationary) and we have frequency data
-    // Note: radialVelocity can be 0 (satellite at closest point), which is valid
     if (!props.isPassing || props.isGeostationary || !frequency) {
       return null
     }
 
-    // radialVelocity can be 0, null, or undefined - treat null/undefined as not available
     if (props.radialVelocity === null || props.radialVelocity === undefined) {
       return null
     }

@@ -243,14 +243,9 @@ const pastPositions = computed(() => {
   return getPastPositions(positionHistory.value)
 })
 
-// Future positions for path drawing
 const futurePositionsForPath = computed(() => {
-  // Return future positions directly - they're already filtered in useRealTimePosition
-  // The futurePath computed in ArPolarPlot will handle combining past + future
   return futurePositions.value || []
 })
-
-// Watch removed - no longer needed for debugging
 
 const devicePitch = computed(() => {
   return pitch.value
@@ -318,9 +313,7 @@ const onPassSelected = async () => {
     selectedPass.value = pass
     showStatus('Satellite selected', 'success')
     
-    // Auto-start tracking immediately
     if (canStartTracking.value) {
-      // Small delay to ensure state is updated
       const timeoutId = setTimeout(async () => {
         await startTrackingForPass(pass)
       }, 100)
@@ -331,11 +324,9 @@ const onPassSelected = async () => {
 
 // Helper function to start tracking for a pass
 const startTrackingForPass = async (pass) => {
-  // Stop any existing tracking first to clear cache
   if (isTrackingActive.value) {
     stopTracking()
     isTrackingActive.value = false
-    // Small delay to ensure cleanup
     await new Promise(resolve => {
       const timeoutId = setTimeout(resolve, 100)
       timeoutIds.value.push(timeoutId)
@@ -361,8 +352,6 @@ const startTrackingForPass = async (pass) => {
   isTrackingActive.value = true
   showStatus('Tracking started', 'success')
 }
-
-// Toggle tracking removed - now auto-starts on satellite selection
 
 const calibrateCompass = () => {
   if (!isDeviceOrientationActive.value) {
@@ -416,7 +405,6 @@ const initialize = async () => {
       selectedPass.value = pass
       showStatus('Satellite selected', 'success')
       
-      // Clear any existing tracking first to avoid cache issues
       if (isTrackingActive.value) {
         stopTracking()
         isTrackingActive.value = false
@@ -426,8 +414,6 @@ const initialize = async () => {
         })
       }
       
-      // Auto-start tracking if conditions are met
-      // Wait a bit for reactive state to update
       const timeoutId = setTimeout(async () => {
         if (canStartTracking.value) {
           await startTrackingForPass(pass)
@@ -437,17 +423,13 @@ const initialize = async () => {
     }
   }
 
-  // Start device orientation (optional - not required for tracking)
   if (settings.value.enableDeviceOrientation) {
     await startDeviceOrientation()
   }
 
-  // Don't auto-select to prevent infinite loops
-  // User must manually select a satellite from the dropdown
-
   // Start time updates
   timeUpdateInterval.value = setInterval(() => {
-    if (!isMounted.value) return // Don't execute if component is unmounted
+    if (!isMounted.value) return
     try {
       updateCurrentTime()
     } catch (error) {
@@ -458,12 +440,9 @@ const initialize = async () => {
   }, 1000)
 }
 
-// Watch for activePasses changes to update selectedPass
-// Note: Removed auto-select and auto-tracking logic to prevent infinite loops
 const stopWatchActivePasses = watch(activePasses, (newPasses) => {
-  if (!isMounted.value) return // Don't execute if component is unmounted
+  if (!isMounted.value) return
   
-  // Only update if we have a selected pass
   if (selectedPass.value && selectedPassId.value) {
     const [noradId, startTime] = selectedPassId.value.split('-')
     const updatedPass = newPasses.find(
@@ -471,7 +450,6 @@ const stopWatchActivePasses = watch(activePasses, (newPasses) => {
     )
     
     if (updatedPass) {
-      // Update the pass data without triggering auto-select
       selectedPass.value = updatedPass
     } else {
       // Pass is no longer active, clear selection
@@ -484,10 +462,7 @@ const stopWatchActivePasses = watch(activePasses, (newPasses) => {
       showStatus('Satellite pass has ended', 'info')
     }
   }
-}, { 
-  deep: false, // Don't deep watch to avoid unnecessary triggers
-  flush: 'post' // Run after component updates to prevent loops
-})
+}, { deep: false, flush: 'post' })
 
 onMounted(async () => {
   isMounted.value = true
@@ -495,21 +470,17 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  // Stop watch functions FIRST
   if (stopWatchActivePasses) {
     stopWatchActivePasses()
   }
   
-  // Clear intervals SECOND
   if (timeUpdateInterval.value) {
     clearInterval(timeUpdateInterval.value)
     timeUpdateInterval.value = null
   }
   
-  // Mark as unmounted THIRD (after stopping all async operations)
   isMounted.value = false
   
-  // Clear all timeouts
   if (timeoutIds.value && timeoutIds.value.length > 0) {
     timeoutIds.value.forEach(id => {
       if (id) clearTimeout(id)
@@ -517,16 +488,12 @@ onUnmounted(() => {
     timeoutIds.value = []
   }
   
-  // Stop tracking
   if (isTrackingActive.value) {
     stopTracking()
     isTrackingActive.value = false
   }
   
-  // Stop device orientation
   stopDeviceOrientation()
-  
-  // Clear reactive state
   selectedPass.value = null
   selectedPassId.value = ''
 })
@@ -539,7 +506,5 @@ onUnmounted(() => {
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }
-
-/* Styles moved to ArPolarPlot component */
 </style>
 

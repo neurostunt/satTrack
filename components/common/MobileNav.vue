@@ -85,7 +85,6 @@
 </template>
 
 <script setup>
-// No props or state needed - navigation is handled by NuxtLink
 </script>
 
 <style scoped>

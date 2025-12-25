@@ -112,10 +112,8 @@
 
 <script setup>
 import { ref } from 'vue'
-// Import satellite name utilities
 import { formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
-// Props
 defineProps({
   combinedData: {
     type: Object,
@@ -131,10 +129,8 @@ defineProps({
   }
 })
 
-// Reactive state
 const expandedSatellites = ref(new Set())
 
-// Functions
 const getFormattedSatelliteName = (satellite, noradId) => {
   return formatSatelliteNameForDisplay(satellite, noradId)
 }
@@ -179,11 +175,9 @@ const getStatusText = (status) => {
 
 const getCleanDescription = (description) => {
   if (!description) return 'Unknown'
-  // Remove CTCSS information from description
   return description.replace(/\(CTCSS:?\s*\d+(?:\.\d+)?\s*Hz\)/gi, '').trim()
 }
 </script>
 
 <style scoped>
-/* Custom styles if needed */
 </style>

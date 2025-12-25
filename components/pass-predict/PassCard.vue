@@ -193,9 +193,7 @@ const pastPositions = computed(() => {
 watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing]) => {
   if (!isMounted.value) return // Don't execute if component is unmounted
   
-  // Special handling for geostationary satellites - no API call needed, position is already known
   if (isGeostationarySatellite.value) {
-    // Position is calculated from pass data, no API call needed
     return
   }
 
@@ -203,8 +201,6 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
   const wasTracking = isTracking.value
 
   if (shouldTrack && !wasTracking) {
-    // Card is open AND satellite is passing - start real-time tracking
-    // Validate settings before starting
     if (!settings.value.n2yoApiKey) {
       console.warn(`⚠️ N2YO API key not configured - cannot start tracking`)
       return
@@ -218,19 +214,16 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
       settings.value.n2yoApiKey
     )
   } else if (!shouldTrack && wasTracking) {
-    // Card closed OR pass ended - stop tracking to save API calls
     stopTracking()
   }
 }, { immediate: false, flush: 'post' })
 
-// Track if component is mounted
 const isMounted = ref(false)
 
 onMounted(() => {
   isMounted.value = true
 })
 
-// Cleanup when component is unmounted
 onUnmounted(() => {
   isMounted.value = false
   if (isTracking.value) {

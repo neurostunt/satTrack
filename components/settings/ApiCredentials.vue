@@ -106,7 +106,6 @@
 </template>
 
 <script setup>
-// Props
 const props = defineProps({
   settings: {
     type: Object,
@@ -122,7 +121,6 @@ const props = defineProps({
   }
 })
 
-// Local reactive state for form inputs
 const localSettings = ref({
   spaceTrackUsername: '',
   spaceTrackPassword: '',
@@ -131,9 +129,7 @@ const localSettings = ref({
   minElevation: 20
 })
 
-// Initialize local settings from props and .env file
 onMounted(() => {
-  // Get runtime config from .env file (if available)
   let envCredentials = {
     spaceTrackUsername: '',
     spaceTrackPassword: '',
@@ -150,12 +146,9 @@ onMounted(() => {
       n2yoApiKey: config.public.n2yoApiKey || ''
     }
   } catch {
-    // Runtime config not available (e.g., during SSR)
     console.log('Runtime config not available in ApiCredentials component')
   }
   
-  // Merge props settings with .env credentials
-  // Priority: props settings > .env values (only use .env if props value is empty)
   localSettings.value = {
     spaceTrackUsername: props.settings.spaceTrackUsername || envCredentials.spaceTrackUsername,
     spaceTrackPassword: props.settings.spaceTrackPassword || envCredentials.spaceTrackPassword,
@@ -164,7 +157,6 @@ onMounted(() => {
     minElevation: props.settings.minElevation || 20
   }
   
-  // If we populated from .env, update the parent settings
   if (envCredentials.spaceTrackUsername || envCredentials.spaceTrackPassword || envCredentials.satnogsToken || envCredentials.n2yoApiKey) {
     const hasNewValues = 
       (!props.settings.spaceTrackUsername && envCredentials.spaceTrackUsername) ||
@@ -184,7 +176,6 @@ onMounted(() => {
   }
 })
 
-// Update local settings when props change
 watch(() => props.settings, (newSettings) => {
   if (newSettings) {
     localSettings.value = {
@@ -197,10 +188,8 @@ watch(() => props.settings, (newSettings) => {
   }
 }, { deep: true })
 
-// Handle input changes
 const handleInputChange = (field, value) => {
   localSettings.value[field] = value
-  // Update settings immediately
   props.updateSettings({
     [field]: value
   })

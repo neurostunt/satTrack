@@ -179,7 +179,6 @@ export const useSettings = () => {
     resetSettings,
     updateSettings: async (updates: Partial<StorageSettings>) => {
       settings.value = { ...settings.value, ...updates }
-      // Automatically save to storage when settings change
       await saveSettings()
     }
   }

@@ -61,10 +61,6 @@
 </template>
 
 <script setup>
-// Nuxt 4 auto-imports:
-// - Vue functions (ref, onMounted, onUnmounted, computed, watch)
-// - Components from components/ directory
-// - Composables from composables/ directory
 import { matchesTransmitterFilters } from '~/utils/transmitterCategorization'
 
 const {
@@ -135,15 +131,13 @@ const {
   isActive: isDeviceOrientationActive
 } = useDeviceOrientation()
 
-// Reactive state
-const expandedSatellites = ref(new Set()) // Track which satellites are expanded
+const expandedSatellites = ref(new Set())
 const timeUpdateInterval = ref(null)
 const backgroundRefreshInterval = ref(null)
 const soundAlertCheckInterval = ref(null)
-const alertedPasses = ref(new Map()) // Track which passes have triggered alerts
-const isMounted = ref(false) // Track if component is mounted
+const alertedPasses = ref(new Map())
+const isMounted = ref(false)
 
-// Collapsible functionality for individual passes
 const isPassExpanded = (noradId, startTime) => {
   const passKey = `${noradId}-${startTime}`
   return expandedSatellites.value.has(passKey)
@@ -158,12 +152,10 @@ const togglePassData = (noradId, startTime) => {
   }
 }
 
-// Helper function to get satellite data by NORAD ID
 const getSatelliteData = (noradId) => {
   return combinedData.value[noradId] || null
 }
 
-// Helper function to check if a pass has available transmitters after filtering
 const hasAvailableTransmitters = (pass) => {
   const satData = getSatelliteData(pass.noradId)
   const allTransmitters = satData?.transmitters || []
@@ -330,29 +322,23 @@ onMounted(async () => {
     }
   }
 
-  // Start real-time updates for time until pass
   timeUpdateInterval.value = setInterval(() => {
-    if (!isMounted.value) return // Don't execute if component is unmounted
+    if (!isMounted.value) return
     
     try {
       updateCurrentTime()
-
-      // Handle auto-removal of passed satellites (every second)
       handleAutoRemoval()
 
-      // Also cleanup expired passes every 30 seconds
       if (Date.now() % 30000 < 1000) {
         cleanupExpiredPasses()
       }
     } catch (error) {
-      // Silently ignore errors during unmount
       if (isMounted.value) {
         console.error('Error in time update interval:', error)
       }
     }
   }, 1000)
 
-  // Check sound alerts every 5 seconds
   if (settings.value.soundAlerts) {
     soundAlertCheckInterval.value = setInterval(() => {
       if (!isMounted.value) return
@@ -429,9 +415,7 @@ onMounted(async () => {
   cleanupExpiredPasses()
 })
 
-// Cleanup interval on unmount
 onUnmounted(() => {
-  // Clear intervals FIRST to stop any pending callbacks
   if (timeUpdateInterval.value) {
     clearInterval(timeUpdateInterval.value)
     timeUpdateInterval.value = null
@@ -445,16 +429,9 @@ onUnmounted(() => {
     soundAlertCheckInterval.value = null
   }
   
-  // Mark as unmounted AFTER clearing intervals
   isMounted.value = false
-
-  // Stop TLE countdown timer
   stopCountdown()
-
-  // Stop device orientation
   stopDeviceOrientation()
-
-  // Disable sound alerts
   disableSoundAlerts()
 })
 

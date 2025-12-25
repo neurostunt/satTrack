@@ -171,10 +171,8 @@
 </template>
 
 <script setup>
-// Import satellite name utilities
 import { formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
 
-// Props
 const props = defineProps({
   settings: {
     type: Object,
@@ -218,34 +216,28 @@ const props = defineProps({
   }
 })
 
-// Emits
 const emit = defineEmits(['fetch-all-data', 'add-satellite', 'remove-satellite', 'update:searchQuery'])
 
-// Reactive state for keyboard navigation
 const selectedIndex = ref(-1)
 const showResults = ref(false)
 
-// Functions
 const formatSatellite = (satellite) => {
-  // Swap name and names - "names" is the full name, "name" is the short name
   const formatted = {
-    name: satellite.names || satellite.name,    // Full name (SAUDISAT 1C)
+    name: satellite.names || satellite.name,
     noradId: satellite.norad_cat_id,
     status: satellite.status,
-    names: satellite.name,                     // Short name (SO-50)
-    image: satellite.image || undefined        // Include image field
+    names: satellite.name,
+    image: satellite.image || undefined
   }
   return formatted
 }
 
-// Click handler
 const handleClick = (satellite) => {
   emit('add-satellite', formatSatellite(satellite))
   showResults.value = false
   selectedIndex.value = -1
 }
 
-// Keyboard navigation functions
 const handleEnterKey = () => {
   if (props.searchResults.length > 0 && selectedIndex.value >= 0) {
     const satellite = props.searchResults[selectedIndex.value]
@@ -275,7 +267,6 @@ const clearSearch = () => {
   selectedIndex.value = -1
 }
 
-// Handle input focus/blur
 const handleInputFocus = () => {
   if (props.searchQuery.length >= 3 && props.searchResults.length > 0) {
     showResults.value = true
@@ -283,23 +274,19 @@ const handleInputFocus = () => {
 }
 
 const handleInputBlur = () => {
-  // Delay hiding to allow clicks on results
   setTimeout(() => {
     showResults.value = false
   }, 150)
 }
 
-// Handle clicking outside
 const handleClickOutside = () => {
   showResults.value = false
 }
 
-// Functions
 const getFormattedSatelliteName = (satellite) => {
   return formatSatelliteNameForDisplay(satellite)
 }
 
-// Watch for search results changes to reset selection and show results
 watch(() => props.searchResults, (newResults) => {
   selectedIndex.value = -1
   if (newResults && newResults.length > 0 && props.searchQuery.length >= 3) {
@@ -307,7 +294,6 @@ watch(() => props.searchResults, (newResults) => {
   }
 })
 
-// Watch for search query changes
 watch(() => props.searchQuery, (newQuery) => {
   if (newQuery.length >= 3 && props.searchResults.length > 0) {
     showResults.value = true

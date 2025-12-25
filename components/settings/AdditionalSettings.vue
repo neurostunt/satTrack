@@ -239,7 +239,6 @@
 import { ref, computed } from 'vue'
 import { useDeviceOrientation } from '~/composables/useDeviceOrientation'
 
-// Props
 const props = defineProps({
   settings: {
     type: Object,
@@ -255,25 +254,20 @@ const props = defineProps({
   }
 })
 
-// Emits
 defineEmits(['save-settings'])
 
-// Reactive state for GPS location
 const isGettingLocation = ref(false)
 const locationError = ref('')
 const locationSuccess = ref('')
 
-// Reactive state for altitude fetching
 const isFetchingAltitude = ref(false)
 const altitudeError = ref('')
 const altitudeSuccess = ref('')
 
-// Device orientation state
 const deviceOrientationError = ref('')
 const deviceOrientationSuccess = ref('')
 const { requestPermission, checkSupport } = useDeviceOrientation()
 
-// Computed properties for form fields
 const distanceUnits = computed({
   get: () => props.settings.distanceUnits || 'km',
   set: (value) => props.updateSettings({ distanceUnits: value })
@@ -304,7 +298,6 @@ const enableDeviceOrientation = computed({
   set: (value) => props.updateSettings({ enableDeviceOrientation: value })
 })
 
-// Transmitter filter computed property
 const showOnly2m70cm = computed({
   get: () => props.settings.transmitterFilters?.showOnly2m70cm === true,
   set: (value) => {
@@ -316,7 +309,6 @@ const showOnly2m70cm = computed({
   }
 })
 
-// GPS location function
 const getLocationFromGPS = async () => {
   if (!navigator.geolocation) {
     locationError.value = 'Geolocation is not supported by this browser'
@@ -342,7 +334,6 @@ const getLocationFromGPS = async () => {
 
     const { latitude, longitude, altitude } = position.coords
 
-    // Update settings with GPS coordinates
     props.updateSettings({
       observationLocation: {
         latitude: latitude,
@@ -353,7 +344,6 @@ const getLocationFromGPS = async () => {
 
     locationSuccess.value = `Location updated: ${latitude.toFixed(6)}°N, ${longitude.toFixed(6)}°E${altitude ? `, ${Math.round(altitude)}m` : ''}`
 
-    // Clear success message after 3 seconds
     setTimeout(() => {
       locationSuccess.value = ''
     }, 3000)
@@ -376,7 +366,6 @@ const getLocationFromGPS = async () => {
         break
     }
 
-    // Clear error message after 5 seconds
     setTimeout(() => {
       locationError.value = ''
     }, 5000)
@@ -384,16 +373,13 @@ const getLocationFromGPS = async () => {
     isGettingLocation.value = false
   }
 
-  // After successfully getting GPS location, also fetch altitude
   if (locationSuccess.value) {
-    // Small delay to let the UI update
     setTimeout(() => {
       getAltitudeFromCoordinates()
     }, 500)
   }
 }
 
-// Fetch altitude from Open-Elevation API
 const getAltitudeFromCoordinates = async () => {
   if (!props.settings.observationLocation?.latitude || !props.settings.observationLocation?.longitude) {
     altitudeError.value = 'Please enter latitude and longitude first'
@@ -432,7 +418,6 @@ const getAltitudeFromCoordinates = async () => {
     if (data.results && data.results.length > 0) {
       const altitude = Math.round(data.results[0].elevation)
 
-      // Update settings with fetched altitude
       props.updateSettings({
         observationLocation: {
           ...props.settings.observationLocation,
@@ -443,7 +428,6 @@ const getAltitudeFromCoordinates = async () => {
       altitudeSuccess.value = `Altitude updated: ${altitude}m above sea level`
       console.log(`✅ Altitude fetched successfully: ${altitude}m`)
 
-      // Clear success message after 3 seconds
       setTimeout(() => {
         altitudeSuccess.value = ''
       }, 3000)
@@ -455,7 +439,6 @@ const getAltitudeFromCoordinates = async () => {
     console.error('Altitude fetch error:', error)
     altitudeError.value = error.message || 'Failed to fetch altitude. Please try again or enter manually.'
 
-    // Clear error message after 5 seconds
     setTimeout(() => {
       altitudeError.value = ''
     }, 5000)
@@ -464,14 +447,11 @@ const getAltitudeFromCoordinates = async () => {
   }
 }
 
-// Handle device orientation toggle
 const handleDeviceOrientationToggle = async () => {
   deviceOrientationError.value = ''
   deviceOrientationSuccess.value = ''
 
-  // If enabling, request permission immediately
   if (enableDeviceOrientation.value) {
-    // Check if supported
     if (!checkSupport()) {
       deviceOrientationError.value = 'Device orientation is not supported in this browser'
       enableDeviceOrientation.value = false
@@ -482,7 +462,6 @@ const handleDeviceOrientationToggle = async () => {
       return
     }
 
-    // Request permission
     try {
       const granted = await requestPermission()
 

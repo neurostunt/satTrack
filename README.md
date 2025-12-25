@@ -155,9 +155,9 @@ satTrack/
 ### Workflow
 
 1. Work on `development` branch
-2. When ready, merge `development` → `main`
-3. Automatic tag creation on merge to `main`
-4. Vercel automatically deploys from `main`
+2. When ready, merge `development` → `main` (or push directly to `main`)
+3. **Automatic tag creation** - GitHub Actions creates a new tag (e.g., `v1.0.6`) on push to `main`
+4. **Automatic deployment** - Vercel automatically deploys from `main`
 
 ### Scripts
 

@@ -90,8 +90,14 @@
 <style scoped>
 /* Desktop Navigation */
 .nav-item-desktop {
-  @apply flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200;
-  @apply no-underline;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  text-decoration: none;
   color: #ffffff !important;
   flex: 1;
   max-width: 200px;
@@ -104,14 +110,22 @@
 }
 
 .nav-label-desktop {
-  @apply text-sm font-semibold;
+  font-size: 0.875rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 
 /* Mobile Navigation */
 .nav-item {
-  @apply flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all duration-200;
-  @apply no-underline;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  text-decoration: none;
   color: #ffffff !important;
   flex: 1;
   text-align: center;
@@ -123,13 +137,14 @@
 }
 
 .nav-item-active {
-  @apply bg-space-800/70;
+  background: rgba(30, 41, 59, 0.7);
   color: #7dd3fc !important;
   text-shadow: 0 0 10px rgba(125, 211, 252, 0.5);
 }
 
 .nav-label {
-  @apply text-xs font-semibold;
+  font-size: 0.75rem;
+  font-weight: 600;
   white-space: nowrap;
 }
 

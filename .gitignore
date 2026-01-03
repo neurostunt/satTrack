@@ -99,3 +99,7 @@ temp/
 # PWA files
 sw.js
 workbox-*.js
+
+# Git worktrees
+.worktrees/
+worktrees/

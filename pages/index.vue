@@ -107,8 +107,6 @@ const loadStoredTransmitterData = async () => {
 
     combinedData.value = combined
 
-    // Load recommended satellites descriptions as fallback (from static JSON file, no API)
-    await loadRecommendedSatellitesDescriptions()
   } catch (error) {
     console.error('Failed to load stored transmitter data:', error)
   }
@@ -235,39 +233,6 @@ const formatFrequency = (transmitter) => {
 watch(() => settings.value.transmitterFilters, async () => {
   await loadStoredTransmitterData()
 }, { deep: true })
-
-// Load recommended satellites descriptions as fallback
-const loadRecommendedSatellitesDescriptions = async () => {
-  try {
-    const recommended = await $fetch('/recommended-satellites-belgrade.json')
-    if (recommended?.recommendedSatellites) {
-      const descriptionsMap = {}
-      recommended.recommendedSatellites.forEach(sat => {
-        if (sat.noradId && sat.description) {
-          descriptionsMap[sat.noradId] = sat.description
-        }
-      })
-
-      // Update combined data with descriptions from recommended file if not already present
-      // Use a new object to ensure reactivity
-      const updatedData = { ...combinedData.value }
-      Object.keys(updatedData).forEach(noradId => {
-        if (!updatedData[noradId]?.satellite?.description && descriptionsMap[noradId]) {
-          updatedData[noradId] = {
-            ...updatedData[noradId],
-            satellite: {
-              ...updatedData[noradId].satellite,
-              description: descriptionsMap[noradId]
-            }
-          }
-        }
-      })
-      combinedData.value = updatedData
-    }
-  } catch {
-    // Silently fail - descriptions are optional
-  }
-}
 
 /**
  * Apply SatNOGS info (launch date, operator, countries, website, decayed/deployed, description, image)

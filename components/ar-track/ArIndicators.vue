@@ -71,18 +71,44 @@
       </div>
     </div>
 
-    <!-- Doppler Shift Frequencies -->
-    <div v-if="dopplerFrequencies.length > 0" class="flex flex-col gap-1 pt-2 border-t border-space-600">
-      <div class="text-xs text-space-400 mb-1 uppercase tracking-wider font-semibold">Doppler Shift</div>
-      <div
-        v-for="(freq, index) in dopplerFrequencies"
-        :key="index"
-        class="flex justify-between text-xs"
-      >
-        <span class="text-space-400">{{ freq.label }}:</span>
-        <div class="text-right">
-          <span class="text-orange-400 font-medium font-mono">{{ freq.shifted }}</span>
-          <span class="text-space-500 text-[10px] ml-1">({{ freq.original }})</span>
+    <!-- Transmitter Frequencies (with Doppler shift for passing satellites) -->
+    <div v-if="dopplerFrequencies.length > 0" class="flex flex-col gap-2 pt-2 border-t border-space-600">
+      <div class="flex items-center justify-between">
+        <div class="text-xs text-space-400 uppercase tracking-wider font-semibold">
+          {{ isPassing ? 'Doppler Shift' : 'Frequencies' }}
+        </div>
+        <div class="text-xs text-space-500">{{ dopplerFrequencies.length }} transmitter{{ dopplerFrequencies.length > 1 ? 's' : '' }}</div>
+      </div>
+      <div class="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-1">
+        <div
+          v-for="(transmitter, index) in dopplerFrequencies"
+          :key="index"
+          class="flex flex-col gap-1 pb-2"
+          :class="{ 'border-b border-space-700': index < dopplerFrequencies.length - 1 }"
+        >
+          <div class="text-xs text-space-300 font-medium">{{ transmitter.label }}</div>
+          <div v-if="transmitter.uplink" class="flex justify-between text-xs">
+            <span class="text-space-400">Uplink:</span>
+            <div class="text-right font-mono">
+              <span class="font-medium" :class="isPassing && transmitter.uplink.shift !== 0 ? 'text-orange-400' : 'text-space-200'">
+                {{ transmitter.uplink.shifted }}
+              </span>
+              <span v-if="isPassing && transmitter.uplink.shift !== 0" class="text-space-500 text-[10px] ml-1">
+                ({{ transmitter.uplink.original }})
+              </span>
+            </div>
+          </div>
+          <div v-if="transmitter.downlink" class="flex justify-between text-xs">
+            <span class="text-space-400">Downlink:</span>
+            <div class="text-right font-mono">
+              <span class="font-medium" :class="isPassing && transmitter.downlink.shift !== 0 ? 'text-orange-400' : 'text-space-200'">
+                {{ transmitter.downlink.shifted }}
+              </span>
+              <span v-if="isPassing && transmitter.downlink.shift !== 0" class="text-space-500 text-[10px] ml-1">
+                ({{ transmitter.downlink.original }})
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -92,6 +118,10 @@
 <script setup>
 import { calculateDopplerShift } from '~/utils/dopplerCalculations'
 import { formatFrequencyHighPrecision } from '~/utils/frequencyUtils'
+import { matchesTransmitterFilters } from '~/utils/transmitterCategorization'
+import { useSettings } from '~/composables/storage/useSettings'
+
+const { settings } = useSettings()
 
 const props = defineProps({
   // Current satellite position
@@ -209,16 +239,15 @@ const formattedDistance = computed(() => {
 })
 
 /**
- * Calculate Doppler shift frequencies for transmitters
+ * Calculate transmitter frequencies (with Doppler shift for passing satellites)
+ * Shows both uplink and downlink frequencies
+ * - For passing satellites: applies Doppler correction
+ * - For geostationary satellites: shows original frequencies (no Doppler shift)
+ * Applies same filtering as PassDetails (alive transmitters + user filters)
  */
 const dopplerFrequencies = computed(() => {
-  // Early returns for missing required data
-  if (!props.isPassing || !props.noradId || !props.getSatelliteData) {
-    return []
-  }
-
-  // Only calculate if we have radial velocity (can be 0, but not null/undefined)
-  if (props.radialVelocity === null || props.radialVelocity === undefined) {
+  // Need satellite data
+  if (!props.noradId || !props.getSatelliteData) {
     return []
   }
 
@@ -230,33 +259,85 @@ const dopplerFrequencies = computed(() => {
       return []
     }
     
-    const frequencies = []
-    const seenFrequencies = new Set()
+    // Filter transmitters: alive + user filters (same as PassDetails)
+    const allTransmitters = satData.transmitters
+    const aliveTransmitters = allTransmitters.filter(t => t.alive !== false)
+    
+    let filteredTransmitters = aliveTransmitters
+    if (settings.value?.transmitterFilters) {
+      const filters = settings.value.transmitterFilters
+      filteredTransmitters = aliveTransmitters.filter(transmitter =>
+        matchesTransmitterFilters(transmitter, filters)
+      )
+    }
+    
+    const transmitters = []
+    
+    // Check if we can calculate Doppler (passing satellites with radial velocity)
+    const canCalculateDoppler = props.isPassing && 
+                                props.radialVelocity !== null && 
+                                props.radialVelocity !== undefined
 
-    satData.transmitters.forEach(transmitter => {
+    filteredTransmitters.forEach(transmitter => {
       if (!transmitter) return
       
-      // Get downlink frequency (most common for receiving)
-      const frequency = transmitter.downlink_low || transmitter.uplink_low
-      if (!frequency || seenFrequencies.has(frequency)) return
+      // Check if transmitter has at least one frequency
+      if (!transmitter.downlink_low && !transmitter.uplink_low) return
 
-      seenFrequencies.add(frequency)
+      const transmitterData = {
+        label: transmitter.description || transmitter.mode || 'Transmitter',
+        uplink: null,
+        downlink: null
+      }
 
-      // Calculate Doppler shift
-      const doppler = calculateDopplerShift(frequency, props.radialVelocity)
-      
-      frequencies.push({
-        label: transmitter.description || transmitter.mode || 'Frequency',
-        original: formatFrequencyHighPrecision(frequency),
-        shifted: formatFrequencyHighPrecision(doppler.shiftedFrequency),
-        shift: doppler.shiftKHz
-      })
+      // Process uplink frequency
+      if (transmitter.uplink_low) {
+        if (canCalculateDoppler) {
+          // Calculate Doppler shift for passing satellites
+          const dopplerUplink = calculateDopplerShift(transmitter.uplink_low, props.radialVelocity)
+          transmitterData.uplink = {
+            original: formatFrequencyHighPrecision(transmitter.uplink_low),
+            shifted: formatFrequencyHighPrecision(dopplerUplink.shiftedFrequency),
+            shift: dopplerUplink.shiftKHz
+          }
+        } else {
+          // No Doppler shift for geostationary satellites
+          transmitterData.uplink = {
+            original: formatFrequencyHighPrecision(transmitter.uplink_low),
+            shifted: formatFrequencyHighPrecision(transmitter.uplink_low), // Same as original
+            shift: 0
+          }
+        }
+      }
+
+      // Process downlink frequency
+      if (transmitter.downlink_low) {
+        if (canCalculateDoppler) {
+          // Calculate Doppler shift for passing satellites
+          const dopplerDownlink = calculateDopplerShift(transmitter.downlink_low, props.radialVelocity)
+          transmitterData.downlink = {
+            original: formatFrequencyHighPrecision(transmitter.downlink_low),
+            shifted: formatFrequencyHighPrecision(dopplerDownlink.shiftedFrequency),
+            shift: dopplerDownlink.shiftKHz
+          }
+        } else {
+          // No Doppler shift for geostationary satellites
+          transmitterData.downlink = {
+            original: formatFrequencyHighPrecision(transmitter.downlink_low),
+            shifted: formatFrequencyHighPrecision(transmitter.downlink_low), // Same as original
+            shift: 0
+          }
+        }
+      }
+
+      transmitters.push(transmitterData)
     })
 
-    // Limit to first 3 frequencies to avoid clutter
-    return frequencies.slice(0, 3)
+    // Return all filtered transmitters (same as PassDetails - no artificial limit)
+    return transmitters
   } catch (error) {
-    // Silently fail - Doppler calculation is optional
+    // Silently fail - frequency display is optional
+    console.error('Error calculating transmitter frequencies:', error)
     return []
   }
 })

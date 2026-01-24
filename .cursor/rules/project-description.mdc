@@ -70,5 +70,81 @@ Satellite pass visualization and tracking application for ham radio operators. S
 
 - Just make tactics for this having in mind that we also have n2yo API (Get satellite positions) limited to 1000 requests per hour. 
 
+## Development Workflow
 
+**CRITICAL RULES - ALWAYS FOLLOW THESE:**
+
+### Branch Strategy
+- **`main`**: Production branch - only merged, tested code. NEVER commit directly to main.
+- **`development`**: Development branch - main development line. Main directory is ALWAYS on this branch.
+- **`feature/*`**: All new features MUST be developed on feature branches in worktrees.
+
+### Workflow Flow (MANDATORY)
+```
+feature/my-feature → development → main
+```
+
+**NEVER skip steps:**
+1. ✅ Create feature branch in worktree: `git worktree add .worktrees/feature-name -b feature/name`
+2. ✅ Develop feature in worktree (NEVER in main directory)
+3. ✅ Merge feature into `development` first
+4. ✅ Test on `development` branch
+5. ✅ Only then merge `development` into `main` for production
+
+### Worktree Structure (REQUIRED)
+- Main directory (`/Users/goran/Projects/radio/satTrack/`) → **ALWAYS on `development` branch**
+- `.worktrees/main/` → `main` branch (for production releases)
+- `.worktrees/feature-*/` → feature branches (for all feature work)
+
+**Rule**: NEVER work on features directly in main directory. ALWAYS use worktrees.
+
+### Automatic Processes
+- **Tagging**: GitHub Actions auto-creates tags (v1.0.X) on push to `main` only
+- **Deployment**: Vercel auto-deploys on push to `main` only
+- **Workflow file**: `.github/workflows/auto-tag-release.yml`
+
+### Commit Messages (REQUIRED FORMAT)
+Use conventional commits:
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation
+- `refactor:` - Refactoring
+- `test:` - Tests
+- `chore:` - Maintenance
+
+### DO's and DON'Ts
+
+**✅ ALWAYS DO:**
+- Create feature branches from `development`
+- Use worktrees for all feature work
+- Merge features into `development` first
+- Test on `development` before merging to `main`
+- Use conventional commit messages
+
+**❌ NEVER DO:**
+- Merge directly into `main` from feature branch
+- Push directly to `main` without merging from `development`
+- Work on features in main directory
+- Skip `development` branch
+- Create tags manually (GitHub Actions does this)
+
+### Quick Commands Reference
+```bash
+# Create feature worktree
+git worktree add .worktrees/feature-name -b feature/name
+
+# Merge feature → development
+cd .worktrees/feature-name
+git checkout development
+git merge feature/name
+git push origin development
+
+# Merge development → main (production release)
+cd /Users/goran/Projects/radio/satTrack
+git checkout main
+git merge development
+git push origin main  # Triggers auto-tag + Vercel deploy
+```
+
+**For complete details, see**: `.cursor/rules/development-workflow.md`
 

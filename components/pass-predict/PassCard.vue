@@ -49,6 +49,7 @@
             :norad-id="pass.noradId"
             :pass-start-time="pass.startTime"
             :pass-end-time="pass.endTime"
+            :is-in-transit="isPassInTransit"
           />
         </div>
 
@@ -181,6 +182,13 @@ const showVisualization = computed(() => {
 })
 
 // Computed: Past positions for drawing
+// Check if pass is in-transit (satellite already passing when card was opened)
+const isPassInTransit = computed(() => {
+  const now = Date.now()
+  // Pass is in-transit if current time is between start and end time
+  return now > props.pass.startTime && now < props.pass.endTime
+})
+
 const pastPositions = computed(() => {
   return getPastPositions(positionHistory.value)
 })

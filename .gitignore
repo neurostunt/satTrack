@@ -99,3 +99,9 @@ temp/
 # PWA files
 sw.js
 workbox-*.js
+
+# Git worktrees
+.worktrees/
+
+# Cursor IDE (personal development config with local paths)
+.cursor/rules/superpowers-integration.mdc

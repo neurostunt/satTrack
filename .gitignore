@@ -102,4 +102,6 @@ workbox-*.js
 
 # Git worktrees
 .worktrees/
-worktrees/
+
+# Cursor IDE (personal development config with local paths)
+.cursor/rules/superpowers-integration.mdc

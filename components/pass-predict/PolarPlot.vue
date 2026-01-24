@@ -227,6 +227,11 @@ const props = defineProps({
   passEndTime: {
     type: Number,
     default: null
+  },
+  // Flag to indicate if pass is in-transit (started before card was opened)
+  isInTransit: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -394,10 +399,12 @@ const currentPosition = computed(() => {
 
 /**
  * Entry point - represents the satellite's position at pass start time (entry)
- * Always calculated at t=0 (pass start time), regardless of current time or tracking state
- * This ensures the entry dot always shows where the satellite actually entered, even during active passes
- *
- * IMPORTANT: This is calculated from pass.startTime, NOT from when the card was opened or tracking started
+ * 
+ * UPDATED LOGIC FOR IN-TRANSIT PASSES:
+ * - For future passes (not started): show entry at horizon (startAzimuth, 0°)
+ * - For in-transit passes (already started): hide entry point, rely on real-time data
+ * 
+ * This prevents mismatch between predicted entry and actual N2YO data that starts mid-pass
  */
 const entryPoint = computed(() => {
   // Don't show entry point for geostationary satellites
@@ -405,19 +412,15 @@ const entryPoint = computed(() => {
   if (props.startAzimuth === null || props.startAzimuth === undefined) return null
   if (props.maxElevation === null || props.maxElevation === undefined) return null
 
-  // Entry point is ALWAYS at pass start time (t=0), regardless of:
-  // - Current time
-  // - Whether pass has started
-  // - Whether card is open
-  // - Whether real-time tracking is active
-  //
-  // At t=0 (pass start time): elevation = 0 (horizon), azimuth = startAzimuth
-  // This is the actual satellite entry position, calculated from pass.startTime
+  // Hide entry point for in-transit passes (satellite already passing when card opened)
+  // This prevents mismatch between predicted entry and N2YO real-time data
+  if (props.isInTransit) return null
+
+  // For future passes: Entry point is at pass start time (t=0)
+  // At t=0: elevation = 0 (horizon), azimuth = startAzimuth
   const entryElevation = 0
   const entryAzimuth = props.startAzimuth
 
-  // Calculate the entry point position using the same method as predicted path
-  // This ensures perfect alignment with the predicted path arc
   return polarToCartesian(entryAzimuth, entryElevation)
 })
 
@@ -471,11 +474,18 @@ const peakPoint = computed(() => {
  * Uses true circular arc calculation (like compass drawing)
  * For geostationary satellites, returns null (no path needed)
  *
- * IMPORTANT: Path is calculated from pass start time (entry), not from tab open time
+ * UPDATED FOR IN-TRANSIT PASSES:
+ * - For future passes: draw full arc from entry → peak → exit
+ * - For in-transit passes: don't draw predicted path (rely on N2YO real-time data)
  */
 const predictedPath = computed(() => {
   // Don't show path for geostationary satellites (they don't move)
   if (isGeostationary.value) return null
+  
+  // Don't show predicted path for in-transit passes
+  // Real-time N2YO data will show the actual path instead
+  if (props.isInTransit) return null
+  
   if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
 
   const p1 = entryPoint.value

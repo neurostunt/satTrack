@@ -174,23 +174,47 @@ export const useTLEData = () => {
 
         if (data.success && data.data && data.data.length > 0) {
           const tleRecord = data.data[0]
-          tleData[noradId] = {
-            noradId: noradId,
-            line1: tleRecord.tle1,
-            line2: tleRecord.tle2,
-            timestamp: Date.now(),
-            source: 'satnogs' as const
+          
+          // SatNOGS API returns TLE data in different formats - handle all possibilities
+          const line1 = tleRecord.tle1 || tleRecord.tle_line1 || tleRecord.line1 || tleRecord.TLE_LINE1
+          const line2 = tleRecord.tle2 || tleRecord.tle_line2 || tleRecord.line2 || tleRecord.TLE_LINE2
+          
+          if (line1 && line2) {
+            tleData[noradId] = {
+              noradId: noradId,
+              line1: line1,
+              line2: line2,
+              timestamp: Date.now(),
+              source: 'satnogs' as const
+            }
+            console.log(`✓ SatNOGS TLE data fetched for NORAD ${noradId}`)
+          } else {
+            console.warn(`✗ SatNOGS TLE data incomplete for NORAD ${noradId}:`, {
+              hasLine1: !!line1,
+              hasLine2: !!line2,
+              recordKeys: Object.keys(tleRecord)
+            })
           }
-          console.log(`✓ SatNOGS TLE data fetched for NORAD ${noradId}`)
         } else {
-          console.warn(`✗ No SatNOGS TLE data found for NORAD ${noradId}`)
+          console.warn(`✗ No SatNOGS TLE data found for NORAD ${noradId}`, {
+            success: data.success,
+            hasData: !!data.data,
+            dataLength: data.data?.length || 0
+          })
         }
       } catch (error) {
         console.error(`✗ Error fetching SatNOGS TLE data for NORAD ${noradId}:`, error)
       }
     }
 
-    return Object.values(tleData)
+    const result = Object.values(tleData)
+    if (result.length > 0 && result[0]) {
+      console.log(`📦 SatNOGS fetch complete: ${result.length} TLE records`, 
+        `Sample: NORAD ${result[0].noradId}, has line1: ${!!result[0].line1}, has line2: ${!!result[0].line2}`)
+    } else {
+      console.log(`📦 SatNOGS fetch complete: ${result.length} TLE records (no data)`)
+    }
+    return result
   }
 
   /**
@@ -325,8 +349,46 @@ export const useTLEData = () => {
 
       // Process and store TLE data
       const processedData: Record<number, TLEData> = {}
-      rawTLEData.forEach(tle => {
-        // Handle different data formats from Space-Track vs SatNOGS vs CelesTrak
+      console.log(`📊 Processing ${rawTLEData.length} TLE records from ${dataSource}`)
+      
+      rawTLEData.forEach((tle, index) => {
+        // Debug: Log first few records structure to understand data format
+        if (index < 3) {
+          console.log(`🔍 TLE record ${index} structure:`, {
+            hasLine1: !!(tle as any).line1,
+            hasLine2: !!(tle as any).line2,
+            hasNoradId: !!(tle as any).noradId,
+            hasTLE_LINE1: !!(tle as any).TLE_LINE1,
+            hasTLE_LINE2: !!(tle as any).TLE_LINE2,
+            hasTle1: !!(tle as any).tle1,
+            hasTle2: !!(tle as any).tle2,
+            hasNoradCatId: !!(tle as any).norad_cat_id,
+            hasNORAD_CAT_ID: !!(tle as any).NORAD_CAT_ID,
+            keys: Object.keys(tle).slice(0, 10) // First 10 keys
+          })
+        }
+        
+        // Check if data is already in TLEData format (from SatNOGS or CelesTrak fallback functions)
+        // This happens when fetchTLEDataFromSatNOGS or fetchTLEDataFromCelesTrak returns processed data
+        if ((tle as any).line1 && (tle as any).line2 && (tle as any).noradId) {
+          // Already processed TLEData format - use directly
+          const noradId = (tle as any).noradId
+          processedData[noradId] = {
+            noradId: noradId,
+            line1: (tle as any).line1,
+            line2: (tle as any).line2,
+            timestamp: (tle as any).timestamp || Date.now(),
+            source: (tle as any).source || dataSource as 'space-track' | 'satnogs' | 'celestrak' | 'manual'
+          }
+          if (index < 3) {
+            console.log(`✅ Using pre-processed TLEData format for NORAD ${noradId}`)
+          }
+          return
+        }
+
+        // Handle raw API response formats (Space-Track, or unprocessed SatNOGS/CelesTrak)
+        // Space-Track uses: NORAD_CAT_ID, TLE_LINE1, TLE_LINE2
+        // SatNOGS uses: norad_cat_id, tle1, tle2 (but should be caught above if already processed)
         const noradId = (tle as any).NORAD_CAT_ID || (tle as any).norad_cat_id || (tle as any).noradId
         const _name = (tle as any).OBJECT_NAME || (tle as any).tle0 || `Satellite ${noradId}`
         const tle1 = (tle as any).TLE_LINE1 || (tle as any).tle1
@@ -334,7 +396,15 @@ export const useTLEData = () => {
         const _epoch = (tle as any).EPOCH || (tle as any).updated
 
         if (!noradId || !tle1 || !tle2) {
-          console.warn('⚠️ Skipping incomplete TLE data:', { noradId, hasLine1: !!tle1, hasLine2: !!tle2 })
+          console.warn(`⚠️ Skipping incomplete TLE data (record ${index}):`, { 
+            noradId, 
+            hasLine1: !!tle1, 
+            hasLine2: !!tle2,
+            hasNoradId: !!noradId,
+            dataSource,
+            dataKeys: Object.keys(tle),
+            sampleData: JSON.stringify(tle).substring(0, 300)
+          })
           return
         }
 
@@ -346,6 +416,8 @@ export const useTLEData = () => {
           source: (tle as any).source || dataSource as 'space-track' | 'satnogs' | 'celestrak' | 'manual'
         }
       })
+      
+      console.log(`✅ Processed ${Object.keys(processedData).length} TLE records into processedData (from ${rawTLEData.length} raw records)`)
 
       // Check if any satellites are missing TLE data and try fallback sources individually
       const missingSatellites = satellites.filter(sat => !processedData[sat.noradId])

@@ -70,5 +70,130 @@ Satellite pass visualization and tracking application for ham radio operators. S
 
 - Just make tactics for this having in mind that we also have n2yo API (Get satellite positions) limited to 1000 requests per hour. 
 
+## Development Workflow
 
+**CRITICAL RULES - ALWAYS FOLLOW THESE:**
+
+### Git Worktree Structure (Best Practice)
+The project uses **bare clone + worktrees** pattern:
+
+```
+satTrack/
+├── satTrack.git/            # Bare clone (Git metadata only) - NEVER work here
+├── development/             # Main development worktree (PRIMARY)
+├── main/                    # Production worktree
+└── feature-*/               # Feature worktrees
+```
+
+**Key Points:**
+- `satTrack.git/` is bare repository - contains only Git metadata
+- All work happens in worktrees (development, main, feature-*)
+- Each worktree is a separate directory with checked out code
+- All worktrees share the same Git repository (satTrack.git)
+
+### Branch Strategy
+- **`development`**: Primary development branch - all daily work happens here
+- **`main`**: Production branch - only merged, tested code from development
+- **`feature/*`**: Feature branches - created as worktrees
+
+### Workflow Flow (MANDATORY)
+```
+feature/my-feature → development → main
+```
+
+**NEVER skip steps:**
+1. ✅ Create feature worktree from satTrack.git: `cd satTrack.git && git worktree add ../feature-name -b feature/name`
+2. ✅ Develop feature in feature worktree
+3. ✅ Merge feature into `development` first
+4. ✅ Test on `development` branch
+5. ✅ Only then merge `development` into `main` for production
+
+### Working with Worktrees
+
+**Creating new feature worktree:**
+```bash
+cd /Users/goran/Projects/radio/satTrack/satTrack.git
+git worktree add ../feature-new-feature -b feature/new-feature
+cd ../feature-new-feature
+git branch -u origin/feature/new-feature  # Set upstream if exists
+```
+
+**Switching between worktrees:**
+```bash
+cd /Users/goran/Projects/radio/satTrack/development  # Main development
+cd /Users/goran/Projects/radio/satTrack/main         # Production
+cd /Users/goran/Projects/radio/satTrack/feature-*    # Feature work
+```
+
+**Listing all worktrees:**
+```bash
+cd /Users/goran/Projects/radio/satTrack/satTrack.git
+git worktree list
+```
+
+**Removing worktree:**
+```bash
+cd /Users/goran/Projects/radio/satTrack/satTrack.git
+git worktree remove ../feature-name
+git branch -d feature/name  # Delete branch if done
+```
+
+### Automatic Processes
+- **Tagging**: GitHub Actions auto-creates tags (v1.0.X) on push to `main` only
+- **Deployment**: Vercel auto-deploys on push to `main` only
+- **Workflow file**: `.github/workflows/auto-tag-release.yml`
+
+### Commit Messages (REQUIRED FORMAT)
+Use conventional commits:
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation
+- `refactor:` - Refactoring
+- `test:` - Tests
+- `chore:` - Maintenance
+
+### DO's and DON'Ts
+
+**✅ ALWAYS DO:**
+- Work in `development/` worktree for daily development
+- Create feature worktrees from `satTrack.git/` for new features
+- Merge features into `development` first
+- Test on `development` before merging to `main`
+- Use conventional commit messages
+- List worktrees from `satTrack.git/` directory
+
+**❌ NEVER DO:**
+- Work directly in `satTrack.git/` (it's bare - no working directory)
+- Merge directly into `main` from feature branch
+- Push directly to `main` without testing on `development`
+- Skip `development` branch
+- Create tags manually (GitHub Actions does this)
+- Manually delete worktree directories (use `git worktree remove`)
+
+### Quick Commands Reference
+```bash
+# Create feature worktree
+cd /Users/goran/Projects/radio/satTrack/satTrack.git
+git worktree add ../feature-name -b feature/name
+
+# Merge feature → development
+cd /Users/goran/Projects/radio/satTrack/development
+git merge feature/name
+git push origin development
+
+# Merge development → main (production release)
+cd /Users/goran/Projects/radio/satTrack/main
+git merge development
+git push origin main  # Triggers auto-tag + Vercel deploy
+
+# List all worktrees
+cd /Users/goran/Projects/radio/satTrack/satTrack.git
+git worktree list
+
+# Remove feature worktree (after merge)
+cd /Users/goran/Projects/radio/satTrack/satTrack.git
+git worktree remove ../feature-name
+```
+
+**For complete details, see**: `.cursor/rules/development-workflow.md`
 

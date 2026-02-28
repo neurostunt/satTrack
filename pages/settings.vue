@@ -49,7 +49,7 @@
     <CombinedDataDisplay
       :combined-data="combinedData"
       :get-t-l-e-data="getTLEData"
-      :format-frequency="formatFrequency"
+      :format-frequency="formatFrequencyValue"
     />
   </NuxtLayout>
 </template>
@@ -843,10 +843,8 @@ const clearAllData = async () => {
   }
 }
 
-const formatFrequency = (frequency) => {
-  if (!frequency) return 'Unknown'
-  return frequency
-}
+// Frequency formatting is handled by the formatFrequencyValue utility
+import { formatFrequencyValue } from '~/utils/frequencyUtils'
 
 
 // Watch for search query changes with caching

@@ -10,12 +10,12 @@ This feature provides real-time satellite tracking during passes using a polar p
 Visual component that displays satellite position on a polar coordinate system.
 
 **What it shows:**
-- Two concentric circles (elevation markers: 30°, 60°)
-- Compass directions (N, E, S, W)
-- Predicted path (blue dashed line - from pass prediction data)
-- Past path (green solid line - where satellite has been)
-- Future path (green dashed line - next 60s from API)
-- Current position (green pulsing dot)
+- Two concentric circles (elevation markers: 30°, 60°) with full N↔S / E↔W crosshair lines
+- Compass labels (N, E, S, W) positioned outside the outer circle
+- Predicted arc (blue dashed) — static, extends slightly beyond the horizon circle on both ends following the same curvature
+- Entry/AOS dot (green) and Exit/LOS dot (red) on the horizon circle edge; Peak dot (gray) at max elevation
+- N2YO future path (green dashed) — only upcoming 60s, drawn on top of the predicted arc
+- Current satellite position (🛰️ emoji)
 
 **Display logic:**
 - Center = Observer (you)
@@ -59,10 +59,10 @@ API calls: 0 ✅
 ### Phase 2: During Pass (satellite is passing)
 ```
 User sees: Real-time tracking with all paths
-- Predicted path (blue dashed - remainder of pass)
-- Past path (green solid - where it's been)
-- Future path (green dashed - next 60s)
-- Current position (pulsing green dot)
+- Predicted arc (blue dashed - full static arc, always visible)
+- Future path (green dashed - next 60s only, no past trail)
+- Current position (🛰️ emoji)
+- Entry/exit/peak dots remain visible throughout
 
 Data source: N2YO positions API
 API calls: ~1 every 45 seconds

@@ -27,6 +27,4 @@ if (import.meta.dev && isMobile()) {
   })
 }
 
-import { preloadPolarPlotBackground } from '~/composables/pass-predict/usePolarPlotBackground'
-preloadPolarPlotBackground()
 </script>

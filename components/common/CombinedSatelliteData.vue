@@ -1,12 +1,6 @@
 <template>
-  <div v-if="combinedData && Object.keys(combinedData).length > 0" class="max-w-lg mx-auto mb-6">
-    <div class="bg-space-800 border border-space-700 rounded-lg p-4">
-      <h3 class="text-lg font-semibold text-primary-400 mb-4 flex items-center">
-        📡 Combined Satellite Data
-        <span class="ml-2 text-sm text-space-300">({{ Object.keys(combinedData).length }} satellites)</span>
-      </h3>
-
-      <div class="space-y-4">
+  <div v-if="combinedData && Object.keys(combinedData).length > 0" class="max-w-lg mx-auto pb-24">
+    <div class="space-y-4">
         <div
           v-for="(data, noradId) in combinedData"
           :key="noradId"
@@ -34,13 +28,13 @@
         <!-- First row: Main satellite name -->
         <div class="flex items-center pt-0 pb-1 leading-1">
           <div class="text-sm font-medium text-primary-300 group-hover:text-primary-200 transition-colors duration-300 ease-in-out py-0.5 truncate">
-            {{ truncateSatelliteName(getFormattedSatelliteName(data.satellite, noradId).primary) }}
+            {{ truncateSatelliteName(formatSatelliteNameForDisplay(data.satellite, noradId).primary) }}
           </div>
         </div>
                 <!-- Second row: Secondary name + NORAD ID (proper spacing) -->
                 <div class="flex items-center gap-2 text-xs text-space-400 group-hover:text-space-300 transition-colors duration-300 ease-in-out mt-1 pb-2">
-                  <span v-if="getFormattedSatelliteName(data.satellite, noradId).secondary">
-                    {{ getFormattedSatelliteName(data.satellite, noradId).secondary }} -
+                  <span v-if="formatSatelliteNameForDisplay(data.satellite, noradId).secondary">
+                    {{ formatSatelliteNameForDisplay(data.satellite, noradId).secondary }} -
                   </span>
                   <span>NORAD ID: {{ noradId }}</span>
                 </div>
@@ -73,12 +67,12 @@
               <div v-if="data.satellite?.image" class="mb-3">
                 <div
                   class="text-sm text-space-300 mb-2 cursor-pointer hover:text-primary-400 transition-colors flex items-center justify-between"
-                  @click="toggleSection(noradId, 'image')"
+                  @click="toggleSection(noradId, 'image', true)"
                 >
                   <span>🖼️ Sat Image</span>
                   <svg
                     class="w-4 h-4 transition-transform duration-300"
-                    :class="{ 'rotate-180': isSectionExpanded(noradId, 'image') }"
+                    :class="{ 'rotate-180': isSectionExpanded(noradId, 'image', true) }"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -94,7 +88,7 @@
                   leave-from-class="transform scale-y-100 opacity-100 origin-top"
                   leave-to-class="transform scale-y-0 opacity-0 origin-top"
                 >
-                  <div v-if="isSectionExpanded(noradId, 'image')" class="bg-space-800 border border-space-500 rounded p-2">
+                  <div v-if="isSectionExpanded(noradId, 'image', true)" class="bg-space-800 border border-space-500 rounded p-2">
                     <img
                       :src="data.satellite.image"
                       :alt="data.satellite.name"
@@ -313,16 +307,15 @@
           </Transition>
         </div>
       </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-// Import satellite name utilities
 import { formatSatelliteNameForDisplay, truncateSatelliteName } from '~/utils/satelliteNameUtils'
+import { getStatusColor, getStatusText, getCleanDescription } from '~/utils/satelliteStatusUtils'
+import { formatFrequencyValue } from '~/utils/frequencyUtils'
+import { useExpandable, useExpandableSections } from '~/composables/useExpandable'
 
-// Props
 defineProps({
   combinedData: {
     type: Object,
@@ -338,105 +331,8 @@ defineProps({
   }
 })
 
-// Format frequency value for display
-const formatFrequencyValue = (frequency) => {
-  if (!frequency) return 'Unknown'
-
-  // Handle different frequency formats
-  if (typeof frequency === 'number') {
-    if (frequency >= 1000000) {
-      return `${(frequency / 1000000).toFixed(3)} MHz`
-    } else if (frequency >= 1000) {
-      return `${(frequency / 1000).toFixed(0)} kHz`
-    } else {
-      return `${frequency} Hz`
-    }
-  }
-
-  // If it's already a string, return as-is
-  return frequency.toString()
-}
-
-// Reactive state
-const expandedSatellites = ref(new Set())
-// Track expanded sections per satellite (for non-image sections)
-const expandedSections = ref(new Map())
-// Track collapsed sections (for image sections which are expanded by default)
-const collapsedSections = ref(new Map())
-
-// Functions
-const getFormattedSatelliteName = (satellite, noradId) => {
-  return formatSatelliteNameForDisplay(satellite, noradId)
-}
-
-const toggleSatelliteData = (noradId) => {
-  if (expandedSatellites.value.has(noradId)) {
-    expandedSatellites.value.delete(noradId)
-  } else {
-    expandedSatellites.value.add(noradId)
-  }
-}
-
-const isSatelliteExpanded = (noradId) => {
-  return expandedSatellites.value.has(noradId)
-}
-
-// Toggle individual section (TLE, Transmitters, Status, Image)
-const toggleSection = (noradId, section) => {
-  const key = `${noradId}-${section}`
-  // Image sections are expanded by default, so we track if they're collapsed
-  if (section === 'image') {
-    if (collapsedSections.value.has(key)) {
-      collapsedSections.value.delete(key)
-    } else {
-      collapsedSections.value.set(key, true)
-    }
-  } else {
-    // Other sections: track if they're expanded
-    if (expandedSections.value.has(key)) {
-      expandedSections.value.delete(key)
-    } else {
-      expandedSections.value.set(key, true)
-    }
-  }
-}
-
-// Check if section is expanded
-const isSectionExpanded = (noradId, section) => {
-  const key = `${noradId}-${section}`
-  // Image section is expanded by default unless explicitly collapsed
-  if (section === 'image') {
-    return !collapsedSections.value.has(key)
-  }
-  // Other sections: check if they're in the expanded map
-  return expandedSections.value.has(key)
-}
-
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'alive':
-      return 'text-green-400'
-    case 'dead':
-      return 'text-red-400'
-    case 're-entered':
-      return 'text-orange-400'
-    default:
-      return 'text-space-400'
-  }
-}
-
-const getStatusText = (status) => {
-  switch (status) {
-    case 'alive':
-      return 'ACTIVE'
-    case 'dead':
-      return 'INACTIVE'
-    case 're-entered':
-      return 'RE-ENTERED'
-    default:
-      return 'UNKNOWN'
-  }
-}
+const { toggleItem: toggleSatelliteData, isExpanded: isSatelliteExpanded } = useExpandable()
+const { toggleSection, isSectionExpanded } = useExpandableSections()
 
 const getObjectTypeText = (objectType) => {
   const types = {
@@ -463,19 +359,10 @@ const getOpsStatusText = (opsStatusCode) => {
   return statuses[opsStatusCode] || opsStatusCode
 }
 
-const getCleanDescription = (description) => {
-  if (!description) return 'Unknown'
-  // Remove CTCSS information from description
-  return description.replace(/\(CTCSS:?\s*\d+(?:\.\d+)?\s*Hz\)/gi, '').trim()
-}
-
-// Handle image loading errors
 const handleImageError = (event) => {
-  // Hide broken images
   event.target.style.display = 'none'
 }
 </script>
 
 <style scoped>
-/* Custom styles if needed */
 </style>

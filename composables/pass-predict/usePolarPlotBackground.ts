@@ -3,7 +3,6 @@
  * Manages preloaded SVG background elements for better performance
  */
 
-import { ref, computed } from 'vue'
 
 // Constants
 const center = 200 // Center of SVG (400/2)
@@ -32,48 +31,32 @@ const generateBackgroundSVG = () => {
     elements.push(`<circle cx="${center}" cy="${center}" r="${r}" fill="none" stroke="#475569" stroke-width="1" stroke-dasharray="4,4" />`)
   }
 
-  // Cardinal direction lines (N, E, S, W)
-  for (const angle of [0, 90, 180, 270]) {
-    const x2 = center + radius * Math.sin(angle * Math.PI / 180)
-    const y2 = center - radius * Math.cos(angle * Math.PI / 180)
-    elements.push(`<line x1="${center}" y1="${center}" x2="${x2}" y2="${y2}" stroke="#475569" stroke-width="1" opacity="0.3" />`)
-  }
+  // Crosshair lines: full N↔S and E↔W through center
+  elements.push(`<line x1="${center}" y1="${center - radius}" x2="${center}" y2="${center + radius}" stroke="#475569" stroke-width="1" opacity="0.5" />`)
+  elements.push(`<line x1="${center - radius}" y1="${center}" x2="${center + radius}" y2="${center}" stroke="#475569" stroke-width="1" opacity="0.5" />`)
 
-  // Compass labels
-  elements.push(`<text x="${center}" y="20" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="bold">N</text>`)
-  elements.push(`<text x="380" y="${center + 5}" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="bold">E</text>`)
-  elements.push(`<text x="${center}" y="390" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="bold">S</text>`)
-  elements.push(`<text x="20" y="${center + 5}" text-anchor="middle" fill="#94a3b8" font-size="14" font-weight="bold">W</text>`)
+  // Compass labels — inline style overrides any CSS reset that would override SVG presentation attributes
+  elements.push(`<text x="${center}" y="14" text-anchor="middle" fill="#94a3b8" style="font-size:9px" font-weight="bold">N</text>`)
+  elements.push(`<text x="393" y="${center + 4}" text-anchor="middle" fill="#94a3b8" style="font-size:9px" font-weight="bold">E</text>`)
+  elements.push(`<text x="${center}" y="393" text-anchor="middle" fill="#94a3b8" style="font-size:9px" font-weight="bold">S</text>`)
+  elements.push(`<text x="7" y="${center + 4}" text-anchor="middle" fill="#94a3b8" style="font-size:9px" font-weight="bold">W</text>`)
 
-  // Elevation labels
-  elements.push(`<text x="${center + 10}" y="${center - elevationToRadius(30) + 5}" fill="#64748b" font-size="10">30°</text>`)
-  elements.push(`<text x="${center + 10}" y="${center - elevationToRadius(60) + 5}" fill="#64748b" font-size="10">60°</text>`)
-
-  // Horizon marker
-  elements.push(`<text x="${center}" y="${center + radius + 15}" text-anchor="middle" fill="#64748b" font-size="10">Horizon (0°)</text>`)
+  // Elevation labels — placed just below each ring's south point to avoid interfering with satellite paths
+  const r30 = elevationToRadius(30)
+  const r60 = elevationToRadius(60)
+  elements.push(`<text x="${center + 6}" y="${center + r30 + 14}" fill="#475569" style="font-size:12px">30°</text>`)
+  elements.push(`<text x="${center + 6}" y="${center + r60 + 14}" fill="#475569" style="font-size:12px">60°</text>`)
 
   return elements.join('')
 }
 
-// Cache the background SVG - initialize immediately for preloading
-const backgroundSVG = ref(generateBackgroundSVG())
-
 export const usePolarPlotBackground = () => {
+  const backgroundSVG = generateBackgroundSVG()
   return {
-    backgroundSVG: computed(() => backgroundSVG.value),
+    backgroundSVG,
     center,
     radius,
     elevationToRadius
   }
 }
 
-/**
- * Preload function to ensure background SVG is ready
- * Can be called during app initialization for better performance
- */
-export const preloadPolarPlotBackground = () => {
-  // Force generation if not already done
-  if (!backgroundSVG.value) {
-    backgroundSVG.value = generateBackgroundSVG()
-  }
-}

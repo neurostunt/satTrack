@@ -61,7 +61,6 @@
 </template>
 
 <script setup>
-// Props
 defineProps({
   storageInfo: {
     type: Object,
@@ -81,10 +80,8 @@ defineProps({
   }
 })
 
-// Emits
 defineEmits(['clear-tle-data', 'clear-transmitter-data', 'clear-all-data', 'load-example-satellites'])
 </script>
 
 <style scoped>
-/* Custom styles if needed */
 </style>

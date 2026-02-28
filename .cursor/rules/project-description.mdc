@@ -2,198 +2,241 @@
 alwaysApply: true
 ---
 
-# Satellite Pass Tracker - Nuxt 4
+# SatTrack — Nuxt 4 Satellite Pass Tracker
 
-## Project Overview
-Satellite pass visualization and tracking application for ham radio operators. Shows graphical representation of satellites during their pass over observer location. Built with Nuxt 4. PWA.
+## What This App Does
+Ham radio satellite pass tracker and AR visualizer. Built with Nuxt 4 as a PWA.
+
+- Pass predictions and polar plot visualization
+- Augmented reality tracking using device compass (feature/ar-satellite-tracking branch)
+- Transponder frequencies and Doppler correction
+- TLE data management
+- No calculations — everything is delegated to APIs
+
+---
 
 ## Tech Stack
-- Nuxt 4 (latest)
-- Vue 3 Composition API
-- PWA
-- TypeScript
-- UnoCSS (atomic CSS)
-- n2yo api for satellite postions and predictions (no calculations, just API)
-- star-track api for TLE data (just display TLE, no caclulations)
-- satnogs api for transponder data and frequencies
-- No mapping library - custom SVG/Canvas visualization
+- Nuxt 4 (latest) + Vue 3 Composition API + `<script setup>`
+- TypeScript strict mode
+- UnoCSS (atomic CSS, no Tailwind)
+- PWA (installable, offline)
+- IndexedDB for encrypted local storage
+- No mapping library — all visualization is custom SVG/Canvas
 
-## Code Style & Conventions
+---
 
-### Vue/Nuxt Patterns
-- Use Composition API with `<script setup>` syntax
-- Prefer composables over mixins
-- Use auto-imports for components and composables
-- File naming: kebab-case for components, camelCase for composables
-- Components: `components/satellite-pass-view.vue`
-- Composables: `composables/useSatellitePass.ts`
-- Pages: `pages/index.vue`, `pages/passes/[satellite].vue`
+## APIs
+
+| API | Server proxy | Purpose | Rate limit |
+|---|---|---|---|
+| N2YO | `server/api/n2yo.post.ts` | Pass predictions + real-time positions | 1000 req/hr (positions/tle), 100/hr (passes) |
+| Space-Track | `server/api/space-track.post.ts` | TLE data | — |
+| CelesTrak | `server/api/celestrak.post.ts` | TLE fallback | — |
+| SatNOGS | `server/api/satnogs.post.ts` | Transponder frequencies | — |
+| AMSAT | `server/api/amsat.post.ts` | Amateur frequencies | — |
+
+### Space-Track API — IMPORTANT
+- **Endpoint:** `/basicspacedata/query/class/gp/NORAD_CAT_ID/{ids}/format/json`
+- **NEVER use** `tle_latest`, `tle`, or `tle_publish` — these are deprecated and return 404
+- The `gp` class returns the same fields: `OBJECT_NAME`, `TLE_LINE1`, `TLE_LINE2`
+- Constant defined in `constants/api.ts` → `API_ENDPOINTS.SPACE_TRACK.TLE`
+
+### N2YO Polar Plot Strategy
+N2YO positions endpoint is limited (1000/hr). For the polar plot:
+1. Fetch predicted pass path upfront (visualpasses or radiopasses — 100/hr limit)
+2. Draw the full predicted path as dashed arc on polar plot SVG
+3. During active pass only: poll positions every 5-10s for real dot position
+4. Cache aggressively — reuse pass prediction data across components
+
+---
+
+## Pages
+
+| Route | File | Description |
+|---|---|---|
+| `/` | `pages/index.vue` | Dashboard — active pass + transponder info |
+| `/pass-predict` | `pages/pass-predict.vue` | Pass list + polar plot |
+| `/ar-track` | `pages/ar-track.vue` | AR view with compass-rotated polar plot |
+| `/settings` | `pages/settings.vue` | Location, satellites, API keys, storage |
+
+---
+
+## Key Composables
+
+### API Layer (`composables/api/`)
+- `useN2YO.ts` — pass predictions, real-time positions via N2YO proxy
+- `useSpaceTrack.ts` — login + TLE fetch via `/api/space-track` proxy
+- `useTLEData.ts` — TLE orchestration: Space-Track first, CelesTrak fallback
+- `useSatnogs.ts` — transponder/frequency data
+- `useSatelliteSearch.ts` — satellite name/NORAD search
+
+### Pass Predict (`composables/pass-predict/`)
+- `usePassData.ts` — fetch + store pass list
+- `usePassStatus.ts` — is pass active/upcoming/past
+- `useRealTimePosition.ts` — polls N2YO during active pass
+- `useSatellitePath.ts` — arc path calculation for SVG polar plot
+- `usePolarPlotBackground.ts` — static background SVG (circles, labels)
+- `usePassFiltering.ts` — filter by satellite, elevation etc.
+- `usePassCleanup.ts` — cleanup timers/intervals
+
+### Storage (`composables/storage/`)
+- `useSettings.ts` — app settings: location, preferences (IndexedDB)
+- `useIndexedDB.ts` — IndexedDB CRUD wrapper
+- `useSecureStorage.ts` — AES-encrypted credential storage
+
+### AR Tracking
+- `useDeviceOrientation.ts` — wraps `DeviceOrientationEvent`:
+  - `alpha` = compass heading 0–360° (True North)
+  - `beta` = pitch -180 to 180°
+  - `gamma` = roll -90 to 90°
+  - iOS 13+ requires explicit permission — handled internally
+- `components/ar-track/ArPolarPlot.vue` — SVG polar plot rotated by compass so "up = where you're pointing"
+- `components/ar-track/ArIndicators.vue` — EL/AZ overlay indicators
+
+### Other Composables
+- `useCredentials.ts` — manages API keys (read/write to secure storage)
+- `useSoundAlerts.ts` — audio alerts when satellite is overhead
+- `usePWAInstall.ts` — PWA install prompt handling
+
+---
+
+## Components Structure
+
+```
+components/
+├── common/
+│   ├── ObservationLocation.vue   # Displays lat/lon/grid square
+│   ├── SatellitePassCard.vue     # Pass summary card
+│   ├── PassPredictData.vue
+│   ├── CombinedSatelliteData.vue
+│   ├── MobileNav.vue
+│   └── ChevronIcon.vue
+├── pass-predict/
+│   ├── PolarPlot.vue             # Main SVG polar plot
+│   ├── PassCard.vue
+│   ├── PassDetails.vue
+│   └── PassHeader.vue
+├── ar-track/
+│   ├── ArPolarPlot.vue           # Compass-rotated polar plot for AR
+│   └── ArIndicators.vue
+├── settings/
+│   ├── AdditionalSettings.vue    # Location (GPS), sound alerts, units
+│   ├── ApiCredentials.vue        # N2YO key, Space-Track, SatNOGS credentials
+│   ├── SatelliteManagement.vue   # Add/remove tracked satellites
+│   ├── StorageManagement.vue     # Clear cache, export/import
+│   └── CombinedDataDisplay.vue   # Debug view — raw stored data
+├── PWAInstallButton.vue
+└── PWAStatus.vue
+```
+
+---
+
+## Server API Proxies (`server/api/`)
+All are POST endpoints. They exist to:
+1. Keep API keys server-side (never in client bundle)
+2. Handle CORS restrictions
+3. Manage auth cookies (Space-Track session)
+
+---
+
+## Types (`types/`)
+- `satellite.d.ts` — `TLEData`, `PassPrediction`, `SatellitePosition`, etc.
+- `api.d.ts` — N2YO, SatNOGS, Space-Track response shapes
+- `storage.d.ts` — IndexedDB schema, settings shape
+- `global.d.ts` — global type extensions
+
+---
+
+## Code Style Rules
+
+### Vue
+- Always `<script setup lang="ts">` — never plain `<script setup>` (breaks TS syntax)
+- Composables over options API, always
+- File names: `kebab-case.vue` for components, `camelCase.ts` for composables
 
 ### TypeScript
-- Strict mode enabled
-- Always define types for function parameters and returns
-- Use interfaces for object shapes
-- Avoid `any` - use `unknown` if type is unclear
-- Define types for TLE data, pass predictions, satellite positions
+- No `any` — use `unknown` or proper types
+- Always type function params and returns
+- Use interfaces for data shapes, type aliases for unions
 
-### UnoCSS Guidelines
-- Use atomic utility classes
-- Prefer UnoCSS shortcuts for repeated patterns
-- Define custom shortcuts in `uno.config.ts` for satellite-specific UI
-- Use attributify mode for cleaner templates when appropriate
-- Example: `bg-slate-900 text-emerald-400 flex items-center justify-center`
+### GPS / Location
+- `enableHighAccuracy` respects user setting
+- Timeout: 30000ms (not 10000 — GPS cold start needs time)
+- maximumAge: 60000ms (accept 1-min cached fix, much faster)
+- Fallback retry: low accuracy + 300000ms maximumAge if first attempt fails
 
-### State Management
-- Use Nuxt's `useState` for global state
-- Keep active pass data in reactive state
-- Store observer location (lat, lng, altitude)
-- Track current visible satellites
+### UnoCSS
+- Pure utility classes — no `@apply`
+- Custom shortcuts in `uno.config.ts` for repeated patterns
+- Color palette: `space-*` (dark backgrounds), `primary-*` (accent)
 
-### API & Data Fetching
-- Use `$fetch` or `useFetch` for TLE data
-- Fetch from CelesTrak or Space-Track
-- Cache TLE data (update every 12-24 hours)
-- Handle network errors gracefully
+---
 
-### Performance
-- Use `requestAnimationFrame` for smooth satellite movement animation
-- Update position calculations every 1-2 seconds during pass
-- Use `computed` for derived values (elevation, azimuth)
-- Debounce expensive calculations
-- Lazy load non-critical components
+## Constants (`constants/`)
+- `api.ts` — all endpoints, cache durations (`TLE_DATA: 2hr`, `TRANSMITTER_DATA: 6hr`), timeouts
+- `satellite.ts` — default tracked satellites, categories
+- `ui.ts` — UI constants
 
-### NY20 API
-- API LImits:  tle	1000, positions	1000, visualpasses	100, radiopasses	100, above	100
-- strategy for showing acuall postion of sattelite in pass-predict page when sattelite is in pass on graphical image with correct path drown. 
+---
 
-- we need image with 2 concentric circles around the center (represents user postion). Path is drawn over image, with correct data (heading, ele). Top of the image represents north, and kocentric circles represent ele. 
-
-- Just make tactics for this having in mind that we also have n2yo API (Get satellite positions) limited to 1000 requests per hour. 
-
-## Development Workflow
-
-**CRITICAL RULES - ALWAYS FOLLOW THESE:**
-
-### Git Worktree Structure (Best Practice)
-The project uses **bare clone + worktrees** pattern:
+## Git Worktree Layout
 
 ```
 satTrack/
-├── satTrack.git/            # Bare clone (Git metadata only) - NEVER work here
-├── development/             # Main development worktree (PRIMARY)
-├── main/                    # Production worktree
-└── feature-*/               # Feature worktrees
+├── satTrack.git/          # Bare repo — NEVER work here
+├── development/           # Primary dev worktree
+├── main/                  # Production (Vercel auto-deploys on push)
+└── feature-*/             # Feature worktrees (this is feature-ar-satellite-tracking)
 ```
 
-**Key Points:**
-- `satTrack.git/` is bare repository - contains only Git metadata
-- All work happens in worktrees (development, main, feature-*)
-- Each worktree is a separate directory with checked out code
-- All worktrees share the same Git repository (satTrack.git)
-
-### Branch Strategy
-- **`development`**: Primary development branch - all daily work happens here
-- **`main`**: Production branch - only merged, tested code from development
-- **`feature/*`**: Feature branches - created as worktrees
-
-### Workflow Flow (MANDATORY)
+### Branch Flow (MANDATORY)
 ```
-feature/my-feature → development → main
+feature/* → development → main
 ```
 
-**NEVER skip steps:**
-1. ✅ Create feature worktree from satTrack.git: `cd satTrack.git && git worktree add ../feature-name -b feature/name`
-2. ✅ Develop feature in feature worktree
-3. ✅ Merge feature into `development` first
-4. ✅ Test on `development` branch
-5. ✅ Only then merge `development` into `main` for production
+Never skip `development`. Never merge feature directly to `main`.
 
-### Working with Worktrees
-
-**Creating new feature worktree:**
+### Worktree Commands
 ```bash
-cd /Users/goran/Projects/radio/satTrack/satTrack.git
-git worktree add ../feature-new-feature -b feature/new-feature
-cd ../feature-new-feature
-git branch -u origin/feature/new-feature  # Set upstream if exists
-```
-
-**Switching between worktrees:**
-```bash
-cd /Users/goran/Projects/radio/satTrack/development  # Main development
-cd /Users/goran/Projects/radio/satTrack/main         # Production
-cd /Users/goran/Projects/radio/satTrack/feature-*    # Feature work
-```
-
-**Listing all worktrees:**
-```bash
-cd /Users/goran/Projects/radio/satTrack/satTrack.git
-git worktree list
-```
-
-**Removing worktree:**
-```bash
-cd /Users/goran/Projects/radio/satTrack/satTrack.git
-git worktree remove ../feature-name
-git branch -d feature/name  # Delete branch if done
-```
-
-### Automatic Processes
-- **Tagging**: GitHub Actions auto-creates tags (v1.0.X) on push to `main` only
-- **Deployment**: Vercel auto-deploys on push to `main` only
-- **Workflow file**: `.github/workflows/auto-tag-release.yml`
-
-### Commit Messages (REQUIRED FORMAT)
-Use conventional commits:
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `docs:` - Documentation
-- `refactor:` - Refactoring
-- `test:` - Tests
-- `chore:` - Maintenance
-
-### DO's and DON'Ts
-
-**✅ ALWAYS DO:**
-- Work in `development/` worktree for daily development
-- Create feature worktrees from `satTrack.git/` for new features
-- Merge features into `development` first
-- Test on `development` before merging to `main`
-- Use conventional commit messages
-- List worktrees from `satTrack.git/` directory
-
-**❌ NEVER DO:**
-- Work directly in `satTrack.git/` (it's bare - no working directory)
-- Merge directly into `main` from feature branch
-- Push directly to `main` without testing on `development`
-- Skip `development` branch
-- Create tags manually (GitHub Actions does this)
-- Manually delete worktree directories (use `git worktree remove`)
-
-### Quick Commands Reference
-```bash
-# Create feature worktree
+# Create new feature
 cd /Users/goran/Projects/radio/satTrack/satTrack.git
 git worktree add ../feature-name -b feature/name
 
 # Merge feature → development
 cd /Users/goran/Projects/radio/satTrack/development
-git merge feature/name
-git push origin development
+git merge feature/name && git push origin development
 
-# Merge development → main (production release)
+# Release (development → main)
 cd /Users/goran/Projects/radio/satTrack/main
-git merge development
-git push origin main  # Triggers auto-tag + Vercel deploy
+git merge development && git push origin main
+# ^ triggers GitHub Actions auto-tag (v1.0.X) + Vercel deploy
 
-# List all worktrees
-cd /Users/goran/Projects/radio/satTrack/satTrack.git
-git worktree list
-
-# Remove feature worktree (after merge)
-cd /Users/goran/Projects/radio/satTrack/satTrack.git
-git worktree remove ../feature-name
+# List worktrees
+cd /Users/goran/Projects/radio/satTrack/satTrack.git && git worktree list
 ```
 
-**For complete details, see**: `.cursor/rules/development-workflow.md`
+### Commit Messages
+```
+feat:      new feature
+fix:       bug fix
+refactor:  no behavior change
+docs:      documentation only
+chore:     maintenance
+```
 
+---
+
+## DO's and DON'Ts
+
+**ALWAYS:**
+- `<script setup lang="ts">` on every Vue component
+- Use `class/gp` for Space-Track TLE queries (never `tle_latest`)
+- GPS timeout = 30000, maximumAge = 60000
+- Work in feature or development worktree, never in satTrack.git
+
+**NEVER:**
+- `@apply` in CSS
+- Work directly in `satTrack.git/`
+- Merge feature branch directly to `main`
+- Create git tags manually (CI does it)
+- Use `tle_latest`, `tle`, or `tle_publish` on Space-Track API

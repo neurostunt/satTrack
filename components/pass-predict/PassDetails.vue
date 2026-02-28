@@ -132,10 +132,24 @@
       </div>
     </Transition>
   </div>
+
+  <!-- AR Tracking Button (shown when passing) -->
+  <div v-if="isPassing" class="mb-3">
+    <NuxtLink
+      :to="`/ar-track?noradId=${pass.noradId}&startTime=${pass.startTime}`"
+      class="block w-full py-2 bg-primary-600 hover:bg-primary-700 border border-primary-500 rounded-lg text-center text-white font-medium transition-all duration-200 flex items-center justify-center gap-2"
+    >
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+      </svg>
+      <span>AR Track</span>
+    </NuxtLink>
+  </div>
 </template>
 
 <script setup>
 import { calculateDopplerShift } from '~/utils/dopplerCalculations'
+import { formatFrequencyHighPrecision } from '~/utils/frequencyUtils'
 import { matchesTransmitterFilters } from '~/utils/transmitterCategorization'
 import { useSettings } from '~/composables/storage/useSettings'
 
@@ -180,21 +194,14 @@ const props = defineProps({
   }
 })
 
-// State for pass details expansion
 const showPassDetails = ref(false)
-
-// State for transmitter expansion
 const showTransmitters = ref(false)
 
-// Get transmitters from satellite data (filter out dead ones and apply frequency filters)
 const filteredTransmitters = computed(() => {
   const satData = props.getSatelliteData(props.pass.noradId)
   const allTransmitters = satData?.transmitters || []
-
-  // Filter out dead transmitters
   const aliveTransmitters = allTransmitters.filter(t => t.alive !== false)
 
-  // Apply frequency type filters if settings are available
   if (settings.value?.transmitterFilters) {
     const filters = settings.value.transmitterFilters
     return aliveTransmitters.filter(transmitter =>
@@ -202,53 +209,33 @@ const filteredTransmitters = computed(() => {
     )
   }
 
-  // If no filters configured, show all
   return aliveTransmitters
 })
 
-// Toggle pass details
 const togglePassDetails = () => {
   showPassDetails.value = !showPassDetails.value
 }
 
-// Toggle transmitter list
 const toggleTransmitters = () => {
   showTransmitters.value = !showTransmitters.value
 }
 
-// Format frequency
 const formatFrequency = (frequency) => {
-  if (!frequency) return 'Unknown'
-
-  if (frequency >= 1000000) {
-    return `${(frequency / 1000000).toFixed(6)} MHz`
-  } else if (frequency >= 1000) {
-    return `${(frequency / 1000).toFixed(3)} kHz`
-  } else {
-    return `${frequency} Hz`
-  }
+  return formatFrequencyHighPrecision(frequency)
 }
 
-// Get Doppler-shifted frequency for display
-// Make this a computed property that returns a function, so it's reactive to radialVelocity changes
 const getShiftedFrequency = computed(() => {
-  // Return a function that calculates Doppler shift for a given frequency
-  // This computed property will re-run whenever radialVelocity, isPassing, or isGeostationary changes
   return (frequency) => {
-    // Only calculate if satellite is passing (not stationary) and we have frequency data
-    // Note: radialVelocity can be 0 (satellite at closest point), which is valid
     if (!props.isPassing || props.isGeostationary || !frequency) {
       return null
     }
 
-    // radialVelocity can be 0, null, or undefined - treat null/undefined as not available
     if (props.radialVelocity === null || props.radialVelocity === undefined) {
       return null
     }
 
     const doppler = calculateDopplerShift(frequency, props.radialVelocity)
-
-    return formatFrequency(doppler.shiftedFrequency)
+    return formatFrequencyHighPrecision(doppler.shiftedFrequency)
   }
 })
 </script>

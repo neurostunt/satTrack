@@ -14,7 +14,6 @@ const statusIcon = ref('')
 const statusText = ref('')
 
 onMounted(() => {
-  // Check PWA installation status
   if (window.matchMedia('(display-mode: standalone)').matches) {
     showStatus.value = true
     statusClass.value = 'border-primary-500 text-primary-400'
@@ -26,10 +25,7 @@ onMounted(() => {
     statusIcon.value = '🍎'
     statusText.value = 'iOS Standalone'
   }
-})
 
-// Listen for PWA events
-onMounted(() => {
   window.addEventListener('appinstalled', () => {
     showStatus.value = true
     statusClass.value = 'border-green-500 text-green-400 animate-pulse'
@@ -44,5 +40,4 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* UnoCSS handles all styling */
 </style>

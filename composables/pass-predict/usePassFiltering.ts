@@ -4,7 +4,6 @@
  */
 
 import type { Ref } from 'vue'
-import type { PassStatus } from './usePassStatus'
 import { formatSatelliteNameForDisplay } from '~/utils/satelliteNameUtils'
 
 export interface PassData {
@@ -25,7 +24,7 @@ export const usePassFiltering = (
   passPredictions: Ref<Map<number, any[]>>,
   settings: Ref<any>,
   combinedData: Ref<any>,
-  getPassStatus: (startTime: number, endTime: number, noradId: number) => PassStatus,
+  _getPassStatus: unknown,
   currentTime: Ref<number>
 ) => {
   /**
@@ -88,42 +87,5 @@ export const usePassFiltering = (
     return sorted
   })
 
-  /**
-   * Filter passes by status
-   */
-  const filterPassesByStatus = (passes: PassData[], status: PassStatus): PassData[] => {
-    return passes.filter(pass => getPassStatus(pass.startTime, pass.endTime, pass.noradId) === status)
-  }
-
-  /**
-   * Get upcoming passes only
-   */
-  const upcomingPasses = computed(() => {
-    return filterPassesByStatus(sortedPasses.value, 'upcoming')
-  })
-
-  /**
-   * Get currently passing satellites
-   */
-  const passingPasses = computed(() => {
-    return filterPassesByStatus(sortedPasses.value, 'passing')
-  })
-
-  /**
-   * Get recently passed satellites (within 10 seconds)
-   */
-  const recentlyPassedPasses = computed(() => {
-    return filterPassesByStatus(sortedPasses.value, 'passed')
-  })
-
-  return {
-    // Computed
-    sortedPasses,
-    upcomingPasses,
-    passingPasses,
-    recentlyPassedPasses,
-
-    // Methods
-    filterPassesByStatus
-  }
+  return { sortedPasses }
 }

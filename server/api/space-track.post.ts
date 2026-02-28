@@ -272,11 +272,7 @@ async function handleFetchTLE(username: string, password: string, noradIds: numb
   // Use comma-separated NORAD IDs in predicate format
   // Format: /class/gp/NORAD_CAT_ID/25544,25338,28654/orderby/NORAD_CAT_ID,EPOCH desc/format/json
   const noradIdString = noradIds.join(',')
-  const tleUrl = `${baseUrl}/basicspacedata/query/class/gp/NORAD_CAT_ID/${noradIdString}/orderby/NORAD_CAT_ID,EPOCH desc/format/json`
-
-  console.log('Fetching TLE from Space-Track (gp class):', tleUrl)
-  console.log('Using cookies:', cookies ? 'Yes' : 'No')
-  console.log('NORAD IDs count:', noradIds.length)
+  const tleUrl = `${baseUrl}/basicspacedata/query/class/gp/NORAD_CAT_ID/${noradIdString}/format/json`
 
   const tleResponse = await fetchWithTimeout(
     tleUrl,

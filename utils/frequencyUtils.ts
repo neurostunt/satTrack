@@ -7,7 +7,10 @@
  * Format frequency value for display
  * Supports both number and string inputs
  */
-export const formatFrequencyValue = (frequency: number | string | null | undefined, precision: number = 3): string => {
+export const formatFrequencyValue = (
+  frequency: number | string | null | undefined,
+  decimalPlaces: number = 3
+): string => {
   if (!frequency) return 'Unknown'
 
   if (typeof frequency === 'string') {
@@ -16,9 +19,9 @@ export const formatFrequencyValue = (frequency: number | string | null | undefin
 
   if (typeof frequency === 'number') {
     if (frequency >= 1000000) {
-      return `${(frequency / 1000000).toFixed(precision)} MHz`
+      return `${(frequency / 1000000).toFixed(decimalPlaces)} MHz`
     } else if (frequency >= 1000) {
-      return `${(frequency / 1000).toFixed(precision)} kHz`
+      return `${(frequency / 1000).toFixed(decimalPlaces)} kHz`
     } else {
       return `${frequency} Hz`
     }

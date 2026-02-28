@@ -26,37 +26,26 @@
 
     <!-- SVG Polar Plot -->
     <svg
-      v-if="isGeostationary || futurePath || currentPosition || entryPoint || exitPoint || peakPoint || remainingPredictedPath"
+      v-if="isGeostationary || futurePath || currentPosition || entryPoint || exitPoint || peakPoint"
       viewBox="0 0 400 400"
+      overflow="visible"
       class="mx-auto block w-full max-w-[400px] h-auto"
     >
       <!-- Preloaded Background Elements -->
       <g v-html="backgroundSVG"></g>
 
-      <!-- Full predicted path arc (upcoming passes: Entry → Peak → Exit) -->
+      <!-- Predicted path arc (Entry → Peak → Exit) — static for all pass states -->
       <path
-        v-if="predictedPath && !isPassing"
+        v-if="predictedPath"
         :d="predictedPath"
         fill="none"
         stroke="#38bdf8"
-        stroke-width="2"
+        stroke-width="1.5"
         stroke-dasharray="4,4"
-        opacity="0.5"
+        opacity="0.45"
       />
 
-      <!-- Remaining predicted path (active pass: current position → Peak → Exit) -->
-      <!-- Entry point is in the past; the arc now starts from the satellite's current position -->
-      <path
-        v-if="remainingPredictedPath"
-        :d="remainingPredictedPath"
-        fill="none"
-        stroke="#38bdf8"
-        stroke-width="2"
-        stroke-dasharray="4,4"
-        opacity="0.6"
-      />
-
-      <!-- Future path (next 60s from API) -->
+      <!-- N2YO real-time path (actual + next 60s) -->
       <path
         v-if="futurePath"
         :d="futurePath"
@@ -64,121 +53,53 @@
         stroke="#10b981"
         stroke-width="2"
         stroke-dasharray="6,3"
-        opacity="0.7"
+        opacity="0.9"
       />
 
-      <!-- Predicted pass points (entry, peak, exit) - not shown for geostationary -->
+      <!-- Pass points — rendered last so always on top -->
       <g v-if="entryPoint || exitPoint || peakPoint">
-        <!-- Entry/AOS point: full dot for upcoming passes, small faded dot for active/past passes -->
-        <circle
-          v-if="entryPoint && !isPassing"
-          :cx="entryPoint.x"
-          :cy="entryPoint.y"
-          r="5"
-          fill="#38bdf8"
-          stroke="#ffffff"
-          stroke-width="2"
-          opacity="0.7"
-        />
-        <text
-          v-if="entryPoint && !isPassing"
-          :x="entryPoint.x"
-          :y="entryPoint.y - 12"
-          text-anchor="middle"
-          fill="#38bdf8"
-          font-size="10"
-          font-weight="bold"
-        >Entry</text>
-        <!-- AOS marker during active pass: small faded dot to show where satellite appeared -->
-        <circle
-          v-if="entryPoint && isPassing"
-          :cx="entryPoint.x"
-          :cy="entryPoint.y"
-          r="3"
-          fill="#38bdf8"
-          stroke="#ffffff"
-          stroke-width="1"
-          opacity="0.3"
-        />
-        <text
-          v-if="entryPoint && isPassing"
-          :x="entryPoint.x"
-          :y="entryPoint.y - 8"
-          text-anchor="middle"
-          fill="#38bdf8"
-          font-size="8"
-          opacity="0.4"
-        >AOS</text>
-
-        <!-- Exit point (end azimuth at horizon) - hidden for geostationary -->
-        <circle
-          v-if="exitPoint"
-          :cx="exitPoint.x"
-          :cy="exitPoint.y"
-          r="5"
-          fill="#38bdf8"
-          stroke="#ffffff"
-          stroke-width="2"
-          opacity="0.7"
-        />
-        <text
-          v-if="exitPoint"
-          :x="exitPoint.x"
-          :y="exitPoint.y - 12"
-          text-anchor="middle"
-          fill="#38bdf8"
-          font-size="10"
-          font-weight="bold"
-        >Exit</text>
-
-        <!-- Peak point (max elevation) - for geostationary, this is the only position -->
+        <!-- Peak dot -->
         <circle
           v-if="peakPoint"
           :cx="peakPoint.x"
           :cy="peakPoint.y"
-          r="5"
+          r="4"
           fill="#94a3b8"
           stroke="#ffffff"
           stroke-width="1.5"
-          opacity="0.8"
+          opacity="0.85"
         />
-        <text
-          v-if="peakPoint"
-          :x="peakPoint.x"
-          :y="peakPoint.y - 10"
-          text-anchor="middle"
-          fill="#94a3b8"
-          font-size="9"
-          font-weight="600"
-        >{{ isGeostationary ? 'Position' : 'Peak' }}</text>
+        <!-- Entry/AOS dot — green -->
+        <circle
+          v-if="entryPoint"
+          :cx="entryPoint.x"
+          :cy="entryPoint.y"
+          r="4"
+          fill="#10b981"
+          stroke="#ffffff"
+          stroke-width="1.5"
+          opacity="0.9"
+        />
+        <!-- Exit/LOS dot — red -->
+        <circle
+          v-if="exitPoint"
+          :cx="exitPoint.x"
+          :cy="exitPoint.y"
+          r="4"
+          fill="#f87171"
+          stroke="#ffffff"
+          stroke-width="1.5"
+          opacity="0.9"
+        />
       </g>
 
-      <!-- Current satellite position (pulsing dot) -->
+      <!-- Current satellite position -->
       <g v-if="currentPosition">
-        <!-- Outer pulse ring -->
-        <circle
-          :cx="currentPosition.x"
-          :cy="currentPosition.y"
-          r="12"
-          fill="#10b981"
-          opacity="0.3"
-          class="satellite-pulse"
-        />
-        <!-- Inner satellite dot -->
-        <circle
-          :cx="currentPosition.x"
-          :cy="currentPosition.y"
-          r="6"
-          fill="#10b981"
-        />
-        <!-- Satellite icon (simplified) -->
         <text
           :x="currentPosition.x"
-          :y="currentPosition.y + 4"
+          :y="currentPosition.y + 6"
           text-anchor="middle"
-          fill="#0f172a"
-          font-size="8"
-          font-weight="bold"
+          style="font-size:16px"
         >🛰️</text>
       </g>
 
@@ -486,65 +407,58 @@ const peakPoint = computed(() => {
   return polarToCartesian(peakAzimuthValue, props.maxElevation)
 })
 
-// Full predicted path Entry → Peak → Exit (shown for upcoming passes)
+// Full predicted path with the same circular arc extended beyond AOS/LOS by 40 SVG units
 const predictedPath = computed(() => {
   if (isGeostationary.value) return null
   if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
-  return computeArcPath(entryPoint.value, peakPoint.value, exitPoint.value)
-})
 
-// Remaining predicted path: current position → Peak → Exit (shown during active pass)
-// Replaces the full arc so the "entry point" of the dashed line is always the satellite's
-// current position, not the AOS which is already in the past.
-const remainingPredictedPath = computed(() => {
-  if (!props.isPassing || !currentPosition.value) return null
-  if (isGeostationary.value) return null
-  if (!exitPoint.value) return null
-
-  const p1 = currentPosition.value
+  const p1 = entryPoint.value
+  const p2 = peakPoint.value
   const p3 = exitPoint.value
 
-  // If satellite is still before peak, draw arc through peakPoint
-  if (peakPoint.value) {
-    const currentEl = props.currentElevation ?? 0
-    const maxEl = props.maxElevation ?? 0
-    // Satellite is ascending if elevation is still below maxElevation with some margin
-    if (currentEl < maxEl - 2) {
-      return computeArcPath(p1, peakPoint.value, p3)
-    }
+  const cc = getCircleCenter(p1, p2, p3)
+  if (!cc) {
+    return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y}`
   }
 
-  // Satellite is at or past peak: straight line to exit is sufficient
-  return `M ${p1.x} ${p1.y} L ${p3.x} ${p3.y}`
+  const arcR = Math.hypot(p1.x - cc.x, p1.y - cc.y)
+
+  let angle1 = Math.atan2(p1.y - cc.y, p1.x - cc.x)
+  let angle2 = Math.atan2(p2.y - cc.y, p2.x - cc.x)
+  let angle3 = Math.atan2(p3.y - cc.y, p3.x - cc.x)
+
+  const unwrap = (base, a) => {
+    while (a - base > Math.PI) a -= 2 * Math.PI
+    while (a - base < -Math.PI) a += 2 * Math.PI
+    return a
+  }
+  angle2 = unwrap(angle1, angle2)
+  angle3 = unwrap(angle2, angle3)
+
+  const d12 = angle2 - angle1
+  const d23 = angle3 - angle2
+  const sweepSign = d12 >= 0 ? 1 : -1
+
+  // Extend the arc by 40 SVG units of arc-length on each side, along the same circle
+  const delta = 40 / arcR
+  const preAngle = angle1 - sweepSign * delta
+  const postAngle = angle3 + sweepSign * delta
+
+  const preEntry = { x: cc.x + arcR * Math.cos(preAngle), y: cc.y + arcR * Math.sin(preAngle) }
+  const postExit = { x: cc.x + arcR * Math.cos(postAngle), y: cc.y + arcR * Math.sin(postAngle) }
+
+  const sweepFlag = d12 >= 0 ? 1 : 0
+  const extSpan = sweepSign > 0 ? postAngle - preAngle : preAngle - postAngle
+  const largeArcFlag = (d12 * d23 < 0 || extSpan > Math.PI) ? 1 : 0
+
+  return `M ${preEntry.x} ${preEntry.y} A ${arcR} ${arcR} 0 ${largeArcFlag} ${sweepFlag} ${postExit.x} ${postExit.y}`
 })
 
+
 const futurePath = computed(() => {
-  const allActualPositions = []
-  const seenTimestamps = new Set()
+  if (!props.futurePositions || props.futurePositions.length < 2) return null
 
-  if (props.pastPositions && props.pastPositions.length > 0) {
-    props.pastPositions.forEach(pos => {
-      const roundedTimestamp = Math.round(pos.timestamp / 100) * 100
-      if (!seenTimestamps.has(roundedTimestamp)) {
-        seenTimestamps.add(roundedTimestamp)
-        allActualPositions.push(pos)
-      }
-    })
-  }
-
-  if (props.futurePositions && props.futurePositions.length > 0) {
-    props.futurePositions.forEach(pos => {
-      const roundedTimestamp = Math.round(pos.timestamp / 100) * 100
-      if (!seenTimestamps.has(roundedTimestamp)) {
-        seenTimestamps.add(roundedTimestamp)
-        allActualPositions.push(pos)
-      }
-    })
-  }
-
-  if (allActualPositions.length < 2) return null
-
-  const sortedPositions = [...allActualPositions].sort((a, b) => a.timestamp - b.timestamp)
+  const sortedPositions = [...props.futurePositions].sort((a, b) => a.timestamp - b.timestamp)
 
   return generatePathWithWraparound(sortedPositions)
 })

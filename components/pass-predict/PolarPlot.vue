@@ -410,6 +410,11 @@ const peakPoint = computed(() => {
 // Full predicted path with the same circular arc extended beyond AOS/LOS by 40 SVG units
 const predictedPath = computed(() => {
   if (isGeostationary.value) return null
+  
+  // Don't show predicted path for in-transit passes
+  // Real-time N2YO data will show the actual path instead
+  if (props.isInTransit) return null
+  
   if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
 
   const p1 = entryPoint.value

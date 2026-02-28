@@ -10,62 +10,154 @@ import { fetchWithTimeout, buildHeaders, handleApiError, validateRequired, creat
 
 export default defineEventHandler(async (event: any) => {
   try {
-    const body = await readBody(event)
-    const { token, action, ...params } = body
+    const method = getMethod(event)
+    
+    console.log('📡 SatNOGS API called:', { 
+      method, 
+      url: event.node?.req?.url,
+      timestamp: new Date().toISOString() 
+    })
 
-    console.log('SatNOGS API called:', { method: 'POST', timestamp: new Date().toISOString() })
-    console.log('Request body:', { token: token ? token.substring(0, 8) + '...' : 'none', action, ...params })
+    if (method !== 'POST') {
+      throw createError({
+        statusCode: 405,
+        statusMessage: 'Method Not Allowed'
+      })
+    }
+
+    let body
+    try {
+      body = await readBody(event)
+    } catch (bodyError: any) {
+      console.error('❌ SatNOGS: Failed to read request body:', bodyError.message)
+      throw createError({
+        statusCode: 400,
+        statusMessage: `Invalid request body: ${bodyError.message}`
+      })
+    }
+
+    const { token, action, ...params } = body || {}
+
+    console.log('📡 SatNOGS Request body parsed:', { 
+      token: token ? token.substring(0, 8) + '...' : 'none', 
+      action: action || 'missing',
+      params: Object.keys(params),
+      hasNoradId: !!(params?.noradId),
+      noradId: params?.noradId
+    })
+
+    // Validate action
+    if (!action) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: 'Action is required'
+      })
+    }
 
     // Handle special actions that need custom processing
     if (action === 'transmitters') {
+      console.log('📡 SatNOGS: Handling transmitters action')
       return await handleTransmitters(body, token)
     }
 
     if (action === 'combined-data') {
+      console.log('📡 SatNOGS: Handling combined-data action')
       return await handleCombinedData(params, token)
     }
 
     // Build URL for standard actions
+    console.log('📡 SatNOGS: Building URL for action:', action)
     const url = buildSatnogsUrl(action, params)
 
     if (!url) {
+      console.error('❌ SatNOGS: Unknown action:', action)
       throw createError({
         statusCode: 400,
         statusMessage: `Unknown action: ${action}`
       })
     }
 
-    console.log('Making request to:', url)
+    console.log('📡 SatNOGS: Making request to:', url)
 
     // Make request with optional authentication
     const headers = buildHeaders(token)
-    const response = await fetchWithTimeout(url, { method: 'GET', headers }, 15000)
+    console.log('📡 SatNOGS: Request headers:', { 
+      hasAuth: !!headers.Authorization,
+      userAgent: headers['User-Agent']
+    })
 
-    console.log('SatNOGS API response status:', response.status)
+    let response
+    try {
+      response = await fetchWithTimeout(url, { method: 'GET', headers }, 15000)
+    } catch (fetchError: any) {
+      console.error('❌ SatNOGS: Fetch error:', {
+        message: fetchError.message,
+        name: fetchError.name
+      })
+      throw fetchError
+    }
+
+    console.log('📡 SatNOGS API response status:', response.status, response.statusText)
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('SatNOGS API error response:', errorText)
+      console.error('❌ SatNOGS API error response:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText: errorText.substring(0, 500)
+      })
       throw createError({
         statusCode: response.status,
         statusMessage: `SatNOGS API error: ${response.status} ${response.statusText}`
       })
     }
 
-    let data = await response.json()
+    let data
+    try {
+      data = await response.json()
+    } catch (jsonError: any) {
+      console.error('❌ SatNOGS: Failed to parse JSON response:', jsonError.message)
+      throw createError({
+        statusCode: 500,
+        statusMessage: 'SatNOGS API returned invalid JSON response'
+      })
+    }
+
+    console.log('📡 SatNOGS: Response data received:', {
+      action,
+      dataType: Array.isArray(data) ? 'array' : typeof data,
+      dataLength: Array.isArray(data) ? data.length : 'N/A',
+      hasData: !!data
+    })
 
     // Client-side filtering for search
     if (action === 'search' && Array.isArray(data)) {
+      const beforeFilter = data.length
       data = filterSearchResults(data, params.query, params.limit || 20)
+      console.log('📡 SatNOGS: Search filtered:', { before: beforeFilter, after: data.length })
     }
 
-    return createSuccessResponse(
+    const result = createSuccessResponse(
       data,
       action,
       action === 'test' ? 'SatNOGS API authentication successful' : `SatNOGS API ${action} successful`
     )
 
+    console.log('✅ SatNOGS: Request successful for action:', action)
+    return result
+
   } catch (error: any) {
+    // Enhanced error logging
+    const errorDetails = {
+      message: error?.message || 'Unknown error',
+      statusCode: error?.statusCode || error?.status,
+      name: error?.name,
+      stack: error?.stack?.substring(0, 500)
+    }
+    
+    console.error('❌ SatNOGS API top-level error:', errorDetails)
+    console.error('❌ Full error object:', error)
+    
     handleApiError(error, 'SatNOGS')
   }
 })

@@ -127,8 +127,6 @@ const {
   stopTracking
 } = useRealTimePosition()
 
-const { getPastPositions } = useSatellitePath()
-
 // Get distance units from settings
 const { settings } = useSettings()
 
@@ -182,9 +180,7 @@ const showVisualization = computed(() => {
 })
 
 // Computed: Past positions for drawing
-const pastPositions = computed(() => {
-  return getPastPositions(positionHistory.value)
-})
+const pastPositions = computed(() => positionHistory.value)
 
 // Watch for card expansion and pass status
 // IMPORTANT: Only track when BOTH conditions are met:

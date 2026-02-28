@@ -189,8 +189,6 @@ const {
   stopTracking
 } = useRealTimePosition()
 
-const { getPastPositions } = useSatellitePath()
-
 // Reactive state
 const selectedPassId = ref('')
 const selectedPass = ref(null)
@@ -239,9 +237,7 @@ const geostationaryPosition = computed(() => {
   }
 })
 
-const pastPositions = computed(() => {
-  return getPastPositions(positionHistory.value)
-})
+const pastPositions = computed(() => positionHistory.value)
 
 const futurePositionsForPath = computed(() => {
   return futurePositions.value || []

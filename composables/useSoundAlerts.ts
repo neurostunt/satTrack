@@ -195,22 +195,10 @@ export const useSoundAlerts = () => {
     isEnabled.value = false
   }
 
-  /**
-   * Clear played alerts cache
-   */
-  const clearPlayedAlerts = () => {
-    playedAlerts.value.clear()
-  }
-
   return {
     isEnabled: computed(() => isEnabled.value),
     enable,
     disable,
-    checkAndPlayAlert,
-    playPassStart,
-    play10MinWarning,
-    playMaxElevation,
-    playPassEnd,
-    clearPlayedAlerts
+    checkAndPlayAlert
   }
 }

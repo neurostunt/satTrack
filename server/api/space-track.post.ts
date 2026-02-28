@@ -114,7 +114,7 @@ async function handleFetchTLE(username: string, password: string, noradIds: numb
 
   // Step 2: Fetch TLE data using session cookie
   const noradIdString = noradIds.join(',')
-  const tleUrl = `${baseUrl}/basicspacedata/query/class/tle_latest/NORAD_CAT_ID/${noradIdString}/format/json`
+  const tleUrl = `${baseUrl}/basicspacedata/query/class/gp/NORAD_CAT_ID/${noradIdString}/format/json`
 
   const tleResponse = await fetchWithTimeout(
     tleUrl,

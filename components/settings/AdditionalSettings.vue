@@ -235,7 +235,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useDeviceOrientation } from '~/composables/useDeviceOrientation'
 
@@ -319,18 +319,24 @@ const getLocationFromGPS = async () => {
   locationError.value = ''
   locationSuccess.value = ''
 
-  try {
-    const position = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(
-        resolve,
-        reject,
-        {
-          enableHighAccuracy: props.settings.highAccuracyGPS || false,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      )
+  const tryGetPosition = (enableHighAccuracy: boolean, timeout: number, maximumAge: number) =>
+    new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy, timeout, maximumAge })
     })
+
+  try {
+    let position: GeolocationPosition
+    try {
+      // First attempt: respect user's accuracy preference, allow 30s, accept 60s cache
+      position = await tryGetPosition(props.settings.highAccuracyGPS || false, 30000, 60000)
+    } catch (firstError: any) {
+      if (firstError.code === firstError.TIMEOUT || firstError.code === firstError.POSITION_UNAVAILABLE) {
+        // Fallback: low accuracy, longer timeout, accept any cached position
+        position = await tryGetPosition(false, 30000, 300000)
+      } else {
+        throw firstError
+      }
+    }
 
     const { latitude, longitude, altitude } = position.coords
 
@@ -348,7 +354,7 @@ const getLocationFromGPS = async () => {
       locationSuccess.value = ''
     }, 3000)
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('GPS location error:', error)
 
     switch (error.code) {

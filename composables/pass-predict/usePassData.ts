@@ -277,14 +277,21 @@ export const usePassData = (
       // Merge fresh passes with preserved active passes
       // For satellites with active passes, keep the active passes and add future passes from fresh data
       for (const [noradId, freshPassesForSat] of freshPasses.entries()) {
+        // Always exclude passes that have already started from fresh N2YO data.
+        // Reason: N2YO may return an ongoing pass with startAz = current satellite azimuth
+        // instead of the true AOS azimuth, which causes the Entry dot to appear at the
+        // satellite's current position rather than the correct AOS position.
+        const onlyFuturePasses = (freshPassesForSat || []).filter((pass: any) => pass.startTime > currentTime)
+
         if (preservedPasses.has(noradId)) {
           // This satellite has an active pass - preserve it and add future passes
           const activePasses = preservedPasses.get(noradId) || []
-          const futurePasses = (freshPassesForSat || []).filter((pass: any) => pass.startTime > currentTime)
-          preservedPasses.set(noradId, [...activePasses, ...futurePasses])
+          preservedPasses.set(noradId, [...activePasses, ...onlyFuturePasses])
         } else {
-          // No active pass - use fresh data
-          preservedPasses.set(noradId, freshPassesForSat)
+          // No preserved active pass - use only strictly future passes from N2YO
+          // (ongoing passes are excluded because their startAz may reflect the current
+          // satellite position rather than the true AOS)
+          preservedPasses.set(noradId, onlyFuturePasses)
         }
       }
 

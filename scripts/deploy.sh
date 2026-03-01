@@ -27,7 +27,7 @@ echo "→ Merging development into main..."
 cd "$MAIN_WORKTREE"
 git fetch origin
 git checkout main
-git merge origin/development --ff-only
+git merge origin/development --no-ff -m "chore: deploy from development"
 git push origin main
 
 echo "✓ Deployed — GitHub Actions will tag + Vercel will deploy."

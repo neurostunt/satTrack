@@ -151,6 +151,7 @@ npm run dev         # http://localhost:3000
 npm run build
 npm run preview
 npm run dev:ngrok   # tunnel for mobile testing
+npm run deploy      # merge development → main + push (triggers Vercel deploy)
 ```
 
 ---
@@ -192,6 +193,13 @@ satTrack/
 Flow: `feature/* → development → main`
 
 Push to `main` triggers: GitHub Actions auto-tag (v1.0.X) + Vercel deploy.
+
+```bash
+# Deploy from development branch
+npm run deploy
+```
+
+The script validates you're on `development`, pushes it, merges into the `main` worktree and pushes — CI does the rest.
 
 ---
 

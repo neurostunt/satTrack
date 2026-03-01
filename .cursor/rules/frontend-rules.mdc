@@ -1,0 +1,57 @@
+---
+description: Vue components, composables, UnoCSS, AR tracking, storage, and frontend structure for SatTrack
+alwaysApply: false
+---
+# SatTrack — Frontend Rules
+
+## Vue / TypeScript Style
+- Always `<script setup lang="ts">` — never omit `lang="ts"`
+- Composables over options API
+- File names: `kebab-case.vue` components, `camelCase.ts` composables
+- Types: interfaces for data shapes, type aliases for unions
+
+## UnoCSS
+- Pure utility classes — no `@apply`
+- Custom shortcuts in `uno.config.ts` for repeated patterns
+- Color palette: `space-*` (dark backgrounds), `primary-*` (accent)
+
+## Components Map
+```
+components/
+├── common/         ObservationLocation · SatellitePassCard · PassPredictData · CombinedSatelliteData · MobileNav · ChevronIcon
+├── pass-predict/   PolarPlot (SVG) · PassCard · PassDetails · PassHeader
+├── ar-track/       ArPolarPlot (compass-rotated SVG) · ArIndicators (EL/AZ overlay)
+└── settings/       AdditionalSettings · ApiCredentials · SatelliteManagement · StorageManagement · CombinedDataDisplay
+```
+
+## Pass Predict Composables (`composables/pass-predict/`)
+- `usePassData.ts` — fetch + store pass list
+- `usePassStatus.ts` — active/upcoming/past state
+- `useRealTimePosition.ts` — N2YO polling during active pass
+- `useSatellitePath.ts` — arc path for SVG polar plot
+- `usePolarPlotBackground.ts` — static SVG background (circles, labels)
+- `usePassFiltering.ts` — filter by satellite/elevation
+- `usePassCleanup.ts` — cleanup timers/intervals
+
+## Storage Composables (`composables/storage/`)
+- `useSettings.ts` — location + preferences in IndexedDB
+- `useIndexedDB.ts` — IndexedDB CRUD wrapper
+- `useSecureStorage.ts` — AES-encrypted credential storage
+
+## AR Tracking
+- `useDeviceOrientation.ts` — wraps `DeviceOrientationEvent`
+  - `alpha` = compass 0–360° True North · `beta` = pitch ±180° · `gamma` = roll ±90°
+  - iOS 13+: explicit permission handled internally
+- `ArPolarPlot.vue` — SVG rotated by compass (up = where device points)
+- `ArIndicators.vue` — EL/AZ overlay
+
+## GPS Settings
+- `enableHighAccuracy` respects user toggle
+- timeout: `30000` ms (GPS cold start), maximumAge: `60000` ms
+- Fallback: low accuracy + maximumAge `300000`
+
+## Types (`types/`)
+- `satellite.d.ts` — `TLEData`, `PassPrediction`, `SatellitePosition`
+- `api.d.ts` — N2YO, SatNOGS, Space-Track response shapes
+- `storage.d.ts` — IndexedDB schema, settings shape
+- `global.d.ts` — global extensions

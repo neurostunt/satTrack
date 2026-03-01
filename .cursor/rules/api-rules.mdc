@@ -1,0 +1,39 @@
+---
+description: API proxies, endpoints, rate limits, Space-Track and N2YO rules for SatTrack
+alwaysApply: false
+---
+# SatTrack — API Rules
+
+## Server Proxies (`server/api/`) — all POST
+All endpoints are server-side only: keys never in client bundle, CORS handled, Space-Track auth cookies managed here.
+
+| Proxy file | External API | Purpose | Rate limit |
+|---|---|---|---|
+| `n2yo.post.ts` | N2YO | Pass predictions + real-time positions | 1000/hr positions, 100/hr passes |
+| `space-track.post.ts` | Space-Track | TLE data | — |
+| `celestrak.post.ts` | CelesTrak | TLE fallback | — |
+| `satnogs.post.ts` | SatNOGS | Transponder frequencies | — |
+| `amsat.post.ts` | AMSAT | Amateur frequencies | — |
+
+## Space-Track — CRITICAL
+- Endpoint: `/basicspacedata/query/class/gp/NORAD_CAT_ID/{ids}/format/json`
+- **NEVER** `tle_latest`, `tle`, `tle_publish` — deprecated, return 404
+- Returns: `OBJECT_NAME`, `TLE_LINE1`, `TLE_LINE2`
+- Constant: `constants/api.ts` → `API_ENDPOINTS.SPACE_TRACK.TLE`
+
+## N2YO Polar Plot Strategy (rate-limit aware)
+1. Fetch full predicted path upfront via `visualpasses` or `radiopasses` (100/hr)
+2. Draw dashed arc SVG from prediction data
+3. During active pass only: poll positions every 5–10s (1000/hr budget)
+4. Cache aggressively — reuse prediction data across components
+
+## API Composables (`composables/api/`)
+- `useN2YO.ts` — pass predictions + real-time positions
+- `useSpaceTrack.ts` — login + TLE fetch
+- `useTLEData.ts` — TLE orchestration: Space-Track first, CelesTrak fallback
+- `useSatnogs.ts` — transponder/frequency data
+- `useSatelliteSearch.ts` — satellite name/NORAD search
+
+## Constants
+- `constants/api.ts` — all endpoints, cache durations (TLE: 2hr, transmitters: 6hr), timeouts
+- `constants/satellite.ts` — default tracked satellites, categories

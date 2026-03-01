@@ -1,0 +1,24 @@
+---
+alwaysApply: false
+---
+# SatTrack — Nuxt 4 Ham Radio Satellite Tracker (PWA)
+
+## Stack
+Nuxt 4 · Vue 3 `<script setup lang="ts">` · TypeScript strict · UnoCSS · IndexedDB · Custom SVG/Canvas (no mapping lib)
+
+## Pages
+| Route | File | Purpose |
+|---|---|---|
+| `/` | `pages/index.vue` | Active pass dashboard + transponder info |
+| `/pass-predict` | `pages/pass-predict.vue` | Pass list + polar plot |
+| `/ar-track` | `pages/ar-track.vue` | AR compass-rotated polar plot |
+| `/settings` | `pages/settings.vue` | Location · satellites · API keys · storage |
+
+## Critical Rules
+- `<script setup lang="ts">` — always, never omit `lang="ts"`
+- No `any` — use `unknown` or proper types
+- No `@apply` in CSS — pure UnoCSS utility classes only
+- Space-Track: use `class/gp` endpoint **only** — never `tle_latest`, `tle`, or `tle_publish` (404)
+- No calculations client-side — delegate everything to APIs
+- GPS: timeout=30000, maximumAge=60000
+- Git: `feature/* → development → main` — never skip development, never tag manually

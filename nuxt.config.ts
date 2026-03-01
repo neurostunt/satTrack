@@ -41,6 +41,7 @@ export default defineNuxtConfig({
     strategies: 'generateSW',
     workbox: {
       navigateFallback: undefined,
+      navigateFallbackDenylist: [/^\/__nuxt_devtools__/, /^\/__nuxt\//],
       mode: 'production',
       globPatterns: ['**/*.html'],
       globIgnores: [
@@ -63,6 +64,8 @@ export default defineNuxtConfig({
             const pathname = url.pathname
             return (
               pathname.startsWith('/_nuxt/') ||
+              pathname.startsWith('/__nuxt_devtools__/') ||
+              pathname.startsWith('/__nuxt/') ||
               pathname.includes('node_modules') ||
               pathname.includes('/Users/') ||
               pathname.startsWith('/@vite/') ||
@@ -93,7 +96,7 @@ export default defineNuxtConfig({
     devOptions: {
       enabled: true,
       suppressWarnings: true,
-      navigateFallbackAllowlist: [/^\/.*/],
+      navigateFallbackAllowlist: [/^\/(?!(__nuxt_devtools__|__nuxt|api|_nuxt|@vite|@fs)).*/],
       type: 'module'
     },
     manifest: {

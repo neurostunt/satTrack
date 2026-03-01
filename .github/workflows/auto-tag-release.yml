@@ -74,6 +74,22 @@ jobs:
           }
           echo "✅ Created and pushed tag: $NEW_TAG"
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          LATEST_TAG="${{ steps.get_tag.outputs.latest_tag }}"
+          if git rev-parse "$LATEST_TAG" >/dev/null 2>&1; then
+            LOG=$(git log ${LATEST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges)
+          else
+            LOG=$(git log --pretty=format:"- %s (%h)" --no-merges | head -20)
+          fi
+          if [ -z "$LOG" ]; then
+            LOG="- No notable changes"
+          fi
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$LOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release
         if: steps.check_tag.outputs.exists == 'false'
         uses: softprops/action-gh-release@v1
@@ -81,12 +97,12 @@ jobs:
           tag_name: ${{ steps.next_version.outputs.new_tag }}
           name: Release ${{ steps.next_version.outputs.new_tag }}
           body: |
-            ## Release ${{ steps.next_version.outputs.new_tag }}
+            ## What's changed
 
-            Auto-generated release from push to main.
+            ${{ steps.changelog.outputs.changelog }}
 
-            **Commit:** ${{ github.sha }}
-            **Author:** ${{ github.actor }}
+            ---
+            **Full diff:** [`${{ steps.get_tag.outputs.latest_tag }}...${{ steps.next_version.outputs.new_tag }}`](https://github.com/${{ github.repository }}/compare/${{ steps.get_tag.outputs.latest_tag }}...${{ steps.next_version.outputs.new_tag }})
           draft: false
           prerelease: false
         env:

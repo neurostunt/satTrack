@@ -265,48 +265,6 @@ const getCircleCenter = (p1, p2, p3) => {
   return { x: ux, y: uy }
 }
 
-/**
- * Compute SVG arc path through three points p1 → p2 → p3.
- * Uses monotonic unwrapping to correctly choose largeArcFlag and sweepFlag
- * so the arc always passes through the intermediate point p2.
- */
-const computeArcPath = (p1, p2, p3) => {
-  const centerPoint = getCircleCenter(p1, p2, p3)
-  if (!centerPoint) {
-    return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y}`
-  }
-
-  const radius = Math.hypot(p1.x - centerPoint.x, p1.y - centerPoint.y)
-  let angle1 = Math.atan2(p1.y - centerPoint.y, p1.x - centerPoint.x)
-  let angle2 = Math.atan2(p2.y - centerPoint.y, p2.x - centerPoint.x)
-  let angle3 = Math.atan2(p3.y - centerPoint.y, p3.x - centerPoint.x)
-
-  const unwrap = (base, angle) => {
-    let a = angle
-    while (a - base > Math.PI) a -= 2 * Math.PI
-    while (a - base < -Math.PI) a += 2 * Math.PI
-    return a
-  }
-  angle2 = unwrap(angle1, angle2)
-  angle3 = unwrap(angle2, angle3)
-
-  const d12 = angle2 - angle1
-  const d23 = angle3 - angle2
-
-  let sweepFlag, largeArcFlag
-  if (d12 * d23 >= 0) {
-    // Monotonic sequence: p2 lies on the direct arc from p1 to p3
-    sweepFlag = d12 >= 0 ? 1 : 0
-    largeArcFlag = Math.abs(angle3 - angle1) > Math.PI ? 1 : 0
-  } else {
-    // Non-monotonic: p2 is on the large arc in the direction of d12
-    sweepFlag = d12 >= 0 ? 1 : 0
-    largeArcFlag = 1
-  }
-
-  return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
-}
-
 const generatePathWithWraparound = (positions) => {
   if (!positions || positions.length < 2) return null
 

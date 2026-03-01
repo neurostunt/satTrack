@@ -88,10 +88,9 @@ export const useSatelliteSearch = () => {
       status: satellite.status,
       operator: satellite.operator || 'Unknown',
       countries: satellite.countries || '',
-      launched: satellite.launched,
+      launchDate: satellite.launched || '',
       website: satellite.website || '',
-      image: satellite.image || '',
-      satId: satellite.sat_id
+      image: satellite.image || ''
     }
   }
 
@@ -112,7 +111,7 @@ export const useSatelliteSearch = () => {
       .map(formatSatellite)
       .filter(sat =>
         sat.name.toLowerCase().includes(query.toLowerCase()) ||
-        sat.names.toLowerCase().includes(query.toLowerCase()) ||
+        sat.names?.toLowerCase().includes(query.toLowerCase()) ||
         sat.noradId.toString().includes(query)
       )
       .slice(0, 10) // Limit to 10 suggestions

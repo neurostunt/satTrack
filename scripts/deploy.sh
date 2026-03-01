@@ -1,33 +1,128 @@
 #!/usr/bin/env bash
 set -e
 
-REPO_ROOT="$(git rev-parse --show-toplevel)"
-CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
-MAIN_WORKTREE="/Users/goran/Projects/radio/satTrack/main"
+COMMAND="${1:-help}"
 
-# Must be on development
-if [ "$CURRENT_BRANCH" != "development" ]; then
-  echo "ERROR: Must be on 'development' branch (currently on '$CURRENT_BRANCH')"
-  echo "       Merge your feature branch first, then run deploy."
-  exit 1
-fi
+usage() {
+  echo "Usage:"
+  echo "  ./scripts/deploy.sh release          Interactive production release (patch/minor/major or hotfix)"
+  echo "  ./scripts/deploy.sh beta [branch]    Trigger Vercel preview deploy (no tag, no merge)"
+  echo ""
+  echo "Examples:"
+  echo "  ./scripts/deploy.sh release"
+  echo "  ./scripts/deploy.sh beta"
+  echo "  ./scripts/deploy.sh beta feature/my-feat"
+}
 
-# Check for uncommitted changes
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "ERROR: Uncommitted changes detected. Commit or stash them first."
-  exit 1
-fi
+latest_release_tag() {
+  git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || echo "v1.0.0"
+}
 
-# Push development
-echo "→ Pushing development..."
-git push origin development
+bump_version() {
+  local TAG="$1" BUMP="$2"
+  local VERSION="${TAG#v}"
+  IFS='.' read -ra P <<< "$VERSION"
+  case "$BUMP" in
+    patch) echo "v${P[0]}.${P[1]}.$((P[2] + 1))" ;;
+    minor) echo "v${P[0]}.$((P[1] + 1)).0" ;;
+    major) echo "v$((P[0] + 1)).0.0" ;;
+  esac
+}
 
-# Merge development → main
-echo "→ Merging development into main..."
-cd "$MAIN_WORKTREE"
-git fetch origin
-git checkout main
-git merge origin/development --no-ff -m "chore: deploy from development"
-git push origin main
+push_tag() {
+  local TAG="$1"
+  local BRANCH
+  BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 
-echo "✓ Deployed — GitHub Actions will tag + Vercel will deploy."
+  if git rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "ERROR: Tag $TAG already exists."
+    exit 1
+  fi
+
+  git tag -a "$TAG" -m "release $TAG"
+  git push origin "$BRANCH"
+  git push origin "$TAG"
+
+  echo ""
+  echo "✓ Tag $TAG pushed from $BRANCH."
+  echo "  GitHub Actions: merge → main, Vercel production deploy, GitHub Release."
+}
+
+case "$COMMAND" in
+  release)
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      echo "ERROR: Uncommitted changes. Commit or stash first."
+      exit 1
+    fi
+
+    LATEST=$(latest_release_tag)
+
+    echo ""
+    echo "Current version: $LATEST"
+    echo ""
+    echo "Release type:"
+    echo "  1) Production release"
+    echo "  2) Hotfix"
+    echo ""
+    read -rp "Choose [1/2]: " RELEASE_TYPE
+
+    case "$RELEASE_TYPE" in
+      1)
+        echo ""
+        echo "Version bump:"
+        echo "  1) Patch  — bug fixes            $(bump_version "$LATEST" patch)"
+        echo "  2) Minor  — new features          $(bump_version "$LATEST" minor)"
+        echo "  3) Major  — breaking changes      $(bump_version "$LATEST" major)"
+        echo ""
+        read -rp "Choose [1/2/3]: " BUMP
+
+        case "$BUMP" in
+          1) NEW_TAG=$(bump_version "$LATEST" patch) ;;
+          2) NEW_TAG=$(bump_version "$LATEST" minor) ;;
+          3) NEW_TAG=$(bump_version "$LATEST" major) ;;
+          *) echo "Invalid choice."; exit 1 ;;
+        esac
+        ;;
+
+      2)
+        HOTFIX_NUM=$(git tag | grep -E "^${LATEST}-hotfix\.[0-9]+$" | wc -l | tr -d ' ')
+        NEW_TAG="${LATEST}-hotfix.$((HOTFIX_NUM + 1))"
+        ;;
+
+      *) echo "Invalid choice."; exit 1 ;;
+    esac
+
+    echo ""
+    echo "Tag to create: $NEW_TAG"
+    read -rp "Confirm? [y/N]: " CONFIRM
+    [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]] && echo "Aborted." && exit 0
+
+    push_tag "$NEW_TAG"
+    ;;
+
+  beta)
+    BRANCH="${2:-development}"
+
+    if ! command -v gh &>/dev/null; then
+      echo "ERROR: GitHub CLI (gh) is required. Install: https://cli.github.com"
+      exit 1
+    fi
+
+    echo "→ Triggering beta deploy for branch: $BRANCH..."
+    gh workflow run beta-deploy.yml --ref "$BRANCH" -f branch="$BRANCH"
+
+    REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+    echo "✓ Beta deploy triggered."
+    echo "  Track: https://github.com/$REPO/actions"
+    ;;
+
+  help|--help|-h)
+    usage
+    ;;
+
+  *)
+    echo "Unknown command: $COMMAND"
+    usage
+    exit 1
+    ;;
+esac

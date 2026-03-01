@@ -29,6 +29,23 @@ bump_version() {
   esac
 }
 
+LAST_RUN_ID=""
+
+watch_run() {
+  local WORKFLOW="$1"
+  echo ""
+  echo "⏳ Waiting for workflow run to start..."
+  sleep 4
+  LAST_RUN_ID=$(gh run list --workflow="$WORKFLOW" --limit=1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")
+  if [ -n "$LAST_RUN_ID" ]; then
+    echo "→ Watching run #$LAST_RUN_ID (Ctrl+C to detach, workflow continues)"
+    echo ""
+    gh run watch "$LAST_RUN_ID" --exit-status || true
+  else
+    echo "⚠️  Could not find run. Check: $(gh repo view --json url -q .url)/actions"
+  fi
+}
+
 push_tag() {
   local TAG="$1"
   local BRANCH
@@ -45,7 +62,10 @@ push_tag() {
 
   echo ""
   echo "✓ Tag $TAG pushed from $BRANCH."
-  echo "  GitHub Actions: merge → main, Vercel production deploy, GitHub Release."
+  watch_run "production-release.yml"
+
+  echo ""
+  echo "🌍 Production: https://neurostunt.rs"
 }
 
 case "$COMMAND" in
@@ -110,10 +130,17 @@ case "$COMMAND" in
 
     echo "→ Triggering beta deploy for branch: $BRANCH..."
     gh workflow run beta-deploy.yml --ref "$BRANCH" -f branch="$BRANCH"
-
-    REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
     echo "✓ Beta deploy triggered."
-    echo "  Track: https://github.com/$REPO/actions"
+    watch_run "beta-deploy.yml"
+
+    if [ -n "$LAST_RUN_ID" ]; then
+      PREVIEW_URL=$(gh run view "$LAST_RUN_ID" --log 2>/dev/null \
+        | grep "Beta deployed:" | grep -oE 'https://[^ ]+' | tail -1 || echo "")
+      if [ -n "$PREVIEW_URL" ]; then
+        echo ""
+        echo "🔗 Preview: $PREVIEW_URL"
+      fi
+    fi
     ;;
 
   help|--help|-h)

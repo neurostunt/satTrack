@@ -68,13 +68,11 @@ const props = defineProps({
   }
 })
 
-// Check if this is a stationary satellite
 const isStationary = computed(() => {
   const status = props.getPassStatus(props.pass.startTime, props.pass.endTime, props.pass.noradId, props.pass)
   return status === 'stationary'
 })
 
-// Compute time until end of pass (for passing satellites)
 const timeUntilEnd = computed(() => {
   if (!props.isPassing || isStationary.value) return ''
   
@@ -93,7 +91,6 @@ defineEmits(['toggle'])
 </script>
 
 <style scoped>
-/* Blinking animation for passing satellites */
 @keyframes blink {
   0%, 50% { 
     background-color: rgba(31, 41, 55, 0.8); /* bg-space-800 */

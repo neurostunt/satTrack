@@ -179,6 +179,7 @@
 
 <script setup>
 import { useSatnogs } from '~/composables/api/useSatnogs'
+import { getStatusColor } from '~/utils/satelliteStatusUtils'
 
 const props = defineProps({
   satelliteData: {
@@ -201,7 +202,6 @@ const props = defineProps({
 
 const { getTransponderFrequencies, formatFrequency } = useSatnogs()
 
-// Compute transponder frequencies
 const transponderFrequencies = computed(() => {
   if (!props.transmitters || props.transmitters.length === 0) {
     return null
@@ -209,7 +209,6 @@ const transponderFrequencies = computed(() => {
   return getTransponderFrequencies(props.transmitters)
 })
 
-// Check if satellite has transponders
 const hasTransponders = computed(() => {
   if (!transponderFrequencies.value) return false
 
@@ -219,7 +218,6 @@ const hasTransponders = computed(() => {
          transponderFrequencies.value.telemetry.length > 0
 })
 
-// Format date
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A'
   try {
@@ -227,21 +225,6 @@ const formatDate = (dateString) => {
   } catch {
     return dateString
   }
-}
-
-// Get status color
-const getStatusColor = (status) => {
-  if (!status) return 'text-space-400'
-
-  const statusLower = status.toLowerCase()
-  if (statusLower.includes('active') || statusLower.includes('operational')) {
-    return 'text-green-400'
-  } else if (statusLower.includes('inactive') || statusLower.includes('off')) {
-    return 'text-red-400'
-  } else if (statusLower.includes('unknown')) {
-    return 'text-yellow-400'
-  }
-  return 'text-space-400'
 }
 </script>
 

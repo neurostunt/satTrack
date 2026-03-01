@@ -107,8 +107,6 @@ const loadStoredTransmitterData = async () => {
 
     combinedData.value = combined
 
-    // Load recommended satellites descriptions as fallback (from static JSON file, no API)
-    await loadRecommendedSatellitesDescriptions()
   } catch (error) {
     console.error('Failed to load stored transmitter data:', error)
   }
@@ -214,72 +212,27 @@ const filterTransmitters = (transmitters) => {
   })
 }
 
+import { formatFrequencyValue } from '~/utils/frequencyUtils'
+
 const formatFrequency = (transmitter) => {
   if (!transmitter) return 'Unknown'
 
-  // Try different frequency field names from SatNOGS API
-  let frequency = transmitter.downlink_low ||
-                 transmitter.uplink_low ||
-                 transmitter.downlink_high ||
-                 transmitter.uplink_high ||
-                 transmitter.frequency ||
-                 transmitter.downlink_frequency ||
-                 transmitter.uplink_frequency
+  const frequency = transmitter.downlink_low ||
+                   transmitter.uplink_low ||
+                   transmitter.downlink_high ||
+                   transmitter.uplink_high ||
+                   transmitter.frequency ||
+                   transmitter.downlink_frequency ||
+                   transmitter.uplink_frequency
 
   if (!frequency) return 'Unknown'
-
-  // Handle different frequency formats
-  if (typeof frequency === 'number') {
-    if (frequency >= 1000000) {
-      return `${(frequency / 1000000).toFixed(3)} MHz`
-    } else if (frequency >= 1000) {
-      return `${(frequency / 1000).toFixed(0)} kHz`
-    } else {
-      return `${frequency} Hz`
-    }
-  }
-
-  // If it's already a string, return as-is
-  return frequency.toString()
+  return formatFrequencyValue(frequency, 3)
 }
 
 // Watch for changes in transmitter filters and reload data
 watch(() => settings.value.transmitterFilters, async () => {
   await loadStoredTransmitterData()
 }, { deep: true })
-
-// Load recommended satellites descriptions as fallback
-const loadRecommendedSatellitesDescriptions = async () => {
-  try {
-    const recommended = await $fetch('/recommended-satellites-belgrade.json')
-    if (recommended?.recommendedSatellites) {
-      const descriptionsMap = {}
-      recommended.recommendedSatellites.forEach(sat => {
-        if (sat.noradId && sat.description) {
-          descriptionsMap[sat.noradId] = sat.description
-        }
-      })
-
-      // Update combined data with descriptions from recommended file if not already present
-      // Use a new object to ensure reactivity
-      const updatedData = { ...combinedData.value }
-      Object.keys(updatedData).forEach(noradId => {
-        if (!updatedData[noradId]?.satellite?.description && descriptionsMap[noradId]) {
-          updatedData[noradId] = {
-            ...updatedData[noradId],
-            satellite: {
-              ...updatedData[noradId].satellite,
-              description: descriptionsMap[noradId]
-            }
-          }
-        }
-      })
-      combinedData.value = updatedData
-    }
-  } catch {
-    // Silently fail - descriptions are optional
-  }
-}
 
 /**
  * Apply SatNOGS info (launch date, operator, countries, website, decayed/deployed, description, image)

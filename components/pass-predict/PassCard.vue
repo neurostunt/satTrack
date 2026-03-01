@@ -36,9 +36,9 @@
         <div v-if="showVisualization" class="mb-4">
           <PassPredictPolarPlot
             :satellite-name="pass.satelliteName"
-            :current-elevation="isGeostationarySatellite ? (geostationaryPosition?.elevation || props.pass.maxElevation) : (currentPosition?.elevation || 0)"
-            :current-azimuth="isGeostationarySatellite ? (geostationaryPosition?.azimuth || props.pass.maxAzimuth) : (currentPosition?.azimuth || 0)"
-            :current-distance="isGeostationarySatellite ? (geostationaryPosition?.distance || 0) : (currentPosition?.distance || 0)"
+            :current-elevation="isGeostationarySatellite ? (geostationaryPosition?.elevation ?? pass.maxElevation) : (currentPosition?.elevation ?? null)"
+            :current-azimuth="isGeostationarySatellite ? (geostationaryPosition?.azimuth ?? pass.maxAzimuth) : (currentPosition?.azimuth ?? null)"
+            :current-distance="isGeostationarySatellite ? (geostationaryPosition?.distance ?? 0) : (currentPosition?.distance ?? 0)"
             :distance-units="settings.distanceUnits || 'km'"
             :past-positions="pastPositions"
             :future-positions="futurePositions"
@@ -49,7 +49,7 @@
             :norad-id="pass.noradId"
             :pass-start-time="pass.startTime"
             :pass-end-time="pass.endTime"
-            :is-in-transit="isPassInTransit"
+            :is-passing="isPassing"
           />
         </div>
 
@@ -127,8 +127,6 @@ const {
   stopTracking
 } = useRealTimePosition()
 
-const { getPastPositions } = useSatellitePath()
-
 // Get distance units from settings
 const { settings } = useSettings()
 
@@ -182,25 +180,16 @@ const showVisualization = computed(() => {
 })
 
 // Computed: Past positions for drawing
-// Check if pass is in-transit (satellite already passing when card was opened)
-const isPassInTransit = computed(() => {
-  const now = Date.now()
-  // Pass is in-transit if current time is between start and end time
-  return now > props.pass.startTime && now < props.pass.endTime
-})
-
-const pastPositions = computed(() => {
-  return getPastPositions(positionHistory.value)
-})
+const pastPositions = computed(() => positionHistory.value)
 
 // Watch for card expansion and pass status
 // IMPORTANT: Only track when BOTH conditions are met:
 // 1. Card is expanded (user clicked to view details)
 // 2. Satellite is actively passing (within pass window)
 watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing]) => {
-  // Special handling for geostationary satellites - no API call needed, position is already known
+  if (!isMounted.value) return // Don't execute if component is unmounted
+  
   if (isGeostationarySatellite.value) {
-    // Position is calculated from pass data, no API call needed
     return
   }
 
@@ -208,8 +197,6 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
   const wasTracking = isTracking.value
 
   if (shouldTrack && !wasTracking) {
-    // Card is open AND satellite is passing - start real-time tracking
-    // Validate settings before starting
     if (!settings.value.n2yoApiKey) {
       console.warn(`⚠️ N2YO API key not configured - cannot start tracking`)
       return
@@ -223,13 +210,18 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
       settings.value.n2yoApiKey
     )
   } else if (!shouldTrack && wasTracking) {
-    // Card closed OR pass ended - stop tracking to save API calls
     stopTracking()
   }
-}, { immediate: false })
+}, { immediate: false, flush: 'post' })
 
-// Cleanup when component is unmounted
+const isMounted = ref(false)
+
+onMounted(() => {
+  isMounted.value = true
+})
+
 onUnmounted(() => {
+  isMounted.value = false
   if (isTracking.value) {
     stopTracking()
   }

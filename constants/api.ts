@@ -8,7 +8,7 @@ export const API_ENDPOINTS = {
   SPACE_TRACK: {
     BASE_URL: 'https://www.space-track.org',
     LOGIN: '/ajaxauth/login',
-    TLE: '/basicspacedata/query/class/tle_latest',
+    TLE: '/basicspacedata/query/class/gp',
     SATELITE_DATA: '/basicspacedata/query/class/satcat'
   },
   SATNOGS: {

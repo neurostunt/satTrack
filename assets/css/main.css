@@ -13,7 +13,8 @@ html {
 }
 
 body {
-  @apply bg-space-950 text-white;
+  background-color: #020617;
+  color: #ffffff;
   margin: 0;
   padding: 0;
 }

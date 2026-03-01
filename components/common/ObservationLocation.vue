@@ -20,7 +20,6 @@
 </template>
 
 <script setup>
-// Props for location data
 defineProps({
   latitude: {
     type: Number,
@@ -42,5 +41,4 @@ defineProps({
 </script>
 
 <style scoped>
-/* Custom styles if needed */
 </style>

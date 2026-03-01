@@ -63,6 +63,9 @@ export const EXAMPLE_SATELLITES = [
   27607, // SO-50
   43013, // AO-91
   44909, // RS-44 (DOSAAF-85)
+  7530,  // AO-7 (OSCAR 7)
+  24278, // FO-29 (Fuji OSCAR 29)
+  43803, // JO-97 (JY1SAT)
   33498, // KUKAI
   40069, // METEOR-M2
   43017, // AO-91 / FOX-1C
@@ -71,14 +74,12 @@ export const EXAMPLE_SATELLITES = [
   44387, // FOX-1D / AO-92
   // Additional recommended satellites
   98537, // HUNITY
-  7530,  // OSCAR 7
   39444, // FUNCUBE-1
   40931, // LAPAN-A2
   43678, // DIWATA-2
   61762, // ArcticSat-1
   58567, // HADES-D
   43137, // FOX-1D
-  //98796, // JOVIAN-1
   44354, // PSAT-2
   43700  // QO-100 (Es'hail-2) - Geostationary
 ]

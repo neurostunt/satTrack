@@ -96,12 +96,15 @@ export const extractPrimarySatelliteName = (satellite: any): string => {
  * Returns an object with primary (main name) and secondary (additional info)
  * Primary goes on first row, secondary + NORAD ID goes on second row
  */
-export const formatSatelliteNameForDisplay = (satellite: any, noradId?: string | number) => {
+export const formatSatelliteNameForDisplay = (
+  satellite: any,
+  satId?: string | number
+) => {
   if (!satellite) {
     return {
-      primary: `NORAD ${noradId || 'Unknown'}`,
+      primary: `NORAD ${satId || 'Unknown'}`,
       secondary: null,
-      noradId: noradId || 'Unknown'
+      noradId: satId || 'Unknown'
     }
   }
 
@@ -113,24 +116,27 @@ export const formatSatelliteNameForDisplay = (satellite: any, noradId?: string |
     return {
       primary: names,    // Full names (e.g., "ISS")
       secondary: name,   // Full name (e.g., "RS0")
-      noradId: noradId || 'Unknown'
+      noradId: satId || 'Unknown'
     }
   }
 
   // Return single name
-  const primary = names || name || `NORAD ${noradId || 'Unknown'}`
+  const primary = names || name || `NORAD ${satId || 'Unknown'}`
   return {
     primary,
     secondary: null,
-    noradId: noradId || 'Unknown'
+    noradId: satId || 'Unknown'
   }
 }
 
 /**
  * Get full satellite name for display (combines both parts)
  */
-export const getFullSatelliteName = (satellite: any, noradId?: string | number): string => {
-  if (!satellite) return `NORAD ${noradId || 'Unknown'}`
+export const getFullSatelliteName = (
+  satellite: any,
+  satId?: string | number
+): string => {
+  if (!satellite) return `NORAD ${satId || 'Unknown'}`
 
   const name = satellite.name || ''
   const names = satellite.names || ''
@@ -145,7 +151,7 @@ export const getFullSatelliteName = (satellite: any, noradId?: string | number):
   }
 
   // Return whichever exists
-  return primaryFromNames || primaryFromName || `NORAD ${noradId || 'Unknown'}`
+  return primaryFromNames || primaryFromName || `NORAD ${satId || 'Unknown'}`
 }
 
 /**
@@ -153,8 +159,11 @@ export const getFullSatelliteName = (satellite: any, noradId?: string | number):
  * Reference: "KUKAI: Mother (Parents) JR5YBN" (35 characters)
  * If name is longer, truncate and add "..."
  */
-export const truncateSatelliteName = (name: string, maxLength: number = 35): string => {
+export const truncateSatelliteName = (
+  name: string,
+  maxLen: number = 35
+): string => {
   if (!name) return ''
-  if (name.length <= maxLength) return name
-  return name.substring(0, maxLength) + '...'
+  if (name.length <= maxLen) return name
+  return name.substring(0, maxLen) + '...'
 }

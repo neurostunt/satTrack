@@ -1,35 +1,12 @@
 <template>
-  <div class="bg-space-900 border border-space-600 rounded-lg flex flex-col items-center max-w-full overflow-hidden">
-    <!-- Live Position Info -->
-    <div class="text-center mb-2 mt-3">
-      <div class="flex items-center justify-center gap-3">
-        <div class="text-xs text-space-400 font-mono">
-          <span>El: {{ currentElevation !== null && currentElevation !== undefined ? currentElevation.toFixed(1).padStart(4, ' ') : 'N/A' }}°</span>
-          <span class="mx-2">|</span>
-          <span>Az: {{ currentAzimuth !== null && currentAzimuth !== undefined ? currentAzimuth.toFixed(1).padStart(5, ' ') : 'N/A' }}°</span>
-          <span class="mx-2">|</span>
-          <span>{{ formattedDistance }}</span>
-        </div>
-        <!-- AR Track Button (shown when satellite is passing) -->
-        <NuxtLink
-          v-if="isPassing && noradId"
-          :to="`/ar-track?noradId=${noradId}&startTime=${passStartTime}`"
-          class="ar-track-button"
-          title="AR Track"
-        >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-          </svg>
-        </NuxtLink>
-      </div>
-    </div>
-
-    <!-- SVG Polar Plot -->
+  <div class="polar-plot-container">
+    <!-- SVG Polar Plot with rotation -->
     <svg
       v-if="isGeostationary || futurePath || currentPosition || entryPoint || exitPoint || peakPoint"
       viewBox="0 0 400 400"
       overflow="visible"
       class="mx-auto block w-full max-w-[400px] h-auto"
+      :style="{ transform: `rotate(${rotationAngle}deg)` }"
     >
       <!-- Preloaded Background Elements -->
       <g v-html="backgroundSVG"></g>
@@ -102,13 +79,12 @@
           style="font-size:16px"
         >🛰️</text>
       </g>
-
     </svg>
 
     <!-- Fallback message when no valid path data -->
     <div
       v-else
-      class="flex items-center justify-center h-64 bg-space-800 border border-space-600 rounded-lg"
+      class="flex items-center justify-center h-full bg-space-800 border border-space-600 rounded-lg"
     >
       <div class="text-center text-space-400">
         <div class="text-sm font-medium mb-1">No Path Data Available</div>
@@ -122,11 +98,12 @@
 
 <script setup>
 /**
- * Polar Plot Component
- * Displays satellite position on a polar plot (azimuth/elevation)
+ * AR Polar Plot Component
+ * Displays satellite position on a polar plot rotated based on device orientation
  * - Center = Observer position
- * - Top = North (0°)
+ * - Top = Where phone is pointing (not North)
  * - Concentric circles = Elevation (90° center, 0° outer)
+ * - Rotates based on compass heading (alpha) from DeviceOrientationEvent
  */
 
 const props = defineProps({
@@ -194,15 +171,29 @@ const props = defineProps({
     type: Number,
     default: null
   },
-  // Whether satellite is currently passing
-  isPassing: {
-    type: Boolean,
-    default: false
+  // Device orientation (compass heading)
+  compassHeading: {
+    type: Number,
+    default: null
   }
 })
 
 const center = 200
 const { backgroundSVG, elevationToRadius } = usePolarPlotBackground()
+/**
+ * Rotation angle for SVG based on compass heading
+ * Negative because we want to rotate the plot so that top = where phone points
+ * If no compass heading (desktop), rotation is 0 (normal North-up view)
+ */
+const rotationAngle = computed(() => {
+  if (props.compassHeading === null || props.compassHeading === undefined) {
+    return 0 // No rotation on desktop - show normal North-up view
+  }
+  // Rotate plot so that top shows where phone is pointing
+  // If phone points North (0°), rotation is 0°
+  // If phone points East (90°), rotation is -90° (plot rotates counter-clockwise)
+  return -props.compassHeading
+})
 
 const isGeostationary = computed(() => {
   if (props.startAzimuth !== null && props.endAzimuth !== null) {
@@ -210,18 +201,6 @@ const isGeostationary = computed(() => {
     return azimuthDiff < 5
   }
   return false
-})
-
-const formattedDistance = computed(() => {
-  let distance = props.currentDistance
-  let unit = 'km'
-
-  if (props.distanceUnits === 'miles') {
-    distance = distance * 0.621371
-    unit = 'mi'
-  }
-
-  return `${distance.toFixed(0).padStart(5, ' ')} ${unit}`
 })
 
 const degreesToRadians = (degrees) => {
@@ -263,48 +242,6 @@ const getCircleCenter = (p1, p2, p3) => {
   ) / d
 
   return { x: ux, y: uy }
-}
-
-/**
- * Compute SVG arc path through three points p1 → p2 → p3.
- * Uses monotonic unwrapping to correctly choose largeArcFlag and sweepFlag
- * so the arc always passes through the intermediate point p2.
- */
-const computeArcPath = (p1, p2, p3) => {
-  const centerPoint = getCircleCenter(p1, p2, p3)
-  if (!centerPoint) {
-    return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y}`
-  }
-
-  const radius = Math.hypot(p1.x - centerPoint.x, p1.y - centerPoint.y)
-  let angle1 = Math.atan2(p1.y - centerPoint.y, p1.x - centerPoint.x)
-  let angle2 = Math.atan2(p2.y - centerPoint.y, p2.x - centerPoint.x)
-  let angle3 = Math.atan2(p3.y - centerPoint.y, p3.x - centerPoint.x)
-
-  const unwrap = (base, angle) => {
-    let a = angle
-    while (a - base > Math.PI) a -= 2 * Math.PI
-    while (a - base < -Math.PI) a += 2 * Math.PI
-    return a
-  }
-  angle2 = unwrap(angle1, angle2)
-  angle3 = unwrap(angle2, angle3)
-
-  const d12 = angle2 - angle1
-  const d23 = angle3 - angle2
-
-  let sweepFlag, largeArcFlag
-  if (d12 * d23 >= 0) {
-    // Monotonic sequence: p2 lies on the direct arc from p1 to p3
-    sweepFlag = d12 >= 0 ? 1 : 0
-    largeArcFlag = Math.abs(angle3 - angle1) > Math.PI ? 1 : 0
-  } else {
-    // Non-monotonic: p2 is on the large arc in the direction of d12
-    sweepFlag = d12 >= 0 ? 1 : 0
-    largeArcFlag = 1
-  }
-
-  return `M ${p1.x} ${p1.y} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${p3.x} ${p3.y}`
 }
 
 const generatePathWithWraparound = (positions) => {
@@ -407,14 +344,8 @@ const peakPoint = computed(() => {
   return polarToCartesian(peakAzimuthValue, props.maxElevation)
 })
 
-// Full predicted path with the same circular arc extended beyond AOS/LOS by 40 SVG units
 const predictedPath = computed(() => {
   if (isGeostationary.value) return null
-  
-  // Don't show predicted path for in-transit passes
-  // Real-time N2YO data will show the actual path instead
-  if (props.isInTransit) return null
-  
   if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
 
   const p1 = entryPoint.value
@@ -444,7 +375,6 @@ const predictedPath = computed(() => {
   const d23 = angle3 - angle2
   const sweepSign = d12 >= 0 ? 1 : -1
 
-  // Extend the arc by 40 SVG units of arc-length on each side, along the same circle
   const delta = 40 / arcR
   const preAngle = angle1 - sweepSign * delta
   const postAngle = angle3 + sweepSign * delta
@@ -459,17 +389,27 @@ const predictedPath = computed(() => {
   return `M ${preEntry.x} ${preEntry.y} A ${arcR} ${arcR} 0 ${largeArcFlag} ${sweepFlag} ${postExit.x} ${postExit.y}`
 })
 
-
 const futurePath = computed(() => {
   if (!props.futurePositions || props.futurePositions.length < 2) return null
 
   const sortedPositions = [...props.futurePositions].sort((a, b) => a.timestamp - b.timestamp)
-
   return generatePathWithWraparound(sortedPositions)
 })
 </script>
 
 <style scoped>
+.polar-plot-container {
+  background-color: #0f172a;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  max-width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Pulsing animation for current satellite position */
 @keyframes satellite-pulse {
   0%, 100% {
     r: 12;
@@ -485,4 +425,5 @@ const futurePath = computed(() => {
   animation: satellite-pulse 2s ease-in-out infinite;
 }
 </style>
+
 

@@ -134,11 +134,8 @@ case "$COMMAND" in
     watch_run "beta-deploy.yml"
 
     if [ -n "$LAST_RUN_ID" ]; then
-      LOGS=$(gh run view "$LAST_RUN_ID" --log 2>/dev/null || echo "")
-      PREVIEW_URL=$(echo "$LOGS" | grep "Branch URL:" | grep -oE 'https://[^ ]+' | tail -1 || echo "")
-      if [ -z "$PREVIEW_URL" ]; then
-        PREVIEW_URL=$(echo "$LOGS" | grep -oE 'https://[a-zA-Z0-9._-]+\.vercel\.app' | tail -1 || echo "")
-      fi
+      PREVIEW_URL=$(gh run view "$LAST_RUN_ID" --log 2>/dev/null \
+        | grep "Beta deployed:" | grep -oE 'https://[^ ]+' | tail -1 || echo "")
       if [ -n "$PREVIEW_URL" ]; then
         echo ""
         echo "🔗 Preview: $PREVIEW_URL"

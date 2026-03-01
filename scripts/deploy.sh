@@ -29,17 +29,18 @@ bump_version() {
   esac
 }
 
+LAST_RUN_ID=""
+
 watch_run() {
   local WORKFLOW="$1"
   echo ""
   echo "⏳ Waiting for workflow run to start..."
   sleep 4
-  local RUN_ID
-  RUN_ID=$(gh run list --workflow="$WORKFLOW" --limit=1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")
-  if [ -n "$RUN_ID" ]; then
-    echo "→ Watching run #$RUN_ID (Ctrl+C to detach, workflow continues)"
+  LAST_RUN_ID=$(gh run list --workflow="$WORKFLOW" --limit=1 --json databaseId -q '.[0].databaseId' 2>/dev/null || echo "")
+  if [ -n "$LAST_RUN_ID" ]; then
+    echo "→ Watching run #$LAST_RUN_ID (Ctrl+C to detach, workflow continues)"
     echo ""
-    gh run watch "$RUN_ID" --exit-status || true
+    gh run watch "$LAST_RUN_ID" --exit-status || true
   else
     echo "⚠️  Could not find run. Check: $(gh repo view --json url -q .url)/actions"
   fi
@@ -62,6 +63,9 @@ push_tag() {
   echo ""
   echo "✓ Tag $TAG pushed from $BRANCH."
   watch_run "production-release.yml"
+
+  echo ""
+  echo "🌍 Production: https://neurostunt.rs"
 }
 
 case "$COMMAND" in
@@ -128,6 +132,14 @@ case "$COMMAND" in
     gh workflow run beta-deploy.yml --ref "$BRANCH" -f branch="$BRANCH"
     echo "✓ Beta deploy triggered."
     watch_run "beta-deploy.yml"
+
+    if [ -n "$LAST_RUN_ID" ]; then
+      PREVIEW_URL=$(gh run view "$LAST_RUN_ID" --log 2>/dev/null | grep -oE 'https://[a-zA-Z0-9._-]+\.vercel\.app' | tail -1 || echo "")
+      if [ -n "$PREVIEW_URL" ]; then
+        echo ""
+        echo "🔗 Preview: $PREVIEW_URL"
+      fi
+    fi
     ;;
 
   help|--help|-h)

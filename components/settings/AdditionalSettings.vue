@@ -443,7 +443,7 @@ const getAltitudeFromCoordinates = async () => {
 
   } catch (error) {
     console.error('Altitude fetch error:', error)
-    altitudeError.value = error.message || 'Failed to fetch altitude. Please try again or enter manually.'
+    altitudeError.value = (error instanceof Error ? error.message : null) || 'Failed to fetch altitude. Please try again or enter manually.'
 
     setTimeout(() => {
       altitudeError.value = ''

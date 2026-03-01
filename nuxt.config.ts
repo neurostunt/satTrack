@@ -43,7 +43,7 @@ export default defineNuxtConfig({
       navigateFallback: undefined,
       navigateFallbackDenylist: [/^\/__nuxt_devtools__/, /^\/__nuxt\//],
       mode: 'production',
-      globPatterns: ['**/*.html'],
+      globPatterns: ['**/*.{html,js,css,png,svg,ico,woff,woff2}'],
       globIgnores: [
         '**/node_modules/**/*',
         '**/_nuxt/**/*',

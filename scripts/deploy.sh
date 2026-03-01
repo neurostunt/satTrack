@@ -133,14 +133,6 @@ case "$COMMAND" in
     echo "✓ Beta deploy triggered."
     watch_run "beta-deploy.yml"
 
-    if [ -n "$LAST_RUN_ID" ]; then
-      PREVIEW_URL=$(gh run view "$LAST_RUN_ID" --log 2>/dev/null \
-        | grep "Beta deployed:" | grep -oE 'https://[^ ]+' | tail -1 || echo "")
-      if [ -n "$PREVIEW_URL" ]; then
-        echo ""
-        echo "🔗 Preview: $PREVIEW_URL"
-      fi
-    fi
     ;;
 
   help|--help|-h)

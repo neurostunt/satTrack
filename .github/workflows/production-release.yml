@@ -68,6 +68,15 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
+      - name: Assign production domains
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DEPLOY_URL: ${{ steps.vercel_deploy.outputs.url }}
+        run: |
+          npx vercel alias set "$DEPLOY_URL" neurostunt.rs --token=${{ secrets.VERCEL_TOKEN }}
+          npx vercel alias set "$DEPLOY_URL" www.neurostunt.rs --token=${{ secrets.VERCEL_TOKEN }}
+
       - name: Generate changelog
         id: changelog
         env:

@@ -38,44 +38,14 @@ jobs:
           git merge ${{ github.ref_name }} --no-ff -m "chore: release ${{ github.ref_name }}"
           git push origin main
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Pull Vercel environment
-        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Build
-        run: npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
       - name: Deploy to Vercel Production
         id: vercel_deploy
         run: |
-          URL=$(npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          URL=$(npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> "$GITHUB_OUTPUT"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-
-      - name: Assign production domains
-        env:
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          DEPLOY_URL: ${{ steps.vercel_deploy.outputs.url }}
-        run: |
-          npx vercel alias set "$DEPLOY_URL" neurostunt.rs --token=${{ secrets.VERCEL_TOKEN }}
-          npx vercel alias set "$DEPLOY_URL" www.neurostunt.rs --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Generate changelog
         id: changelog

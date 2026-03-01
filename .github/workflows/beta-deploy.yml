@@ -55,12 +55,21 @@ jobs:
           URL=$(npx vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$URL" >> "$GITHUB_OUTPUT"
           echo "✅ Beta deployed: $URL"
-          ALIAS=$(npx vercel inspect "$URL" --token=${{ secrets.VERCEL_TOKEN }} 2>/dev/null \
-            | grep -oiE '[a-z0-9-]+-git-[a-z0-9-]+-[a-z0-9-]+\.vercel\.app' | head -1 || echo "")
-          [ -n "$ALIAS" ] && echo "🔗 Branch URL: https://$ALIAS"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Get branch alias URL
+        continue-on-error: true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          DEPLOY_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          ALIAS=$(npx vercel inspect "$DEPLOY_URL" --token="$VERCEL_TOKEN" 2>/dev/null \
+            | grep -oiE '[a-z0-9-]+-git-[a-z0-9-]+-[a-z0-9-]+\.vercel\.app' | head -1 || echo "")
+          [ -n "$ALIAS" ] && echo "🔗 Branch URL: https://$ALIAS"
 
       - name: Summary
         env:

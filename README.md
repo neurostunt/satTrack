@@ -54,12 +54,68 @@ Satellite pass tracker and AR visualizer for ham radio operators. Built with Nux
 
 N2YO rate limits per endpoint:
 ```
-tle          1000/hr
-positions    1000/hr
-visualpasses  100/hr
-radiopasses   100/hr
-above         100/hr
+tle           1000/hr
+positions     1000/hr
+visualpasses   100/hr
+radiopasses    100/hr
+above          100/hr
 ```
+
+---
+
+## Quick Start
+
+```bash
+# Requires Node 24 (see .nvmrc)
+npm install
+npm run dev           # http://localhost:3000
+npm run build
+npm run preview
+npm run dev:ngrok     # tunnel for mobile testing
+```
+
+---
+
+## Environment Variables
+
+```bash
+# .env (never commit — API keys can also be set in Settings page)
+N2YO_API_KEY=              # Required — from n2yo.com/api
+SPACE_TRACK_USERNAME=      # Optional — space-track.org account
+SPACE_TRACK_PASSWORD=      # Optional
+SATNOGS_API_TOKEN=         # Optional — db.satnogs.org
+```
+
+API keys entered in the Settings page are encrypted (AES) and stored locally in IndexedDB.
+
+---
+
+## Deployment
+
+Deployments are **explicit only** — Vercel does not auto-deploy on every push.
+
+| Command | What it does |
+|---|---|
+| `npm run release:preview` | Preview changelog without deploying |
+| `npm run beta` | Deploy current branch to Vercel preview URL |
+| `npm run production` | Interactive release — patch / minor / major / hotfix |
+| `npm run rollback` | Roll back production to a previous deployment |
+| `npm run status` | List recent production deployments |
+
+### Production release flow
+
+```bash
+npm run production
+# → Choose: patch / minor / major / hotfix
+# → Confirm version (e.g. v1.0.5)
+# → Tags + pushes → GitHub Actions:
+#     1. Merges tag into main
+#     2. Deploys to Vercel production
+#     3. Creates GitHub Release
+#     4. Opens + closes release ticket in Issues
+```
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for full setup instructions.
 
 ---
 
@@ -88,95 +144,44 @@ satTrack/
 │   │   ├── useSatnogs.ts      # Transponder data
 │   │   └── useSatelliteSearch.ts
 │   ├── pass-predict/
-│   │   ├── usePassData.ts     # Pass fetch + state
-│   │   ├── usePassStatus.ts   # Is pass active/upcoming/past
-│   │   ├── useRealTimePosition.ts  # Polls N2YO positions during active pass
-│   │   ├── useSatellitePath.ts     # Path arc calculation for polar plot
+│   │   ├── usePassData.ts
+│   │   ├── usePassStatus.ts
+│   │   ├── useRealTimePosition.ts
+│   │   ├── useSatellitePath.ts
 │   │   ├── usePolarPlotBackground.ts
 │   │   ├── usePassFiltering.ts
 │   │   └── usePassCleanup.ts
-│   ├── satellite/
-│   │   └── usePassPrediction.ts
 │   ├── storage/
-│   │   ├── useSettings.ts     # App settings (location, preferences)
-│   │   ├── useIndexedDB.ts    # IndexedDB wrapper
-│   │   └── useSecureStorage.ts # Encrypted credential storage
-│   ├── useDeviceOrientation.ts  # DeviceOrientationEvent (alpha/beta/gamma) for AR
-│   ├── useCredentials.ts        # API credential management
+│   │   ├── useSettings.ts
+│   │   ├── useIndexedDB.ts
+│   │   └── useSecureStorage.ts
+│   ├── useDeviceOrientation.ts  # alpha/beta/gamma for AR
+│   ├── useCredentials.ts
 │   ├── useSoundAlerts.ts
 │   └── usePWAInstall.ts
 │
 ├── server/api/
-│   ├── n2yo.post.ts           # N2YO proxy (adds API key server-side)
-│   ├── space-track.post.ts    # Space-Track proxy (login + TLE fetch via /class/gp)
-│   ├── celestrak.post.ts      # CelesTrak proxy
-│   ├── satnogs.post.ts        # SatNOGS proxy
-│   └── amsat.post.ts          # AMSAT frequencies proxy
+│   ├── n2yo.post.ts           # N2YO proxy
+│   ├── space-track.post.ts    # Space-Track proxy
+│   ├── celestrak.post.ts
+│   ├── satnogs.post.ts
+│   └── amsat.post.ts
 │
-├── utils/
-│   ├── dateTimeUtils.ts
-│   ├── dopplerCalculations.ts
-│   ├── frequencyUtils.ts
-│   ├── satelliteImageUtils.ts
-│   ├── satelliteNameUtils.ts
-│   ├── satelliteStatusUtils.ts
-│   ├── transmitterCategorization.ts
-│   ├── secureStorage.ts       # AES encryption helpers
-│   ├── indexedDBStorage.ts    # Low-level IndexedDB ops
-│   └── spaceTrackApi.ts
+├── scripts/
+│   ├── deploy.sh              # release + beta deploy
+│   ├── rollback.sh            # Vercel production rollback
+│   └── preview-release.sh     # changelog preview
 │
-├── types/
-│   ├── satellite.d.ts
-│   ├── api.d.ts
-│   ├── storage.d.ts
-│   └── global.d.ts
+├── .github/workflows/
+│   ├── production-release.yml # Triggered by tag push
+│   └── beta-deploy.yml        # Triggered manually (workflow_dispatch)
 │
-├── constants/
-│   ├── api.ts                 # Endpoints, cache durations, rate limits
-│   ├── satellite.ts           # Default satellites, categories
-│   └── ui.ts
-│
-└── .cursor/rules/
-    └── project-description.mdc   # AI coding rules (always applied)
+└── .cursor/rules/             # AI coding rules
+    ├── project-overview.mdc   # Always applied
+    ├── api-rules.mdc          # Loaded for server/api + composables/api
+    ├── frontend-rules.mdc     # Loaded for components + pages
+    └── git-workflow.mdc       # Loaded on request
 ```
-
----
-
-## Quick Start
-
-```bash
-# requires Node 24 (see .nvmrc)
-npm install
-npm run dev         # http://localhost:3000
-npm run build
-npm run preview
-npm run dev:ngrok   # tunnel for mobile testing
-npm run deploy      # merge development → main + push (triggers Vercel deploy)
-```
-
----
-
-## Environment Variables
-
-```bash
-# .env (never commit credentials)
-N2YO_API_KEY=              # Required — from n2yo.com/api
-SPACE_TRACK_USERNAME=      # Optional — space-track.org account
-SPACE_TRACK_PASSWORD=      # Optional
-SATNOGS_API_TOKEN=         # Optional — db.satnogs.org
-```
-
-API keys can also be entered in the Settings page — they are encrypted and stored locally in IndexedDB.
-
----
-
-## Security
-
-All credentials are:
-- Encrypted (AES) before storage
-- Stored only in browser IndexedDB (client-side)
-- Never persisted on the server
-- Sent only when making proxy API requests
 
 ---
 
@@ -184,35 +189,25 @@ All credentials are:
 
 ```
 satTrack/
-├── satTrack.git/          # Bare repo — NEVER work here
-├── development/           # Primary dev branch
-├── main/                  # Production (auto-deploys to Vercel)
-└── feature-*/             # Feature branches
+├── satTrack.git/    # Bare repo — NEVER work here
+├── development/     # Primary dev branch
+├── main/            # Production
+└── feature-*/       # Feature branches
 ```
 
 Flow: `feature/* → development → main`
 
-Push to `main` triggers: GitHub Actions auto-tag (v1.0.X) + Vercel deploy.
-
-```bash
-# Deploy from development branch
-npm run deploy
-```
-
-The script validates you're on `development`, pushes it, merges into the `main` worktree and pushes — CI does the rest.
+Main is only updated automatically by GitHub Actions when a tag is pushed — never directly.
 
 ---
 
-## Current Feature Branch: `feature/ar-satellite-tracking`
+## Security
 
-AR tracking augments the polar plot with real device compass data:
-
-- `useDeviceOrientation.ts` — wraps `DeviceOrientationEvent`, returns `alpha` (True North heading), `beta` (pitch), `gamma` (roll)
-- `ArPolarPlot.vue` — SVG polar plot rotated by compass heading so "up = where you're pointing"
-- `ArIndicators.vue` — elevation/azimuth overlay indicators
-- `ar-track.vue` — page combining pass selection + AR view
-
-**iOS note:** `DeviceOrientationEvent` requires explicit user permission on iOS 13+. Permission request is handled in `useDeviceOrientation.ts`.
+All credentials are:
+- Encrypted (AES) before storage
+- Stored only in browser IndexedDB
+- Never persisted on the server
+- Sent only during proxy API requests
 
 ---
 

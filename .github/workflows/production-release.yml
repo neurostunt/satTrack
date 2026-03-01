@@ -1,0 +1,175 @@
+name: Production Release
+
+# Triggered by: git tag v1.0.5 && git push origin v1.0.5
+# What it does:
+#   1. Merges tagged commit into main
+#   2. Deploys to Vercel production
+#   3. Creates GitHub Release with changelog
+#   4. Opens a GitHub Issue as release ticket
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Merge tag into main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout main
+          git merge ${{ github.ref_name }} --no-ff -m "chore: release ${{ github.ref_name }}"
+          git push origin main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pull Vercel environment
+        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build
+        run: npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel Production
+        id: vercel_deploy
+        run: |
+          URL=$(npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Generate changelog
+        id: changelog
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          PREV_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | grep -v "$REF_NAME" | head -1 || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log "${PREV_TAG}..${REF_NAME}" --pretty=format:"- %s (%h)" --no-merges)
+            COMMIT_COUNT=$(git log "${PREV_TAG}..${REF_NAME}" --no-merges --oneline | wc -l | tr -d ' ')
+            PREV_SHA=$(git rev-parse --short "$PREV_TAG")
+          else
+            LOG=$(git log "$REF_NAME" --pretty=format:"- %s (%h)" --no-merges | head -20)
+            PREV_TAG="—"
+            PREV_SHA="—"
+            COMMIT_COUNT="?"
+          fi
+          [ -z "$LOG" ] && LOG="- No notable changes"
+          {
+            echo "prev_tag=$PREV_TAG"
+            echo "prev_sha=$PREV_SHA"
+            echo "commit_count=$COMMIT_COUNT"
+            echo "changelog<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## What's changed
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ---
+            **Deployed to production:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release ticket
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          PREV_TAG: ${{ steps.changelog.outputs.prev_tag }}
+          PREV_SHA: ${{ steps.changelog.outputs.prev_sha }}
+          COMMIT_COUNT: ${{ steps.changelog.outputs.commit_count }}
+          CHANGELOG: ${{ steps.changelog.outputs.changelog }}
+          DEPLOY_URL: ${{ steps.vercel_deploy.outputs.url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          SHA: ${{ github.sha }}
+        run: |
+          IS_HOTFIX=false
+          [[ "$TAG" == *"-hotfix."* ]] && IS_HOTFIX=true
+
+          if [ "$IS_HOTFIX" = true ]; then
+            LABEL_TYPE="hotfix"
+            TITLE="🚑 Hotfix $TAG deployed to production"
+          else
+            LABEL_TYPE="release"
+            TITLE="🚀 Release $TAG deployed to production"
+          fi
+
+          ISSUE_URL=$(gh issue create \
+            --title "$TITLE" \
+            --label "$LABEL_TYPE" \
+            --body "## 📦 Release $TAG
+
+          | Field | Value |
+          |---|---|
+          | **Version** | \`$TAG\` |
+          | **Previous** | \`$PREV_TAG\` |
+          | **Commits** | $COMMIT_COUNT |
+          | **Released by** | @$ACTOR |
+          | **Deployed at** | $(date -u '+%Y-%m-%d %H:%M UTC') |
+          | **Production URL** | $DEPLOY_URL |
+
+          ## 📝 What's changed
+
+          $CHANGELOG
+
+          ## ⏪ Rollback
+
+          | Field | Value |
+          |---|---|
+          | **Rollback to** | \`$PREV_TAG\` (\`$PREV_SHA\`) |
+          | **Via script** | \`npm run rollback\` |
+          | **Via CLI** | \`vercel rollback\` |
+          | **Manual tag** | \`git checkout $PREV_TAG\` |
+
+          ## 🔗 Links
+
+          - [GitHub Release](https://github.com/$REPO/releases/tag/$TAG)
+          - [Workflow run]($RUN_URL)
+          - [Production]($DEPLOY_URL)
+          - [Commit](https://github.com/$REPO/commit/$SHA)
+          " 2>/dev/null) || { echo "⚠️ Could not create issue (check 'release'/'hotfix' labels exist)"; exit 0; }
+
+          ISSUE_NUMBER=$(echo "$ISSUE_URL" | grep -oE '[0-9]+$')
+          gh issue close "$ISSUE_NUMBER" --comment "✅ Deployment completed successfully. Production is live at $DEPLOY_URL"

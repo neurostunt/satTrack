@@ -1,0 +1,44 @@
+---
+description: Git worktree workflow, branch strategy, commit conventions, and release process for SatTrack
+---
+
+# SatTrack — Git Workflow
+
+## Branch Flow (MANDATORY)
+```
+feature/* → development → main
+```
+Never skip `development`. Never merge feature → main directly. Never tag manually (CI does it).
+
+## Worktree Layout
+```
+satTrack/
+├── satTrack.git/   ← bare repo, NEVER work here
+├── development/    ← primary dev worktree
+├── main/           ← production (Vercel auto-deploys on push)
+└── feature-*/      ← feature worktrees
+```
+
+## Commands
+```bash
+# New feature
+cd /Users/goran/Projects/radio/satTrack/satTrack.git
+git worktree add ../feature-name -b feature/name
+
+# Merge feature → development
+cd /Users/goran/Projects/radio/satTrack/development
+git merge feature/name && git push origin development
+
+# Release (development → main) — triggers auto-tag v1.0.X + Vercel deploy
+cd /Users/goran/Projects/radio/satTrack/main
+git merge development && git push origin main
+
+git worktree list  # from satTrack.git
+```
+
+## Commit Messages
+`feat:` · `fix:` · `refactor:` · `docs:` · `chore:`
+
+## On Push to Main
+- GitHub Actions auto-creates semantic version tag (v1.0.X)
+- Vercel auto-deploys (`npm run build`, output: `.output/public`)

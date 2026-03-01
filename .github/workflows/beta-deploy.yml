@@ -1,0 +1,71 @@
+name: Beta Deploy
+
+# Triggered manually — no tag, no merge to main.
+# Usage:
+#   gh workflow run beta-deploy.yml -f branch=development
+#   ./scripts/deploy.sh beta [branch]
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy (default: development)'
+        required: false
+        default: 'development'
+
+concurrency:
+  group: beta-deploy
+  cancel-in-progress: true
+
+jobs:
+  beta:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Pull Vercel environment
+        run: npx vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Build
+        run: npx vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel Preview
+        id: deploy
+        run: |
+          URL=$(npx vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "✅ Beta deployed: $URL"
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Summary
+        env:
+          BRANCH: ${{ github.event.inputs.branch }}
+          DEPLOY_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          {
+            echo "## Beta Deploy"
+            echo "- **Branch:** $BRANCH"
+            echo "- **URL:** $DEPLOY_URL"
+          } >> "$GITHUB_STEP_SUMMARY"

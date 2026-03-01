@@ -25,14 +25,19 @@ Thank you for your interest in contributing to SatTrack! This document provides 
 
 ### Branching Strategy
 
-- **`main`** - Production branch (protected, auto-deploys)
-- **`development`** - Development branch (default for new features)
+- **`main`** — Production. Only updated by GitHub Actions when a version tag is pushed. Never commit directly.
+- **`development`** — Main working branch. All features merge here first.
+- **`feature/*`** — Feature branches, created from `development`.
 
 **Workflow:**
+```
+feature/* → development → (tag push) → main
+```
+
 1. Create a feature branch from `development`
 2. Make your changes
-3. Test thoroughly
-4. Submit a Pull Request to `development`
+3. Merge into `development`
+4. Use `npm run production` to tag and trigger a production release
 
 ## 📝 Code Style
 
@@ -128,9 +133,10 @@ For new features:
 
 ## 📚 Documentation
 
-- Update README.md if adding new features
+- Update `README.md` if adding new features
+- Update `DEPLOYMENT.md` if changing deploy process
 - Add JSDoc comments for new functions
-- Update CHANGELOG.md for user-facing changes
+- Use `npm run release:preview` to preview changelog before releasing
 
 ## ✅ Checklist
 

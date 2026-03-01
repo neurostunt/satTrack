@@ -1,144 +1,189 @@
-# Deployment Guide - SatTrack
+# Deployment Guide — SatTrack
 
-## Quick Start - Automatic Deployment (Recommended)
-
-**To enable automatic deployment on every push to main:**
-
-1. Go to Vercel Dashboard → Your Project → Settings → Git
-2. Scroll to "Ignored Build Step"
-3. Select **"Automatic"** (or leave it empty/default)
-4. Save changes
-
-That's it! Every push to `main` will now automatically:
-- ✅ Create a new version tag (e.g., `v1.0.6`) via GitHub Actions
-- ✅ Deploy to Vercel automatically
+Vercel **does not auto-deploy on every push**. All deployments are explicit and controlled via npm scripts or GitHub Actions.
 
 ---
 
-## Deploy to Vercel (FREE)
+## Initial Setup
 
-### Initial Setup
+### 1. Install Vercel CLI and link project
 
-1. **Push your code to GitHub** (if not already):
-   ```bash
-   git add .
-   git commit -m "Prepare for deployment"
-   git push origin main
-   ```
+```bash
+npm install -g vercel
+vercel login
+cd /path/to/satTrack/development
+vercel link       # link to existing Vercel project
+```
 
-2. **Go to [vercel.com](https://vercel.com)** and sign up/login (free)
+### 2. Get project IDs
 
-3. **Import your GitHub repository**:
-   - Click "Add New Project"
-   - Select your `satTrack` repository
-   - Vercel will auto-detect Nuxt 4
+```bash
+cat .vercel/project.json
+# → { "orgId": "...", "projectId": "..." }
+```
 
-4. **Configure Environment Variables**:
-   In the Vercel project settings, add these environment variables:
-   - `N2YO_API_KEY` - Your n2yo API key
-   - `SATNOGS_API_TOKEN` - Your SatNOGS API token
-   - `SPACE_TRACK_USERNAME` - Your Space-Track username
-   - `SPACE_TRACK_PASSWORD` - Your Space-Track password
-   - `N2YO_BASE_URL` (optional, defaults to https://api.n2yo.com/rest/v1/satellite)
-   - `SPACE_TRACK_BASE_URL` (optional, defaults to https://www.space-track.org)
-   - `SATNOGS_BASE_URL` (optional, defaults to https://db.satnogs.org/api)
+### 3. Create Vercel token
 
-5. **Configure Build Settings**:
+Go to **[vercel.com/account/tokens](https://vercel.com/account/tokens)** → Create → Full Account scope.
 
-   **Step 1: Align Project Settings with Production Overrides**
-   - Go to Project Settings → General (or Build & Development Settings)
-   - **Root Directory:** Leave **completely empty** - your code is in the root of the repository
-     - ⚠️ **Important:** Do NOT use `.` or `./` - Vercel will show an error
-     - Empty field means root directory of the repository
-   - You'll see a warning if Production Overrides differ from Project Settings
-   - For each setting, enable "Override" toggle and set:
-     - **Build Command:** `npm run build` (Override: ON)
-     - **Output Directory:** `.output/public` (Override: ON)
-     - **Install Command:** `npm install` (Override: ON)
-     - **Development Command:** `npm run dev` (Override: ON)
-   - This matches your `vercel.json` configuration and removes the warning
+### 4. Set GitHub Secrets
 
-   **Step 2: Enable Automatic Deployments (Default)**
-   - Go to Project Settings → Git
-   - Scroll down to "Ignored Build Step"
-   - Select "Automatic" - this will deploy on every push to main branch
-   - **OR** leave it empty/default - Vercel will automatically deploy on every push
-   - This is the simplest setup - every push to main will trigger a deployment
+```bash
+gh secret set VERCEL_TOKEN       # Vercel personal access token
+gh secret set VERCEL_ORG_ID      # orgId from project.json
+gh secret set VERCEL_PROJECT_ID  # projectId from project.json
+```
 
-   **Note about Production Overrides:**
-   - You may see a warning that "Production Overrides" differ from "Project Settings"
-   - Production Overrides cannot be edited directly - they reflect the current production deployment
-   - They will automatically update to match Project Settings on your next deployment
-   - The warning will disappear after you deploy
-   - This is normal and not a problem - just ensure Project Settings are correct
+Verify:
+```bash
+gh secret list
+```
 
-6. **You're all set!** 🎉
-   - Every push to `main` branch will automatically deploy to Vercel
-   - Your domain will be automatically connected to the latest deployment
+### 5. Set environment variables in Vercel
 
-## Vercel Free Tier Limits
+In **Vercel Dashboard → Project → Settings → Environment Variables**, add:
 
-- ✅ 100GB bandwidth/month
-- ✅ Unlimited serverless function invocations
-- ✅ Automatic HTTPS
-- ✅ Custom domains (free)
-- ✅ Preview deployments for every PR
-- ✅ No credit card required
+| Variable | Environment | Required |
+|---|---|---|
+| `N2YO_API_KEY` | Production + Preview | Yes |
+| `SPACE_TRACK_USERNAME` | Production + Preview | Optional |
+| `SPACE_TRACK_PASSWORD` | Production + Preview | Optional |
+| `SATNOGS_API_TOKEN` | Production + Preview | Optional |
 
-Perfect for non-profit/ham radio projects!
+---
 
-## Vercel Web Analytics (FREE)
+## Deploy Commands
 
-Vercel Web Analytics is already integrated into the app! Follow these steps to enable it:
+### Production release
 
-### Enable Web Analytics in Vercel Dashboard
+```bash
+npm run production
+```
 
-1. **Go to your Vercel project dashboard**
-2. **Click on the "Analytics" tab**
-3. **Click "Enable"** in the Web Analytics section
-4. **Deploy your app** (or wait for the next automatic deployment)
+Interactive — prompts for release type and version bump:
 
-That's it! Once enabled and deployed, Vercel will automatically start tracking:
-- Page views
-- Unique visitors
-- Top pages
-- Referrers
-- Device types
-- Geographic data
+```
+Current version: v1.0.4
 
-### View Your Analytics
+Release type:
+  1) Production release
+  2) Hotfix
 
-After deployment and some traffic:
-1. Go to your project → **Analytics** tab
-2. View real-time and historical data
-3. Filter by date range, pages, referrers, etc.
+Version bump:
+  1) Patch  — bug fixes            v1.0.5
+  2) Minor  — new features         v1.1.0
+  3) Major  — breaking changes     v2.0.0
 
-### What's Included (Free Tier)
+Tag to create: v1.0.5
+Confirm? [y/N]: y
+```
 
-- ✅ Page view tracking
-- ✅ Visitor analytics
-- ✅ Top pages
-- ✅ Referrer tracking
-- ✅ Device and browser data
-- ✅ Geographic data
-- ✅ Privacy-compliant (no cookies, GDPR-friendly)
+What happens after confirming:
+1. Tag created + pushed to GitHub
+2. **GitHub Actions** (`production-release.yml`) triggers:
+   - Merges tag into `main`
+   - Runs `vercel build --prod` + `vercel deploy --prebuilt --prod`
+   - Creates GitHub Release with changelog
+   - Opens + auto-closes a release ticket in GitHub Issues
 
-**Note:** The analytics plugin (`plugins/vercel-analytics.client.ts`) is already configured and will automatically start working once you enable Web Analytics in the Vercel dashboard.
+### Beta / preview deploy
 
-For more details, see: [Vercel Web Analytics Documentation](https://vercel.com/docs/analytics/quickstart)
+```bash
+npm run beta                        # deploys development branch
+npm run beta -- feature/my-branch  # deploys any branch
+```
+
+Triggers `beta-deploy.yml` via `gh` CLI — deploys to a Vercel preview URL. No tag, no merge to main.
+
+### Preview changelog (no deploy)
+
+```bash
+npm run release:preview
+```
+
+Shows what the next release notes will look like.
+
+### Check deployment status
+
+```bash
+npm run status
+```
+
+Lists recent production deployments from Vercel.
+
+---
+
+## Rollback
+
+```bash
+npm run rollback
+```
+
+Lists recent production deployments, prompts for selection, then instantly aliases that deployment to production (no rebuild needed).
+
+---
+
+## GitHub Actions Workflows
+
+### `production-release.yml`
+
+Trigger: `git push origin v1.0.5` (any `v*` tag)
+
+Steps:
+1. Merge tag into `main`
+2. `vercel pull` (prod env vars)
+3. `vercel build --prod`
+4. `vercel deploy --prebuilt --prod`
+5. Generate changelog
+6. Create GitHub Release
+7. Create + close release ticket in Issues
+
+### `beta-deploy.yml`
+
+Trigger: `workflow_dispatch` (manual, via `npm run beta` or GitHub UI)
+
+Steps:
+1. Checkout selected branch
+2. `vercel pull` (preview env vars)
+3. `vercel build`
+4. `vercel deploy --prebuilt` → outputs preview URL
+
+---
+
+## Vercel Project Settings
+
+`vercel.json` is committed and contains:
+
+```json
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".output/public",
+  "framework": "nuxtjs",
+  "github": { "enabled": false }
+}
+```
+
+`"github": { "enabled": false }` disables Vercel's native GitHub integration — all deployments go through GitHub Actions only.
+
+---
 
 ## Troubleshooting
 
-### Build fails
-- Check that all dependencies are in `package.json`
-- Verify Node.js version (check `.nvmrc` - should be Node 24.x)
-- Ensure `package.json` has `engines.node` set to `>=24.0.0 <25.0.0`
+**Build fails in GitHub Actions**
+- Check `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` secrets are set
+- Run `gh secret list` to verify
 
-### API routes not working
-- Vercel automatically handles `server/api/*` as serverless functions
-- Check function logs in Vercel dashboard
+**`npm run beta` fails**
+- Check that `gh` CLI is installed and authenticated: `gh auth status`
 
-### Environment variables not working
-- Make sure they're set in Vercel project settings
-- Redeploy after adding new variables
+**Rollback not working**
+- Verify `vercel` CLI is installed: `npm install -g vercel`
+- Run `vercel whoami` to confirm you're logged in
 
+**Environment variables not working after deploy**
+- Add variables in Vercel Dashboard → Settings → Environment Variables
+- Redeploy to apply
+
+**Node version mismatch**
+- Check `.nvmrc` — project requires Node 24
+- Vercel respects `.nvmrc` automatically

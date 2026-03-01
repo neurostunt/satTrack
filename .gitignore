@@ -3,6 +3,9 @@
 .output
 .nitro
 .cache
+
+# Vercel
+.vercel
 dist
 
 # Node.js
@@ -108,3 +111,4 @@ worktrees/
 .cursor/mcp.json
 .cursor/example.mcp.json
 .cursor/*.sh
+.env*.local

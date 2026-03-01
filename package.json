@@ -13,7 +13,11 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "deploy": "bash scripts/deploy.sh",
-    "release:preview": "bash scripts/preview-release.sh"
+    "release:preview": "bash scripts/preview-release.sh",
+    "beta": "bash scripts/deploy.sh beta",
+    "production": "bash scripts/deploy.sh release",
+    "rollback": "bash scripts/rollback.sh",
+    "status": "vercel ls --environment=production 2>/dev/null | head -6"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.3",

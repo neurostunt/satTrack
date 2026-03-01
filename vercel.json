@@ -4,6 +4,9 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nuxtjs",
+  "github": {
+    "enabled": false
+  },
   "rewrites": [
     {
       "source": "/(.*)",

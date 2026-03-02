@@ -82,7 +82,7 @@ What happens after confirming:
 1. Tag created + pushed to GitHub
 2. **GitHub Actions** (`production-release.yml`) triggers:
    - Merges tag into `main`
-   - Runs `vercel build --prod` + `vercel deploy --prebuilt --prod`
+   - Runs `vercel deploy --prod` (Vercel builds on its servers)
    - Creates GitHub Release with changelog
    - Opens + auto-closes a release ticket in GitHub Issues
 
@@ -131,12 +131,10 @@ Trigger: `git push origin v1.0.5` (any `v*` tag)
 
 Steps:
 1. Merge tag into `main`
-2. `vercel pull` (prod env vars)
-3. `vercel build --prod`
-4. `vercel deploy --prebuilt --prod`
-5. Generate changelog
-6. Create GitHub Release
-7. Create + close release ticket in Issues
+2. `vercel deploy --prod` (Vercel builds on its servers, reads `vercel.json`)
+3. Generate changelog
+4. Create GitHub Release
+5. Create + close release ticket in Issues
 
 ### `beta-deploy.yml`
 
@@ -144,9 +142,7 @@ Trigger: `workflow_dispatch` (manual, via `npm run beta` or GitHub UI)
 
 Steps:
 1. Checkout selected branch
-2. `vercel pull` (preview env vars)
-3. `vercel build`
-4. `vercel deploy --prebuilt` → outputs preview URL
+2. `vercel deploy` → outputs preview URL
 
 ---
 
@@ -159,11 +155,14 @@ Steps:
   "buildCommand": "npm run build",
   "outputDirectory": ".output/public",
   "framework": "nuxtjs",
-  "github": { "enabled": false }
+  "github": { "enabled": false },
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
 ```
 
-`"github": { "enabled": false }` disables Vercel's native GitHub integration — all deployments go through GitHub Actions only.
+- `"github": { "enabled": false }` — disables Vercel's native GitHub integration, all deployments go through GitHub Actions only
+- `"outputDirectory": ".output/public"` — required for Nuxt SPA (`ssr: false`) output
+- `"rewrites"` — SPA fallback routing, required for client-side navigation
 
 ---
 

@@ -1,0 +1,18 @@
+---
+description: Orchestrator delegation to subagents via mcp_task
+alwaysApply: true
+---
+
+# Orchestrator Delegation
+
+**Default:** Work directly. No delegation.
+
+**Orchestrator flow** (only when user requests or confirms your recommendation):
+
+1. **Plan first** — call Planner, wait for `development_plan.md`
+2. **Delegate** — use `mcp_task` with self-contained prompt; subagents don't inherit context
+3. **Include role** — paste from `.cursor/skills/<specialist>/PROMPT.md` (prefer) or SKILL.md into prompt
+4. **Parallel** — Frontend and API: multiple `mcp_task` for independent subtasks
+5. **Verify** — after changes, run `npm run build` or delegate to Reviewer
+
+**Recommend orchestrator** when task would clearly save tokens (multi-domain, multi-step). Ask first; don't auto-delegate.

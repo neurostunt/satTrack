@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "Context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {}
+    },
+    "Chrome DevTools": {
+      "command": "npx chrome-devtools-mcp@latest",
+      "env": {},
+      "args": []
+    }
+  }
+}

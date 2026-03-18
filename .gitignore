@@ -107,8 +107,5 @@ workbox-*.js
 .worktrees/
 worktrees/
 
-# Cursor MCP config
-.cursor/mcp.json
-.cursor/example.mcp.json
 .cursor/*.sh
 .env*.local

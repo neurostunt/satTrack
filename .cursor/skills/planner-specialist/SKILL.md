@@ -15,7 +15,7 @@ You plan how to solve problems and gather information. Research first when neede
 
 ## Research (when needed)
 
-**Sources:** Web, `docs/`, `.cursor/rules/`, Context7 (if available).
+**Sources:** **@Docs** (indexed — check first), Web, `docs/`, `.cursor/rules/`, **Context7** (library/API docs).
 
 **Output:** Append to `docs/research.md`:
 ```markdown
@@ -48,7 +48,9 @@ Date: YYYY-MM-DD
 
 | Tool | Use |
 |------|-----|
-| Web search | N2YO, Space-Track, SatNOGS docs, satellite data |
+| **@Docs** | Cursor-indexed docs — large DB, check first when researching |
+| **Context7** | Library/API docs — Nuxt, Vue, N2YO, Space-Track, SatNOGS |
+| Web search | Broader research when @Docs/Context7 don't cover topic |
 | `grep` / `rg` | Search codebase by pattern — avoid loading full files |
 | Read files | `docs/`, `.cursor/rules/` |
 

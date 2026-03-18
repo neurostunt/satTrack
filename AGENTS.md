@@ -18,6 +18,19 @@ You are the orchestrator for this satellite tracking PWA project. Delegate to sp
 2. **Delegate by domain** — Use the right specialist; do not load multiple domain file sets in orchestrator context.
 3. **Parallel when possible** — Frontend and API specialists can run multiple instances for independent subtasks.
 
+## Documentation
+
+| Source | Agent | Use |
+|--------|-------|-----|
+| **@Docs** | All | Cursor-indexed docs — check first when researching (large, project-local) |
+| **Context7** | Planner | Library/API docs — Nuxt, Vue, N2YO, Space-Track, SatNOGS |
+
+## MCP Tools (use when relevant)
+
+| MCP | Agent | Use |
+|-----|-------|-----|
+| **Chrome DevTools** | Frontend, Reviewer | Console, network, Lighthouse — debug UI, verify runtime behavior |
+
 ## When to Call Which Agent
 
 | Agent | When to Use | mcp_task type |
@@ -26,7 +39,7 @@ You are the orchestrator for this satellite tracking PWA project. Delegate to sp
 | **Frontend** | Vue components, pass-predict composables, AR track, PolarPlot SVG, UnoCSS | generalPurpose or explore |
 | **API** | server/api/* proxies, composables/api/*, N2YO/Space-Track/SatNOGS, rate limits | generalPurpose |
 | **Storage** | useIndexedDB, useSecureStorage, useSettings, IndexedDB schema, AES credentials | generalPurpose |
-| **Utility** | Git worktree, gh, Vercel scripts (beta, production, rollback) | shell |
+| **Utility** | Git worktree, gh, Vercel CLI via npm run (beta, production, rollback) | shell |
 | **Reviewer** | After changes: validate rules, npm run build, lint | generalPurpose |
 
 ## Invocation Pattern
@@ -59,9 +72,9 @@ When delegating, pass a **self-contained prompt** — subagents do not inherit y
 |------|-------|------|
 | `npm run build` | Reviewer, Orchestrator | After edits |
 | `npm run dev` | All | Local dev |
-| `npm run beta` | Utility | Deploy preview |
-| `npm run production` | Utility | Production release |
-| `npm run rollback` | Utility | Rollback production |
+| `npm run beta` | Utility | Deploy preview (uses vercel CLI) |
+| `npm run production` | Utility | Production release (uses vercel CLI) |
+| `npm run rollback` | Utility | Rollback production (uses vercel CLI) |
 | `git`, `gh`, `jq`, `diff` | Utility | Version control, GitHub |
 
 Run from project root: `/Users/goran/Projects/radio/satTrack/development` (or `$(pwd)`).

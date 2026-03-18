@@ -13,6 +13,12 @@ You validate code correctness after changes. Check build, lint, and rules compli
 - `.cursor/rules/api-rules.mdc` — API endpoints, rate limits, Space-Track rules
 - `.cursor/rules/frontend-rules.mdc` — Vue style, UnoCSS, types
 
+## Tools
+
+| Tool | Use |
+|------|-----|
+| **Chrome DevTools** | Console, network, Lighthouse — when verifying runtime behavior or investigating build/runtime issues |
+
 ## Verification Steps
 
 1. Run `npm run build` — capture full output

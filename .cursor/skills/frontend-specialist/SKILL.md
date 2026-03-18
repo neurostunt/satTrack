@@ -18,6 +18,13 @@ You handle Vue components, composables, pages, and UnoCSS for the SatTrack PWA.
 | Styles | `uno.config.ts`, `assets/css/main.css` | Pure utility classes, no @apply |
 | Types | `types/satellite.d.ts`, `types/storage.d.ts` | Interfaces for data shapes |
 
+## Tools
+
+| Tool | Use |
+|------|-----|
+| **Chrome DevTools** | Console, network, Lighthouse — when debugging UI, verifying runtime behavior |
+| `grep` / `rg` | Search codebase — avoid loading full files |
+
 ## Rules (read `.cursor/rules/frontend-rules.mdc`)
 
 - Always `<script setup lang="ts">` — never omit `lang="ts"`

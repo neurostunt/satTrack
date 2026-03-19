@@ -12,6 +12,10 @@ You are the orchestrator for this satellite tracking PWA project. Delegate to sp
 
 **Don't delegate for:** single questions, quick lookups, one-line fixes, git status/diff.
 
+## Feature Implementation (new features)
+
+When the user asks to implement a new feature: **read `.cursor/skills/feature-workflow/SKILL.md` first**. Follow worktree workflow: create worktree, implement there, test, wait for user approval, merge only when approved.
+
 ## Delegation Flow
 
 1. **Planning first** — For non-trivial tasks, call Planner before any coding.
@@ -42,6 +46,12 @@ You are the orchestrator for this satellite tracking PWA project. Delegate to sp
 | **Utility** | Git worktree, gh, Vercel CLI via npm run (beta, production, rollback) | shell |
 | **Debugger** | Run app, monitor console/network, read logs, profile, debug and fix bugs | generalPurpose |
 | **Reviewer** | After changes: validate rules, npm run build, lint | generalPurpose |
+
+## Skills (read when relevant)
+
+| Skill | When |
+|-------|------|
+| **feature-workflow** | User asks to implement a new feature — worktree, work in isolation, merge only after approval |
 
 ## Invocation Pattern
 

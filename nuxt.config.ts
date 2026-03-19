@@ -1,3 +1,6 @@
+// Load .env before config so process.env is populated when nuxt.config runs
+import 'dotenv/config'
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-10-10',
   devtools: { enabled: true },
@@ -9,13 +12,15 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      n2yoApiKey: process.env.N2YO_API_KEY || '',
-      satnogsToken: process.env.SATNOGS_API_TOKEN || '',
-      spaceTrackUsername: process.env.SPACE_TRACK_USERNAME || '',
-      spaceTrackPassword: process.env.SPACE_TRACK_PASSWORD || '',
+      // Support both NUXT_PUBLIC_* (Nuxt override) and plain vars (from .env)
+      n2yoApiKey: process.env.NUXT_PUBLIC_N2YO_API_KEY || process.env.N2YO_API_KEY || '',
+      satnogsToken: process.env.NUXT_PUBLIC_SATNOGS_TOKEN || process.env.NUXT_PUBLIC_SATNOGS_API_TOKEN || process.env.SATNOGS_API_TOKEN || '',
+      spaceTrackUsername: process.env.NUXT_PUBLIC_SPACE_TRACK_USERNAME || process.env.SPACE_TRACK_USERNAME || '',
+      spaceTrackPassword: process.env.NUXT_PUBLIC_SPACE_TRACK_PASSWORD || process.env.SPACE_TRACK_PASSWORD || '',
       n2yoBaseUrl: process.env.N2YO_BASE_URL || 'https://api.n2yo.com/rest/v1/satellite',
       spaceTrackBaseUrl: process.env.SPACE_TRACK_BASE_URL || 'https://www.space-track.org',
-      satnogsBaseUrl: process.env.SATNOGS_BASE_URL || 'https://db.satnogs.org/api'
+      satnogsBaseUrl: process.env.SATNOGS_BASE_URL || 'https://db.satnogs.org/api',
+      debug: process.env.NUXT_PUBLIC_DEBUG === 'true' || process.env.DEBUG === 'true'
     }
   },
   imports: {

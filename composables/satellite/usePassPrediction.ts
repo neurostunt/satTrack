@@ -83,8 +83,16 @@ export const usePassPrediction = () => {
       )
 
       // Check if response has the expected structure
-      if (!n2yoResponse || !n2yoResponse.passes || !Array.isArray(n2yoResponse.passes)) {
-        console.warn(`Invalid N2YO response structure for NORAD ID: ${noradId}`)
+      const passes = n2yoResponse?.passes
+      if (!n2yoResponse || passes == null) {
+        // passes null/undefined = no data in N2YO DB for this sat; treat as empty
+        return []
+      }
+      if (!Array.isArray(passes)) {
+        console.warn(`Invalid N2YO response for NORAD ${noradId}: passes is not array`, {
+          passesType: typeof passes,
+          responseKeys: n2yoResponse ? Object.keys(n2yoResponse) : null
+        })
         return []
       }
 
@@ -147,11 +155,7 @@ export const usePassPrediction = () => {
       // Get passes from N2YO API
       const passes = await getPassesFromN2YO(noradId, observerLocation, minElevation, 7, n2yoApiKey)
 
-      // If no passes returned, log a warning but continue
-      if (passes.length === 0) {
-        console.warn(`No passes returned for NORAD ID: ${noradId}`)
-      }
-
+      // 0 passes is valid (no passes in prediction window for this location/elevation)
       // Cache the results
       await storePassPredictions(noradId, passes, observerLocation)
 
@@ -334,12 +338,7 @@ export const usePassPrediction = () => {
           const observerLocation = firstPass.observerLocation
 
           // Check if satellite is geostationary based on pass characteristics
-          const hasGeostationaryPass = passes.some((pass: any) => {
-            const azimuthDiff = Math.abs(pass.startAzimuth - pass.endAzimuth)
-            const duration = pass.endTime - pass.startTime
-            const durationHours = duration / (1000 * 60 * 60)
-            return azimuthDiff < 5 && durationHours > 12
-          })
+          const hasGeostationaryPass = passes.some((pass: any) => isGeostationaryPass(pass))
 
           let futurePasses: any[]
 

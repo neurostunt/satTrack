@@ -3,6 +3,8 @@
  * Handles pass status determination and time formatting
  */
 
+import { isGeostationaryPass as checkGeostationaryPass } from '~/utils/satelliteStatusUtils'
+
 export type PassStatus = 'upcoming' | 'passing' | 'passed' | 'stationary'
 
 export const usePassStatus = () => {
@@ -11,20 +13,8 @@ export const usePassStatus = () => {
 
   /**
    * Detect if a satellite is geostationary based on pass characteristics
-   * Geostationary satellites have:
-   * - Start azimuth ≈ End azimuth (within 5 degrees)
-   * - Very long duration (> 12 hours)
    */
-  const isGeostationaryPass = (pass: any): boolean => {
-    if (!pass) return false
-
-    const azimuthDiff = Math.abs(pass.startAzimuth - pass.endAzimuth)
-    const duration = pass.endTime - pass.startTime
-    const durationHours = duration / (1000 * 60 * 60)
-
-    // Geostationary if azimuth barely changes AND duration is very long
-    return azimuthDiff < 5 && durationHours > 12
-  }
+  const isGeostationaryPass = (pass: any): boolean => checkGeostationaryPass(pass)
 
   /**
    * Get the current status of a pass

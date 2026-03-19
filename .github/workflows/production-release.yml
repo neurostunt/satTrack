@@ -47,6 +47,12 @@ jobs:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
+      - name: Smoke test
+        run: |
+          STATUS=$(curl -o /dev/null -s -w "%{http_code}" https://www.neurostunt.rs)
+          echo "→ www.neurostunt.rs returned HTTP $STATUS"
+          [[ "$STATUS" == "200" || "$STATUS" == "307" || "$STATUS" == "301" ]] || { echo "❌ Smoke test failed"; exit 1; }
+
       - name: Generate changelog
         id: changelog
         env:
@@ -127,7 +133,8 @@ jobs:
           | **Commits** | $COMMIT_COUNT |
           | **Released by** | @$ACTOR |
           | **Deployed at** | $(date -u '+%Y-%m-%d %H:%M UTC') |
-          | **Production URL** | $DEPLOY_URL |
+          | **Production URL** | https://www.neurostunt.rs |
+          | **Vercel URL** | $DEPLOY_URL |
 
           ## 📝 What's changed
 
@@ -146,7 +153,8 @@ jobs:
 
           - [GitHub Release](https://github.com/$REPO/releases/tag/$TAG)
           - [Workflow run]($RUN_URL)
-          - [Production]($DEPLOY_URL)
+          - [Production](https://www.neurostunt.rs)
+          - [Vercel deployment]($DEPLOY_URL)
           - [Commit](https://github.com/$REPO/commit/$SHA)
           " 2>/dev/null) || { echo "⚠️ Could not create issue (check 'release'/'hotfix' labels exist)"; exit 0; }
 

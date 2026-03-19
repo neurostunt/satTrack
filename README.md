@@ -192,12 +192,32 @@ satTrack/
 ├── satTrack.git/    # Bare repo — NEVER work here
 ├── development/     # Primary dev branch
 ├── main/            # Production
-└── feature-*/       # Feature branches
+└── feature-*/       # Feature worktrees
 ```
 
 Flow: `feature/* → development → main`
 
 Main is only updated automatically by GitHub Actions when a tag is pushed — never directly.
+
+### New Feature Workflow
+
+When implementing a new feature, use the `feature-workflow` skill (`.cursor/skills/feature-workflow/`). It ensures worktree isolation and merge only after your explicit approval.
+
+1. **Ensure you're on `development`** — verify branch before starting.
+2. **Create a new worktree** for the feature:
+   ```bash
+   cd /Users/goran/Projects/radio/satTrack/satTrack.git
+   git worktree add ../feature-name -b feature/name
+   ```
+3. **Work in the feature worktree** (`../feature-name/`) — implement, test, run `npm run build`.
+4. **Wait for your approval** — do not merge until you explicitly allow it.
+5. **When approved** — merge into `development` and push:
+   ```bash
+   cd /Users/goran/Projects/radio/satTrack/development
+   git merge feature/name && git push origin development
+   git worktree remove ../feature-name
+   git branch -d feature/name
+   ```
 
 ---
 

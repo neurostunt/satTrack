@@ -4,6 +4,7 @@
  */
 
 import type { Ref } from 'vue'
+import { isGeostationaryPass } from '~/utils/satelliteStatusUtils'
 import { useIndexedDB } from '../storage/useIndexedDB'
 import { usePassPrediction } from '../satellite/usePassPrediction'
 import { getSatnogsImageUrl } from '~/utils/satelliteImageUtils'
@@ -54,12 +55,7 @@ export const usePassData = (
 
             let validPasses = storedPass.passes
             // Check if ANY pass is geostationary (they all should be the same for a satellite)
-            const hasGeostationaryPass = storedPass.passes.some((pass: any) => {
-              const azimuthDiff = Math.abs(pass.startAzimuth - pass.endAzimuth)
-              const duration = pass.endTime - pass.startTime
-              const durationHours = duration / (1000 * 60 * 60)
-              return azimuthDiff < 5 && durationHours > 12
-            })
+            const hasGeostationaryPass = storedPass.passes.some((pass: any) => isGeostationaryPass(pass))
 
             if (!hasGeostationaryPass) {
               validPasses = storedPass.passes.filter((pass: any) => pass.endTime > currentTime)

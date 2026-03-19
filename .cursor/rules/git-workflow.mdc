@@ -19,21 +19,30 @@ satTrack/
 └── feature-*/      ← feature worktrees
 ```
 
-## Commands
+## Feature Workflow (new features)
 ```bash
-# New feature
+# 1. Ensure on development, then create worktree + branch
 cd /Users/goran/Projects/radio/satTrack/satTrack.git
-git worktree add ../feature-name -b feature/name
+git worktree add ../feature-<name> -b feature/<name>
 
-# Merge feature → development
+# 2. Work in the new worktree: /Users/goran/Projects/radio/satTrack/feature-<name>
+cd ../feature-<name>
+# ... implement, test ...
+
+# 3. When tested + user approval: merge to development
 cd /Users/goran/Projects/radio/satTrack/development
-git merge feature/name && git push origin development
+git merge feature/<name> && git push origin development
 
-# Release (development → main) — triggers auto-tag v1.0.X + Vercel deploy
+# 4. Remove feature worktree (optional)
+cd /Users/goran/Projects/radio/satTrack/satTrack.git
+git worktree remove ../feature-<name>
+git branch -d feature/<name>
+```
+
+## Release (development → main)
+```bash
 cd /Users/goran/Projects/radio/satTrack/main
 git merge development && git push origin main
-
-git worktree list  # from satTrack.git
 ```
 
 ## Commit Messages

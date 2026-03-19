@@ -120,7 +120,8 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
+import { isGeostationaryPass } from '~/utils/satelliteStatusUtils'
 /**
  * Polar Plot Component
  * Displays satellite position on a polar plot (azimuth/elevation)
@@ -198,19 +199,30 @@ const props = defineProps({
   isPassing: {
     type: Boolean,
     default: false
+  },
+  // Don't show predicted path when in-transit (N2YO real-time shows actual path)
+  isInTransit: {
+    type: Boolean,
+    default: false
   }
 })
 
-const center = 200
-const { backgroundSVG, elevationToRadius } = usePolarPlotBackground()
+const { backgroundSVG } = usePolarPlotBackground()
+const {
+  polarToCartesian,
+  generatePathWithWraparound,
+  computePeakAzimuth,
+  computePredictedArcPath
+} = useSatellitePath()
 
-const isGeostationary = computed(() => {
-  if (props.startAzimuth !== null && props.endAzimuth !== null) {
-    const azimuthDiff = Math.abs(props.startAzimuth - props.endAzimuth)
-    return azimuthDiff < 5
-  }
-  return false
-})
+const isGeostationary = computed(() =>
+  isGeostationaryPass({
+    startAzimuth: props.startAzimuth,
+    endAzimuth: props.endAzimuth,
+    startTime: props.passStartTime,
+    endTime: props.passEndTime
+  })
+)
 
 const formattedDistance = computed(() => {
   let distance = props.currentDistance
@@ -223,92 +235,6 @@ const formattedDistance = computed(() => {
 
   return `${distance.toFixed(0).padStart(5, ' ')} ${unit}`
 })
-
-const degreesToRadians = (degrees) => {
-  return (degrees * Math.PI) / 180
-}
-
-const normalizeAzimuth = (azimuth) => {
-  return ((azimuth % 360) + 360) % 360
-}
-
-const polarToCartesian = (azimuth, elevation) => {
-  const r = elevationToRadius(elevation)
-  const angleRad = degreesToRadians(azimuth)
-
-  return {
-    x: center + r * Math.sin(angleRad),
-    y: center - r * Math.cos(angleRad)
-  }
-}
-
-const getCircleCenter = (p1, p2, p3) => {
-  const ax = p1.x, ay = p1.y
-  const bx = p2.x, by = p2.y
-  const cx = p3.x, cy = p3.y
-
-  const d = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by))
-  if (Math.abs(d) < 0.0001) return null
-
-  const ux = (
-    (ax * ax + ay * ay) * (by - cy) +
-    (bx * bx + by * by) * (cy - ay) +
-    (cx * cx + cy * cy) * (ay - by)
-  ) / d
-
-  const uy = (
-    (ax * ax + ay * ay) * (cx - bx) +
-    (bx * bx + by * by) * (ax - cx) +
-    (cx * cx + cy * cy) * (bx - ax)
-  ) / d
-
-  return { x: ux, y: uy }
-}
-
-const generatePathWithWraparound = (positions) => {
-  if (!positions || positions.length < 2) return null
-
-  const segments = []
-  let currentSegment = []
-
-  for (let i = 0; i < positions.length; i++) {
-    const pos = positions[i]
-    currentSegment.push(pos)
-
-    if (i < positions.length - 1) {
-      const nextPos = positions[i + 1]
-      const azDiff = Math.abs(nextPos.azimuth - pos.azimuth)
-
-      if (azDiff > 180) {
-        segments.push([...currentSegment])
-        currentSegment = []
-      }
-    }
-  }
-
-  if (currentSegment.length > 0) {
-    segments.push(currentSegment)
-  }
-
-  let path = ''
-  for (const segment of segments) {
-    if (segment.length < 2) continue
-
-    const points = segment.map(pos => polarToCartesian(pos.azimuth, pos.elevation))
-
-    if (path === '') {
-      path = `M ${points[0].x} ${points[0].y}`
-    } else {
-      path += ` M ${points[0].x} ${points[0].y}`
-    }
-
-    for (let i = 1; i < points.length; i++) {
-      path += ` L ${points[i].x} ${points[i].y}`
-    }
-  }
-
-  return path || null
-}
 
 const currentPosition = computed(() => {
   if (props.currentElevation === null || props.currentAzimuth === null || 
@@ -335,29 +261,14 @@ const exitPoint = computed(() => {
   return polarToCartesian(props.endAzimuth, 0)
 })
 
-const peakAzimuth = computed(() => {
-  if (props.maxElevation === null || props.maxElevation === undefined) return null
-
-  if (props.maxAzimuth !== null && props.maxAzimuth !== undefined) {
-    return normalizeAzimuth(props.maxAzimuth)
-  }
-
-  if (props.startAzimuth !== null && props.endAzimuth !== null) {
-    let peakAzimuthValue = (props.startAzimuth + props.endAzimuth) / 2
-
-    if (Math.abs(props.endAzimuth - props.startAzimuth) > 180) {
-      if (props.endAzimuth > props.startAzimuth) {
-        peakAzimuthValue = ((props.startAzimuth + props.endAzimuth + 360) / 2) % 360
-      } else {
-        peakAzimuthValue = ((props.startAzimuth + props.endAzimuth - 360) / 2 + 360) % 360
-      }
-    }
-
-    return normalizeAzimuth(peakAzimuthValue)
-  }
-
-  return null
-})
+const peakAzimuth = computed(() =>
+  computePeakAzimuth({
+    startAzimuth: props.startAzimuth,
+    endAzimuth: props.endAzimuth,
+    maxAzimuth: props.maxAzimuth,
+    maxElevation: props.maxElevation
+  })
+)
 
 const peakPoint = computed(() => {
   const peakAzimuthValue = peakAzimuth.value
@@ -368,61 +279,16 @@ const peakPoint = computed(() => {
 // Full predicted path with the same circular arc extended beyond AOS/LOS by 40 SVG units
 const predictedPath = computed(() => {
   if (isGeostationary.value) return null
-  
-  // Don't show predicted path for in-transit passes
-  // Real-time N2YO data will show the actual path instead
+  // Don't show predicted path for in-transit passes (real-time N2YO data shows actual path)
   if (props.isInTransit) return null
-  
   if (!entryPoint.value || !peakPoint.value || !exitPoint.value) return null
-
-  const p1 = entryPoint.value
-  const p2 = peakPoint.value
-  const p3 = exitPoint.value
-
-  const cc = getCircleCenter(p1, p2, p3)
-  if (!cc) {
-    return `M ${p1.x} ${p1.y} L ${p2.x} ${p2.y} L ${p3.x} ${p3.y}`
-  }
-
-  const arcR = Math.hypot(p1.x - cc.x, p1.y - cc.y)
-
-  let angle1 = Math.atan2(p1.y - cc.y, p1.x - cc.x)
-  let angle2 = Math.atan2(p2.y - cc.y, p2.x - cc.x)
-  let angle3 = Math.atan2(p3.y - cc.y, p3.x - cc.x)
-
-  const unwrap = (base, a) => {
-    while (a - base > Math.PI) a -= 2 * Math.PI
-    while (a - base < -Math.PI) a += 2 * Math.PI
-    return a
-  }
-  angle2 = unwrap(angle1, angle2)
-  angle3 = unwrap(angle2, angle3)
-
-  const d12 = angle2 - angle1
-  const d23 = angle3 - angle2
-  const sweepSign = d12 >= 0 ? 1 : -1
-
-  // Extend the arc by 40 SVG units of arc-length on each side, along the same circle
-  const delta = 40 / arcR
-  const preAngle = angle1 - sweepSign * delta
-  const postAngle = angle3 + sweepSign * delta
-
-  const preEntry = { x: cc.x + arcR * Math.cos(preAngle), y: cc.y + arcR * Math.sin(preAngle) }
-  const postExit = { x: cc.x + arcR * Math.cos(postAngle), y: cc.y + arcR * Math.sin(postAngle) }
-
-  const sweepFlag = d12 >= 0 ? 1 : 0
-  const extSpan = sweepSign > 0 ? postAngle - preAngle : preAngle - postAngle
-  const largeArcFlag = (d12 * d23 < 0 || extSpan > Math.PI) ? 1 : 0
-
-  return `M ${preEntry.x} ${preEntry.y} A ${arcR} ${arcR} 0 ${largeArcFlag} ${sweepFlag} ${postExit.x} ${postExit.y}`
+  return computePredictedArcPath(entryPoint.value, peakPoint.value, exitPoint.value, 40)
 })
 
 
 const futurePath = computed(() => {
   if (!props.futurePositions || props.futurePositions.length < 2) return null
-
   const sortedPositions = [...props.futurePositions].sort((a, b) => a.timestamp - b.timestamp)
-
   return generatePathWithWraparound(sortedPositions)
 })
 </script>

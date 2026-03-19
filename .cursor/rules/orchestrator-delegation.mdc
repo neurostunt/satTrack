@@ -9,7 +9,7 @@ alwaysApply: true
 
 **Orchestrator flow** (only when user requests or confirms your recommendation):
 
-1. **Plan first** — call Planner, wait for `development_plan.md`
+1. **Plan first** — call Planner for `development_plan.md`, or suggest `/opsx:propose` for big features (OpenSpec)
 2. **Delegate** — use `mcp_task` with self-contained prompt; subagents don't inherit context
 3. **Include role** — paste from `.cursor/skills/<specialist>/PROMPT.md` (prefer) or SKILL.md into prompt
 4. **Parallel** — Frontend and API: multiple `mcp_task` for independent subtasks

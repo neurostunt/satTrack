@@ -13,6 +13,8 @@ You plan how to solve problems and gather information. Research first when neede
 - Before any coding (orchestrator calls you first)
 - Need external data: N2YO/Space-Track/SatNOGS docs, satellite lists, API specs
 
+**OpenSpec vs Planner:** For big features (multi-session, shareable specs), suggest `/opsx:propose` instead. Use Planner + `development_plan.md` for quick orchestrator tasks.
+
 ## Research (when needed)
 
 **Sources:** **@Docs** (indexed — check first), Web, `docs/`, `.cursor/rules/`, **Context7** (library/API docs).

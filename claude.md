@@ -6,6 +6,7 @@
 - **.cursor/skills/**: 7 specialist skills + PROMPT.md (condensed seed for mcp_task injection), incl. debugger-specialist
 - **.cursor/rules/orchestrator-delegation.mdc**: Delegation flow (alwaysApply)
 - **Output files**: development_plan.md (Planner), docs/research.md (Planner)
+- **OpenSpec**: Hybrid — big features: `/opsx:propose` → `/opsx:apply` → `/opsx:archive`; quick tasks: development_plan.md
 
 Flow: Default = direct. Orchestrator opt-in (user request or agent recommends + user confirms). Never load multiple domains (API + Frontend + Storage) in one turn when delegating.
 

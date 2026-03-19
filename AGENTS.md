@@ -52,6 +52,16 @@ When the user asks to implement a new feature: **read `.cursor/skills/feature-wo
 | Skill | When |
 |-------|------|
 | **feature-workflow** | User asks to implement a new feature — worktree, work in isolation, merge only after approval |
+| **openspec-propose** | Big features needing specs — use `/opsx:propose`, then `/opsx:apply`, `/opsx:archive` |
+
+## Planning: Hybrid (OpenSpec vs development_plan)
+
+| Case | Use |
+|------|-----|
+| **Quick tasks, orchestrator** | Planner → `development_plan.md` |
+| **Big features, multi-session** | `/opsx:propose` → `openspec/changes/<id>/` → `/opsx:apply` → `/opsx:archive` |
+
+OpenSpec specs live in `openspec/specs/` and persist across sessions.
 
 ## Invocation Pattern
 
@@ -74,8 +84,9 @@ When delegating, pass a **self-contained prompt** — subagents do not inherit y
 
 | File | Writer | Purpose |
 |------|--------|---------|
-| `development_plan.md` | Planner | Task breakdown, steps, dependencies |
+| `development_plan.md` | Planner | Task breakdown (quick tasks) |
 | `docs/research.md` | Planner | Research findings, external refs |
+| `openspec/changes/<id>/` | OpenSpec | Proposal, specs, design, tasks (big features) |
 
 ## CLI Tools
 

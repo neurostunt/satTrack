@@ -48,7 +48,12 @@ cursor -r /Users/goran/Projects/radio/satTrack/feature-<name>
 
 ### 3. Work in the worktree
 
-Implement the feature in the now-active workspace. Run `npm run build` before declaring done.
+**Option A — Quick feature:** Implement directly. Run `npm run build` before declaring done.
+
+**Option B — Big feature (OpenSpec):** If the feature is complex or multi-session:
+1. Run `/opsx:propose <feature-name>` to create proposal, specs, design, tasks
+2. Review, then `/opsx:apply` to implement
+3. Run `npm run build`, then `/opsx:archive` when done (before merge)
 
 ### 4. Wait for approval
 

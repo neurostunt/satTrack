@@ -3,7 +3,7 @@
 ## 2026-03-18 — Orchestrator + Subagents
 
 - **AGENTS.md**: Orchestrator instructions — delegate via mcp_task, context budget rules
-- **.cursor/skills/**: 6 specialist skills + PROMPT.md (condensed seed for mcp_task injection)
+- **.cursor/skills/**: 7 specialist skills + PROMPT.md (condensed seed for mcp_task injection), incl. debugger-specialist
 - **.cursor/rules/orchestrator-delegation.mdc**: Delegation flow (alwaysApply)
 - **Output files**: development_plan.md (Planner), docs/research.md (Planner)
 

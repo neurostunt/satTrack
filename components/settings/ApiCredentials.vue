@@ -121,48 +121,43 @@ const props = defineProps({
   }
 })
 
+let envCredsInit = { spaceTrackUsername: '', spaceTrackPassword: '', satnogsToken: '', n2yoApiKey: '' }
+try {
+  const config = useRuntimeConfig()
+  envCredsInit = {
+    spaceTrackUsername: config.public.spaceTrackUsername || '',
+    spaceTrackPassword: config.public.spaceTrackPassword || '',
+    satnogsToken: config.public.satnogsToken || '',
+    n2yoApiKey: config.public.n2yoApiKey || ''
+  }
+} catch {
+  // Runtime config not available in ApiCredentials component
+}
+const envCredentials = ref(envCredsInit)
+
 const localSettings = ref({
-  spaceTrackUsername: '',
-  spaceTrackPassword: '',
-  satnogsToken: '',
-  n2yoApiKey: '',
-  minElevation: 20
+  spaceTrackUsername: props.settings?.spaceTrackUsername || envCredsInit.spaceTrackUsername || '',
+  spaceTrackPassword: props.settings?.spaceTrackPassword || envCredsInit.spaceTrackPassword || '',
+  satnogsToken: props.settings?.satnogsToken || envCredsInit.satnogsToken || '',
+  n2yoApiKey: props.settings?.n2yoApiKey || envCredsInit.n2yoApiKey || '',
+  minElevation: props.settings?.minElevation || 20
 })
 
 onMounted(() => {
-  let envCredentials = {
-    spaceTrackUsername: '',
-    spaceTrackPassword: '',
-    satnogsToken: '',
-    n2yoApiKey: ''
-  }
-  
-  try {
-    const config = useRuntimeConfig()
-    envCredentials = {
-      spaceTrackUsername: config.public.spaceTrackUsername || '',
-      spaceTrackPassword: config.public.spaceTrackPassword || '',
-      satnogsToken: config.public.satnogsToken || '',
-      n2yoApiKey: config.public.n2yoApiKey || ''
-    }
-  } catch {
-    console.log('Runtime config not available in ApiCredentials component')
-  }
-  
   localSettings.value = {
-    spaceTrackUsername: props.settings.spaceTrackUsername || envCredentials.spaceTrackUsername,
-    spaceTrackPassword: props.settings.spaceTrackPassword || envCredentials.spaceTrackPassword,
-    satnogsToken: props.settings.satnogsToken || envCredentials.satnogsToken,
-    n2yoApiKey: props.settings.n2yoApiKey || envCredentials.n2yoApiKey,
+    spaceTrackUsername: props.settings.spaceTrackUsername || envCredentials.value.spaceTrackUsername || '',
+    spaceTrackPassword: props.settings.spaceTrackPassword || envCredentials.value.spaceTrackPassword || '',
+    satnogsToken: props.settings.satnogsToken || envCredentials.value.satnogsToken || '',
+    n2yoApiKey: props.settings.n2yoApiKey || envCredentials.value.n2yoApiKey || '',
     minElevation: props.settings.minElevation || 20
   }
   
-  if (envCredentials.spaceTrackUsername || envCredentials.spaceTrackPassword || envCredentials.satnogsToken || envCredentials.n2yoApiKey) {
+  if (envCredentials.value.spaceTrackUsername || envCredentials.value.spaceTrackPassword || envCredentials.value.satnogsToken || envCredentials.value.n2yoApiKey) {
     const hasNewValues = 
-      (!props.settings.spaceTrackUsername && envCredentials.spaceTrackUsername) ||
-      (!props.settings.spaceTrackPassword && envCredentials.spaceTrackPassword) ||
-      (!props.settings.satnogsToken && envCredentials.satnogsToken) ||
-      (!props.settings.n2yoApiKey && envCredentials.n2yoApiKey)
+      (!props.settings.spaceTrackUsername && envCredentials.value.spaceTrackUsername) ||
+      (!props.settings.spaceTrackPassword && envCredentials.value.spaceTrackPassword) ||
+      (!props.settings.satnogsToken && envCredentials.value.satnogsToken) ||
+      (!props.settings.n2yoApiKey && envCredentials.value.n2yoApiKey)
     
     if (hasNewValues) {
       console.log('🔧 Populating credentials form from .env file')
@@ -178,11 +173,12 @@ onMounted(() => {
 
 watch(() => props.settings, (newSettings) => {
   if (newSettings) {
+    const env = envCredentials.value
     localSettings.value = {
-      spaceTrackUsername: newSettings.spaceTrackUsername || '',
-      spaceTrackPassword: newSettings.spaceTrackPassword || '',
-      satnogsToken: newSettings.satnogsToken || '',
-      n2yoApiKey: newSettings.n2yoApiKey || '',
+      spaceTrackUsername: newSettings.spaceTrackUsername || env.spaceTrackUsername || '',
+      spaceTrackPassword: newSettings.spaceTrackPassword || env.spaceTrackPassword || '',
+      satnogsToken: newSettings.satnogsToken || env.satnogsToken || '',
+      n2yoApiKey: newSettings.n2yoApiKey || env.n2yoApiKey || '',
       minElevation: newSettings.minElevation || 20
     }
   }

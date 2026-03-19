@@ -16,25 +16,27 @@ export const usePWAInstall = () => {
     )
   }
 
-  // Initialize on mount
+  const beforeInstallHandler = (e: Event) => {
+    deferredPrompt.value = e
+    isInstallable.value = true
+  }
+
+  const appInstalledHandler = () => {
+    isInstalled.value = true
+    isInstallable.value = false
+    deferredPrompt.value = null
+  }
+
   onMounted(() => {
     isInstalled.value = checkInstalled()
-
-    // Listen for beforeinstallprompt event
     // Don't call preventDefault() - allows browser's native install button in URL bar
-    const beforeInstallHandler = (e: Event) => {
-      deferredPrompt.value = e
-      isInstallable.value = true
-    }
-    
     window.addEventListener('beforeinstallprompt', beforeInstallHandler)
+    window.addEventListener('appinstalled', appInstalledHandler)
+  })
 
-    // Listen for app installed event
-    window.addEventListener('appinstalled', () => {
-      isInstalled.value = true
-      isInstallable.value = false
-      deferredPrompt.value = null
-    })
+  onUnmounted(() => {
+    window.removeEventListener('beforeinstallprompt', beforeInstallHandler)
+    window.removeEventListener('appinstalled', appInstalledHandler)
   })
 
   // Install PWA

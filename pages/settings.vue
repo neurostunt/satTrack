@@ -100,6 +100,7 @@ const {
   calculatePassesForSatellites
 } = usePassPrediction()
 
+const config = useRuntimeConfig()
 const {
   storeTransponderData,
   getTransponderData,
@@ -663,22 +664,25 @@ const fetchTrackedSatellitesInfoData = async () => {
           }
         })
 
-        console.log(`SATCAT response for NORAD ${noradId}:`, {
-          success: response?.success,
-          hasData: !!response?.data,
-          dataKeys: response?.data ? Object.keys(response.data) : null
-        })
+        const isDebug = config.public.debug
+        if (isDebug) {
+          console.debug(`SATCAT response for NORAD ${noradId}:`, {
+            success: response?.success,
+            hasData: !!response?.data,
+            dataKeys: response?.data ? Object.keys(response.data) : null
+          })
+        }
 
         if (response?.success) {
           if (response.data) {
             await indexedDBStorage.storeSatcatData(noradId, response.data)
             satcatStoredCount++
-            console.log(`✅ Stored SATCAT data for NORAD ${noradId}`)
+            if (isDebug) console.debug(`Stored SATCAT for NORAD ${noradId}`)
           } else {
-            console.log(`⚠️ No SATCAT data returned for NORAD ${noradId} (API returned null)`)
+            if (isDebug) console.debug(`No SATCAT data for NORAD ${noradId} (API returned null)`)
           }
         } else {
-          console.warn(`⚠️ SATCAT API call failed for NORAD ${noradId}:`, response?.message)
+          if (isDebug) console.debug(`SATCAT API call failed for NORAD ${noradId}:`, response?.message)
         }
       } catch (error) {
         // Handle 403 errors gracefully - don't log if rate limited

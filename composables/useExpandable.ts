@@ -7,11 +7,13 @@ export const useExpandable = () => {
   const expandedItems = ref(new Set<string | number>())
 
   const toggleItem = (id: string | number) => {
-    if (expandedItems.value.has(id)) {
-      expandedItems.value.delete(id)
+    const next = new Set(expandedItems.value)
+    if (next.has(id)) {
+      next.delete(id)
     } else {
-      expandedItems.value.add(id)
+      next.add(id)
     }
+    expandedItems.value = next
   }
 
   const isExpanded = (id: string | number): boolean => {
@@ -19,15 +21,19 @@ export const useExpandable = () => {
   }
 
   const expandItem = (id: string | number) => {
-    expandedItems.value.add(id)
+    const next = new Set(expandedItems.value)
+    next.add(id)
+    expandedItems.value = next
   }
 
   const collapseItem = (id: string | number) => {
-    expandedItems.value.delete(id)
+    const next = new Set(expandedItems.value)
+    next.delete(id)
+    expandedItems.value = next
   }
 
   const collapseAll = () => {
-    expandedItems.value.clear()
+    expandedItems.value = new Set()
   }
 
   return {
@@ -52,17 +58,21 @@ export const useExpandableSections = () => {
     const key = `${itemId}-${section}`
     
     if (defaultExpanded) {
-      if (collapsedSections.value.has(key)) {
-        collapsedSections.value.delete(key)
+      const next = new Map(collapsedSections.value)
+      if (next.has(key)) {
+        next.delete(key)
       } else {
-        collapsedSections.value.set(key, true)
+        next.set(key, true)
       }
+      collapsedSections.value = next
     } else {
-      if (expandedSections.value.has(key)) {
-        expandedSections.value.delete(key)
+      const next = new Map(expandedSections.value)
+      if (next.has(key)) {
+        next.delete(key)
       } else {
-        expandedSections.value.set(key, true)
+        next.set(key, true)
       }
+      expandedSections.value = next
     }
   }
 

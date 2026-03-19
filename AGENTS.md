@@ -29,7 +29,7 @@ You are the orchestrator for this satellite tracking PWA project. Delegate to sp
 
 | MCP | Agent | Use |
 |-----|-------|-----|
-| **Chrome DevTools** | Frontend, Reviewer | Console, network, Lighthouse — debug UI, verify runtime behavior |
+| **cursor-ide-browser** | Debugger, Frontend, Reviewer | browser_console_messages, browser_network_requests, browser_profile_start/stop — console, network, CPU profiling |
 
 ## When to Call Which Agent
 
@@ -40,6 +40,7 @@ You are the orchestrator for this satellite tracking PWA project. Delegate to sp
 | **API** | server/api/* proxies, composables/api/*, N2YO/Space-Track/SatNOGS, rate limits | generalPurpose |
 | **Storage** | useIndexedDB, useSecureStorage, useSettings, IndexedDB schema, AES credentials | generalPurpose |
 | **Utility** | Git worktree, gh, Vercel CLI via npm run (beta, production, rollback) | shell |
+| **Debugger** | Run app, monitor console/network, read logs, profile, debug and fix bugs | generalPurpose |
 | **Reviewer** | After changes: validate rules, npm run build, lint | generalPurpose |
 
 ## Invocation Pattern

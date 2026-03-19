@@ -38,6 +38,23 @@ export default defineEventHandler(async (event) => {
 
     const responseData = await response.json()
 
+    // Debug: log unexpected radiopasses structure (redact apiKey from any fields)
+    if (action === 'radiopasses' && responseData) {
+      const hasPasses = 'passes' in responseData
+      const passesType = typeof responseData.passes
+      const passesIsArray = Array.isArray(responseData.passes)
+      if (!hasPasses || !passesIsArray) {
+        const redacted = JSON.stringify(responseData).replace(new RegExp(apiKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), '***')
+        console.warn(`[N2YO radiopasses] Unexpected structure for NORAD ${params.noradId}:`, {
+          hasPasses,
+          passesType,
+          passesIsArray,
+          responseKeys: Object.keys(responseData),
+          responseSample: redacted.slice(0, 600)
+        })
+      }
+    }
+
     // Check for API errors in response
     if (responseData.error) {
       console.error('🛰️ N2YO API response error:', responseData.error)

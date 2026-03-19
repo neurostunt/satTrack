@@ -3,6 +3,9 @@
  * Handles encrypted storage of sensitive data and TLE caching
  * Uses IndexedDB for large TLE datasets and localStorage for smaller data
  * Uses crypto-js for cross-platform encryption (works on iPhone, Android, desktop)
+ *
+ * Credential flow: Credentials live in IndexedDB only. Use useIndexedDB().storeCredentials/getCredentials
+ * or useCredentials() for read/write. settings.vue uses useIndexedDB directly.
  */
 
 import CryptoJS from 'crypto-js'
@@ -225,42 +228,21 @@ export const useSecureStorage = () => {
   }
 
   /**
-   * Store credentials
-   */
-  const storeCredentials = async (credentials: { username: string; password: string; token: string }): Promise<void> => {
-    try {
-      await storeEncrypted(storageKey, credentials)
-    } catch (err) {
-      console.error('Credentials storage error:', err)
-      throw err
-    }
-  }
-
-  /**
-   * Retrieve credentials
-   */
-  const getCredentials = async (): Promise<{ username: string; password: string; token: string } | null> => {
-    try {
-      return await retrieveEncrypted(storageKey)
-    } catch (err) {
-      console.error('Credentials retrieval error:', err)
-      return null
-    }
-  }
-
-  /**
-   * Clear all stored data
+   * Clear TLE cache and related localStorage. Does NOT clear credentials.
+   * Clears: TLE (IndexedDB), pass predictions, transponder data, tleCacheKey, settingsKey.
+   * Preserves: IndexedDB credentials.
    */
   const clearAll = async (): Promise<void> => {
     try {
       isLoading.value = true
       error.value = null
 
-      localStorage.removeItem(storageKey)
       localStorage.removeItem(tleCacheKey)
       localStorage.removeItem(settingsKey)
 
       await indexedDB.clearTLEData()
+      await indexedDB.clearPassPredictions()
+      await indexedDB.clearTransmitterData()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Clear failed'
       console.error('Clear storage error:', err)
@@ -276,7 +258,7 @@ export const useSecureStorage = () => {
     try {
       const tleData = await getTLEData()
       const settings = await getSettings()
-      const credentials = await getCredentials()
+      const credentials = await indexedDB.getCredentials()
 
       return {
         totalSatellites: tleData.length,
@@ -317,8 +299,6 @@ export const useSecureStorage = () => {
     getTLEData,
     storeSettings,
     getSettings,
-    storeCredentials,
-    getCredentials,
     clearAll,
     getStorageStats,
     clearError

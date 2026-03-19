@@ -4,6 +4,7 @@
  */
 
 import type { Ref } from 'vue'
+import { isGeostationaryPass } from '~/utils/satelliteStatusUtils'
 import { formatSatelliteNameForDisplay } from '~/utils/satelliteNameUtils'
 
 export interface PassData {
@@ -37,12 +38,7 @@ export const usePassFiltering = (
     // Get all passes from satellites that have at least one upcoming pass
     passPredictions.value.forEach((passes, noradId) => {
       // Check if this satellite is geostationary based on pass characteristics
-      const hasGeostationaryPass = passes.some((pass: any) => {
-        const azimuthDiff = Math.abs(pass.startAzimuth - pass.endAzimuth)
-        const duration = pass.endTime - pass.startTime
-        const durationHours = duration / (1000 * 60 * 60)
-        return azimuthDiff < 5 && durationHours > 12
-      })
+      const hasGeostationaryPass = passes.some((pass: any) => isGeostationaryPass(pass))
 
       // Filter passes for this satellite - include passes that ended less than 10 seconds ago
       let validPasses = passes

@@ -48,6 +48,31 @@ export const getStatusText = (status: SatelliteStatus | null | undefined): strin
 }
 
 /**
+ * Detect if a pass represents a geostationary satellite based on pass characteristics.
+ * Geostationary satellites have:
+ * - Start azimuth ≈ End azimuth (within 5 degrees)
+ * - Very long duration (> 12 hours)
+ */
+export const isGeostationaryPass = (pass: {
+  startAzimuth?: number
+  endAzimuth?: number
+  startTime?: number
+  endTime?: number
+} | null | undefined): boolean => {
+  if (!pass) return false
+
+  const azimuthDiff = Math.abs((pass.startAzimuth ?? 0) - (pass.endAzimuth ?? 0))
+  if (azimuthDiff >= 5) return false
+
+  if (pass.startTime != null && pass.endTime != null) {
+    const durationHours = (pass.endTime - pass.startTime) / (1000 * 60 * 60)
+    return durationHours > 12
+  }
+
+  return false
+}
+
+/**
  * Clean transmitter description by removing CTCSS information
  */
 export const getCleanDescription = (description: string | null | undefined): string => {

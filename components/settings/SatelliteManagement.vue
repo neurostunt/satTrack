@@ -64,6 +64,10 @@
         </div>
       </div>
 
+      <p class="mb-4 text-xs text-space-400">
+        SATCAT data may be unavailable for some satellites or when server is outside US.
+      </p>
+
       <!-- Search Satellite -->
       <div class="mb-4" @click.stop>
         <label class="block text-xs font-medium text-space-300 mb-1">Search Satellite</label>

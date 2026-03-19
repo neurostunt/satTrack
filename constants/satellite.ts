@@ -73,7 +73,6 @@ export const EXAMPLE_SATELLITES = [
   41789, // FOX-1B
   44387, // FOX-1D / AO-92
   // Additional recommended satellites
-  98537, // HUNITY
   39444, // FUNCUBE-1
   40931, // LAPAN-A2
   43678, // DIWATA-2

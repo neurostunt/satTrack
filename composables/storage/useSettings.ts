@@ -27,7 +27,10 @@ const defaultSettings: StorageSettings = {
   soundAlerts: false,
   highAccuracyGPS: false,
   autoCalibrateCompass: false,
-  enableDeviceOrientation: false
+  enableDeviceOrientation: false,
+  arPreferTle: true,
+  arAzimuthOffsetDeg: 0,
+  arElevationBiasDeg: 0
 }
 
 // Reactive state
@@ -154,7 +157,10 @@ const saveSettings = async (): Promise<void> => {
       soundAlerts: settings.value.soundAlerts,
       highAccuracyGPS: settings.value.highAccuracyGPS,
       autoCalibrateCompass: settings.value.autoCalibrateCompass,
-      enableDeviceOrientation: settings.value.enableDeviceOrientation
+      enableDeviceOrientation: settings.value.enableDeviceOrientation,
+      arPreferTle: settings.value.arPreferTle,
+      arAzimuthOffsetDeg: settings.value.arAzimuthOffsetDeg,
+      arElevationBiasDeg: settings.value.arElevationBiasDeg
     }
 
     await storage.storeSettings(cleanSettings)

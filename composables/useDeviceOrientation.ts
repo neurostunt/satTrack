@@ -124,21 +124,28 @@ export const useDeviceOrientation = () => {
 
     // Create event handler
     orientationHandler = (event: DeviceOrientationEvent) => {
-      // Note: alpha (compass heading) should be in True North reference for satellite tracking
-      // event.absolute === true means alpha is relative to True North (preferred)
-      // event.absolute === false means alpha is relative to Magnetic North (needs conversion)
-      // For satellite azimuth matching, we use True North directly
+      // iOS Safari / PWA: webkitCompassHeading is often more stable than alpha (degrees, 0–360, clockwise from North).
+      const webkitH = (event as DeviceOrientationEvent & { webkitCompassHeading?: number })
+        .webkitCompassHeading
+      let alpha: number | null = null
+      if (typeof webkitH === 'number' && !Number.isNaN(webkitH)) {
+        alpha = webkitH
+      } else if (event.alpha != null && !Number.isNaN(event.alpha)) {
+        alpha = event.alpha
+      }
+
+      // Note: alpha (compass heading) should match satellite azimuth (true north) when possible.
       state.value.orientation = {
-        alpha: event.alpha, // Compass heading (0-360°) - True North when absolute=true
-        beta: event.beta,   // Pitch (-180 to 180°)
-        gamma: event.gamma, // Roll (-90 to 90°)
-        absolute: event.absolute || false // True if alpha is relative to True North
+        alpha,
+        beta: event.beta ?? null,
+        gamma: event.gamma ?? null,
+        absolute: event.absolute === true || typeof webkitH === 'number'
       }
       state.value.error = null
 
       // Update calibration if active
       if (calibrationState.value.isCalibrating) {
-        updateCalibration(event.alpha)
+        updateCalibration(alpha)
       }
     }
 

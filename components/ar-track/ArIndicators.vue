@@ -150,6 +150,11 @@ const props = defineProps({
     type: Number,
     default: null
   },
+  /** Subtract from elevation error (degrees); boom / sensor tweak */
+  elevationBiasDeg: {
+    type: Number,
+    default: 0
+  },
   // Compass quality (0-100)
   compassQuality: {
     type: Number,
@@ -218,9 +223,10 @@ const elevationDifference = computed(() => {
 
   // Clamp device elevation to 0-90° range (we can't point below horizon or above zenith)
   const clampedDeviceElevation = Math.max(0, Math.min(90, deviceElevation))
+  const bias = Number(props.elevationBiasDeg) || 0
 
   // Calculate difference
-  return props.currentElevation - clampedDeviceElevation
+  return props.currentElevation - clampedDeviceElevation - bias
 })
 
 /**

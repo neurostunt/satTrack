@@ -2,15 +2,14 @@
  * Real-Time Position Composable
  * Handles fetching and interpolating satellite positions during a pass
  *
- * Strategy: Fetch 300s (5 min) of positions at once, interpolate for smooth animation
- * API Usage: ~2 requests per 10-minute pass (85% reduction from 60s strategy)
- *
- * N2YO API Limits:
- * - 1000 requests per hour for positions endpoint
- * - Maximum 300 seconds per request
+ * N2YO mode: Fetch 300s of positions at once, interpolate for smooth animation
+ * TLE mode: SGP4 in-browser via satellite.js — high refresh, no N2YO quota
  */
 
+import type { SatRec } from 'satellite.js'
 import { calculateDistance, calculateRadialVelocity } from '~/utils/dopplerCalculations'
+import { lerpAzimuthDeg } from '~/utils/angleMath'
+import { computeLookAnglesFromTle, createSatRecFromTle } from '~/utils/satelliteLookAngles'
 import { useN2YO } from '../api/useN2YO'
 
 export interface SatellitePosition {
@@ -62,6 +61,12 @@ export const useRealTimePosition = () => {
   let animationFrameId: number | null = null
   let isFetching = ref(false) // Prevent duplicate fetches
 
+  /** 'n2yo' | 'tle' — which pipeline feeds `currentPosition` */
+  const trackingSource = ref<'n2yo' | 'tle' | null>(null)
+  const tleSatrec = shallowRef<SatRec | null>(null)
+  let lastTleHistoryMs = 0
+  let lastTleFutureRefreshMs = 0
+
   /**
    * Start tracking a satellite during its pass
    *
@@ -77,7 +82,8 @@ export const useRealTimePosition = () => {
     observerLat: number,
     observerLng: number,
     observerAlt: number,
-    apiKey: string
+    apiKey: string,
+    options?: { tle?: { line1: string; line2: string } | null }
   ) => {
     // Prevent duplicate tracking
     if (isTracking.value) {
@@ -85,30 +91,72 @@ export const useRealTimePosition = () => {
       return
     }
 
-    // Validate API key
-    if (!apiKey) {
-      console.error(`❌ Cannot start tracking: N2YO API key is missing`)
+    const tle = options?.tle
+    const useTle = !!(tle?.line1 && tle?.line2)
+
+    if (!useTle && !apiKey) {
+      console.error('❌ Cannot start tracking: N2YO API key is missing and no TLE provided')
       return
     }
-
 
     isTracking.value = true
     positionHistory.value = []
     futurePositions.value = []
     radialVelocity.value = 0
+    serverTimestamp.value = 0
+    serverTimestampOffset.value = 0
 
-    // Store observer location for distance calculations
     observerLocation.value = {
       lat: observerLat,
       lng: observerLng,
       alt: observerAlt
     }
 
-    // Fetch initial positions
-    await fetchPositions(noradId, observerLat, observerLng, observerAlt, apiKey)
+    if (useTle) {
+      trackingSource.value = 'tle'
+      tleSatrec.value = createSatRecFromTle(tle!.line1, tle!.line2)
+      lastTleHistoryMs = 0
+      lastTleFutureRefreshMs = 0
+      refillTleFutureBuffer(observerLat, observerLng, observerAlt)
+      console.log(`🛰️ AR tracking: TLE / SGP4 mode (NORAD ${noradId})`)
+    } else {
+      trackingSource.value = 'n2yo'
+      tleSatrec.value = null
+      await fetchPositions(noradId, observerLat, observerLng, observerAlt, apiKey)
+    }
 
-    // Start animation loop for smooth interpolation
     startAnimation(noradId, observerLat, observerLng, observerAlt, apiKey)
+  }
+
+  /**
+   * Pre-compute a short future arc for polar plot (same role as N2YO buffer).
+   */
+  const refillTleFutureBuffer = (
+    observerLat: number,
+    observerLng: number,
+    observerAlt: number
+  ) => {
+    const satrec = tleSatrec.value
+    if (!satrec) return
+
+    const start = Date.now()
+    const samples: SatellitePosition[] = []
+    for (let i = 0; i < 90; i++) {
+      const t = new Date(start + i * 2000)
+      const p = computeLookAnglesFromTle(satrec, observerLat, observerLng, observerAlt, t)
+      if (p) {
+        samples.push({
+          timestamp: p.timestamp,
+          azimuth: p.azimuth,
+          elevation: p.elevation,
+          distance: p.distance,
+          satLatitude: p.satLatitude,
+          satLongitude: p.satLongitude,
+          satAltitude: p.satAltitude
+        })
+      }
+    }
+    futurePositions.value = samples
   }
 
   /**
@@ -127,6 +175,8 @@ export const useRealTimePosition = () => {
 
 
     isTracking.value = false
+    trackingSource.value = null
+    tleSatrec.value = null
 
     // Clear animation frame
     if (animationFrameId !== null) {
@@ -334,9 +384,61 @@ export const useRealTimePosition = () => {
     const animate = () => {
       if (!isTracking.value) return
 
+      const clientNow = Date.now()
+
+      // ——— TLE / SGP4: compute position every frame from local elements ———
+      if (trackingSource.value === 'tle' && tleSatrec.value) {
+        const satrec = tleSatrec.value
+        const now = new Date()
+        const pos = computeLookAnglesFromTle(satrec, observerLat, observerLng, observerAlt, now)
+        if (pos) {
+          const sp: SatellitePosition = {
+            timestamp: pos.timestamp,
+            azimuth: pos.azimuth,
+            elevation: pos.elevation,
+            distance: pos.distance,
+            satLatitude: pos.satLatitude,
+            satLongitude: pos.satLongitude,
+            satAltitude: pos.satAltitude
+          }
+          if (observerLocation.value) {
+            sp.distance = calculateDistance(
+              observerLocation.value.lat,
+              observerLocation.value.lng,
+              observerLocation.value.alt,
+              sp.satLatitude,
+              sp.satLongitude,
+              sp.satAltitude
+            )
+          }
+          if (currentPosition.value && currentPosition.value.distance > 0 && sp.distance > 0) {
+            const dtSec = (sp.timestamp - currentPosition.value.timestamp) / 1000
+            if (dtSec > 0) {
+              radialVelocity.value = calculateRadialVelocity(
+                currentPosition.value.distance,
+                sp.distance,
+                dtSec
+              )
+            }
+          }
+          currentPosition.value = sp
+          if (clientNow - lastTleHistoryMs >= 900) {
+            lastTleHistoryMs = clientNow
+            positionHistory.value.push({ ...sp })
+            const fiveMinutesAgo = clientNow - 5 * 60 * 1000
+            positionHistory.value = positionHistory.value.filter(p => p.timestamp > fiveMinutesAgo)
+          }
+          if (clientNow - lastTleFutureRefreshMs >= 2500) {
+            lastTleFutureRefreshMs = clientNow
+            refillTleFutureBuffer(observerLat, observerLng, observerAlt)
+          }
+        }
+        animationFrameId = requestAnimationFrame(animate)
+        return
+      }
+
       // Use server-side timestamp for position calculations to ensure consistency across devices
       // Calculate current server time based on offset from last fetch
-      const clientNow = Date.now()
       const serverNow = serverTimestamp.value > 0
         ? clientNow + serverTimestampOffset.value
         : clientNow // Fallback to client time if server timestamp not available
@@ -444,7 +546,7 @@ export const useRealTimePosition = () => {
   ): SatellitePosition => {
     return {
       timestamp: pos1.timestamp + (pos2.timestamp - pos1.timestamp) * t,
-      azimuth: pos1.azimuth + (pos2.azimuth - pos1.azimuth) * t,
+      azimuth: lerpAzimuthDeg(pos1.azimuth, pos2.azimuth, t),
       elevation: pos1.elevation + (pos2.elevation - pos1.elevation) * t,
       distance: pos1.distance + (pos2.distance - pos1.distance) * t,
       satLatitude: pos1.satLatitude + (pos2.satLatitude - pos1.satLatitude) * t,
@@ -460,6 +562,7 @@ export const useRealTimePosition = () => {
     futurePositions,
     isTracking,
     radialVelocity,
+    trackingSource,
 
     // Methods
     startTracking,

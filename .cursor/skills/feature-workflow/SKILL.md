@@ -5,7 +5,7 @@ description: Git worktree workflow for new SatTrack features. Use when the user 
 
 # Feature Workflow
 
-When the user requests a new feature implementation, follow this workflow. Do not merge to `development` until the user explicitly approves.
+When the user requests a new feature implementation, follow this workflow. **Do not merge to `development` (or open a merging PR) until the user explicitly approves** — same rule for agents: merge only in a session where the user clearly asked to merge.
 
 ## Checklist
 
@@ -52,14 +52,18 @@ cursor -r /Users/goran/Projects/radio/satTrack/feature-<name>
 
 **Option B — Big feature (OpenSpec):** If the feature is complex or multi-session:
 1. Run `/opsx:propose <feature-name>` to create proposal, specs, design, tasks
-2. Review, then `/opsx:apply` to implement
-3. Run `npm run build`, then `/opsx:archive` when done (before merge)
+2. Review, then `/opsx:apply` (or **`/coder`**) to implement
+3. **`/code-review`** until **READY**
+4. **`/orchestrate`** + **`/opsx:archive`** — only after **READY** (not before review)
+5. Merge to `development` when you approve (step 5 in this checklist)
 
 ### 4. Wait for approval
 
 **Do not merge.** Tell the user: feature is ready, list changes, ask for approval to merge to development.
 
-### 5. Merge (only when user approves)
+### 5. Merge (only after explicit user approval)
+
+Run this block **only** when the user has said they approve merge into `development` (e.g. after `/code-review` READY and their OK). Do not merge on your own initiative.
 
 ```bash
 cd /Users/goran/Projects/radio/satTrack/development
@@ -68,6 +72,8 @@ cd /Users/goran/Projects/radio/satTrack/satTrack.git
 git worktree remove ../feature-<name>
 git branch -d feature/<name>
 ```
+
+Alternative: **`gh pr create`** from the feature branch and let them merge on GitHub — still only when they want integration into `development`.
 
 ### 5b. Switch Cursor back to development
 

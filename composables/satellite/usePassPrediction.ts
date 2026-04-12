@@ -6,6 +6,7 @@
 import { ref, readonly } from 'vue'
 import { useIndexedDB } from '../storage/useIndexedDB'
 import { useN2YO } from '../api/useN2YO'
+import { isGeostationaryPass } from '~/utils/satelliteStatusUtils'
 
 export interface ObserverLocation {
   lat: number

@@ -197,18 +197,31 @@ watch([() => props.isExpanded, () => props.isPassing], async ([expanded, passing
   const wasTracking = isTracking.value
 
   if (shouldTrack && !wasTracking) {
-    if (!settings.value.n2yoApiKey) {
-      console.warn(`⚠️ N2YO API key not configured - cannot start tracking`)
-      return
-    }
+    const tle = props.getTLEData(props.pass.noradId)
+    const preferTle = settings.value.arPreferTle !== false
+    const useTle = preferTle && tle?.line1 && tle?.line2
 
-    await startTracking(
-      props.pass.noradId,
-      settings.value.observationLocation.latitude,
-      settings.value.observationLocation.longitude,
-      settings.value.observationLocation.altitude || 0,
-      settings.value.n2yoApiKey
-    )
+    if (useTle) {
+      await startTracking(
+        props.pass.noradId,
+        settings.value.observationLocation.latitude,
+        settings.value.observationLocation.longitude,
+        settings.value.observationLocation.altitude || 0,
+        settings.value.n2yoApiKey || '',
+        { tle }
+      )
+    } else if (!settings.value.n2yoApiKey) {
+      console.warn('⚠️ N2YO API key not configured and no TLE — cannot start tracking')
+      return
+    } else {
+      await startTracking(
+        props.pass.noradId,
+        settings.value.observationLocation.latitude,
+        settings.value.observationLocation.longitude,
+        settings.value.observationLocation.altitude || 0,
+        settings.value.n2yoApiKey
+      )
+    }
   } else if (!shouldTrack && wasTracking) {
     stopTracking()
   }

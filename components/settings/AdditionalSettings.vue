@@ -197,6 +197,47 @@
           {{ deviceOrientationSuccess }}
         </div>
 
+        <!-- AR / PWA pointing -->
+        <div class="border-t border-space-600 pt-4 mt-4">
+          <h4 class="text-sm font-medium text-space-200 mb-3">AR pointing (PWA)</h4>
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex flex-col">
+              <label class="text-sm text-space-300">Prefer TLE / SGP4 for live position</label>
+              <div class="text-xs text-space-500 mt-1">
+                Uses cached two-line elements in the browser (no N2YO quota). Falls back to N2YO if disabled or no TLE.
+              </div>
+            </div>
+            <input
+              v-model="arPreferTle"
+              type="checkbox"
+              class="w-4 h-4 text-primary-600 bg-space-800 border-space-700 rounded focus:ring-primary-500"
+            />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-space-300 mb-1">Azimuth offset (°)</label>
+              <input
+                v-model.number="arAzimuthOffsetDeg"
+                type="number"
+                step="0.5"
+                class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-space-300 mb-1">Elevation bias (°)</label>
+              <input
+                v-model.number="arElevationBiasDeg"
+                type="number"
+                step="0.5"
+                class="w-full bg-space-800 border border-space-700 rounded px-2 py-1 text-xs text-white focus:border-primary-500 focus:outline-none"
+              />
+            </div>
+          </div>
+          <p class="text-xs text-space-500 mt-2">
+            Offsets adjust the on-screen heading/elevation error relative to the satellite; use after mounting the phone away from the boom.
+          </p>
+        </div>
+
         <!-- Transmitter Filters -->
         <div class="border-t border-space-600 pt-4 mt-4">
           <h4 class="text-sm font-medium text-space-200 mb-3">📡 Transmitter Frequency Filter</h4>
@@ -296,6 +337,21 @@ const autoCalibrateCompass = computed({
 const enableDeviceOrientation = computed({
   get: () => props.settings.enableDeviceOrientation || false,
   set: (value) => props.updateSettings({ enableDeviceOrientation: value })
+})
+
+const arPreferTle = computed({
+  get: () => props.settings.arPreferTle !== false,
+  set: (value) => props.updateSettings({ arPreferTle: value })
+})
+
+const arAzimuthOffsetDeg = computed({
+  get: () => Number(props.settings.arAzimuthOffsetDeg) || 0,
+  set: (value) => props.updateSettings({ arAzimuthOffsetDeg: value })
+})
+
+const arElevationBiasDeg = computed({
+  get: () => Number(props.settings.arElevationBiasDeg) || 0,
+  set: (value) => props.updateSettings({ arElevationBiasDeg: value })
 })
 
 const showOnly2m70cm = computed({

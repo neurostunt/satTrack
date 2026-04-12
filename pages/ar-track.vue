@@ -20,7 +20,7 @@
             :norad-id="selectedPass.noradId"
             :pass-start-time="selectedPass.startTime"
             :pass-end-time="selectedPass.endTime"
-            :compass-heading="compassHeading"
+            :compass-heading="displayCompassHeading"
           />
         <div v-else class="bg-space-900 border border-space-600 rounded-lg p-4 flex items-center justify-center min-h-[400px]">
           <div class="text-space-400 text-center">
@@ -98,8 +98,9 @@
             :current-elevation="isGeostationarySatellite ? (geostationaryPosition?.elevation ?? selectedPass.maxElevation) : (currentPosition?.elevation ?? 0)"
             :current-distance="isGeostationarySatellite ? (geostationaryPosition?.distance ?? 0) : (currentPosition?.distance ?? 0)"
             :distance-units="settings.distanceUnits || 'km'"
-            :compass-heading="compassHeading"
+            :compass-heading="displayCompassHeading"
             :device-pitch="devicePitch"
+            :elevation-bias-deg="Number(settings.arElevationBiasDeg) || 0"
             :compass-quality="compassQuality"
             :radial-velocity="radialVelocity"
             :is-passing="!isGeostationarySatellite"
@@ -124,6 +125,8 @@
 </template>
 
 <script setup>
+import { normalizeAzimuthDeg } from '~/utils/angleMath'
+
 // Page metadata
 useHead({
   title: 'AR Satellite Tracker',
@@ -148,6 +151,9 @@ const {
   pitch,
   calibrationState
 } = useDeviceOrientation()
+
+// TLE cache (for SGP4 live tracking without N2YO)
+const { loadFromCache: loadTleFromCache, getTLEData } = useTLEData()
 
 // Pass data
 const {
@@ -247,6 +253,15 @@ const devicePitch = computed(() => {
   return pitch.value
 })
 
+/** Compass + user azimuth offset (mount / iOS tweak) */
+const displayCompassHeading = computed(() => {
+  if (compassHeading.value === null || compassHeading.value === undefined) {
+    return null
+  }
+  const off = Number(settings.value.arAzimuthOffsetDeg) || 0
+  return normalizeAzimuthDeg(compassHeading.value + off)
+})
+
 const compassQuality = computed(() => {
   // Calculate compass quality based on calibration state
   if (calibrationState.value.isCalibrating) {
@@ -270,8 +285,11 @@ const calibrationProgress = computed(() => {
 
 const canStartTracking = computed(() => {
   if (!selectedPass.value) return false
-  // Don't require device orientation - allow tracking on desktop too
-  if (!settings.value.n2yoApiKey && !isGeostationarySatellite.value) return false
+  if (isGeostationarySatellite.value) return true
+  const tle = getTLEData(selectedPass.value.noradId)
+  const preferTle = settings.value.arPreferTle !== false
+  if (preferTle && tle?.line1 && tle?.line2) return true
+  if (!settings.value.n2yoApiKey) return false
   return true
 })
 
@@ -341,20 +359,33 @@ const startTrackingForPass = async (pass) => {
     })
   }
 
-  // For geostationary satellites, no API call needed
   if (!isGeostationarySatellite.value) {
-    if (!settings.value.n2yoApiKey) {
-      showStatus('N2YO API key required for tracking', 'error')
-      return
-    }
+    const tle = getTLEData(pass.noradId)
+    const preferTle = settings.value.arPreferTle !== false
+    const useTle = preferTle && tle?.line1 && tle?.line2
 
-    await startTracking(
-      pass.noradId,
-      settings.value.observationLocation.latitude,
-      settings.value.observationLocation.longitude,
-      settings.value.observationLocation.altitude || 0,
-      settings.value.n2yoApiKey
-    )
+    if (useTle) {
+      await startTracking(
+        pass.noradId,
+        settings.value.observationLocation.latitude,
+        settings.value.observationLocation.longitude,
+        settings.value.observationLocation.altitude || 0,
+        settings.value.n2yoApiKey || '',
+        { tle }
+      )
+    } else {
+      if (!settings.value.n2yoApiKey) {
+        showStatus('N2YO API key or cached TLE required for tracking', 'error')
+        return
+      }
+      await startTracking(
+        pass.noradId,
+        settings.value.observationLocation.latitude,
+        settings.value.observationLocation.longitude,
+        settings.value.observationLocation.altitude || 0,
+        settings.value.n2yoApiKey
+      )
+    }
   }
 
   isTrackingActive.value = true
@@ -384,6 +415,7 @@ const showStatus = (message, type = 'info') => {
 // Initialize
 const initialize = async () => {
   await loadSettings()
+  await loadTleFromCache()
   await loadPassPredictions()
   await loadStoredTransmitterData()
 

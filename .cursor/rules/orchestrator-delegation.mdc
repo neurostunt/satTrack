@@ -1,18 +1,23 @@
 ---
-description: Orchestrator delegation to subagents via mcp_task
+description: Workflow /orchestrate — delegation; skills not MCP; CLI (gh, git); explicit approval before commit/push/merge; merge feature→development when READY (orchestrate.md). Models flexible (Opus/Sonnet/Composer…).
 alwaysApply: true
 ---
 
-# Orchestrator Delegation
+# Orchestrator delegation
 
-**Default:** Work directly. No delegation.
+**Default:** work directly.
 
-**Orchestrator flow** (only when user requests or confirms your recommendation):
+**`/orchestrate`** (see **`.cursor/agents/orchestrate.md`**):
 
-1. **Plan first** — call Planner for `development_plan.md`, or suggest `/opsx:propose` for big features (OpenSpec)
-2. **Delegate** — use `mcp_task` with self-contained prompt; subagents don't inherit context
-3. **Include role** — paste from `.cursor/skills/<specialist>/PROMPT.md` (prefer) or SKILL.md into prompt
-4. **Parallel** — Frontend and API: multiple `mcp_task` for independent subtasks
-5. **Verify** — after changes, run `npm run build` or delegate to Reviewer
+- **Interview-first:** ask clarifying questions before big plans or delegation when anything is unclear; **no full plan** until resolved or the user waives; **suggestions** (options/trade-offs) encouraged.
+- **Orchestrator** picks which **Task** subagents to run and when. **Skills** from **`.cursor/skills/`** on demand. **No MCP** unless the project added it — use **CLI** (`git`, `gh`, package managers, project scripts).
+- **Git gate:** **Never** `git commit`, `git push`, or remote-affecting **merge** without **explicit user approval** after showing exact commands (all agents, including **`/orchestrate`** after review).
+- **Models:** YAML **`model:`** is a hint (**`orchestrate`** → Opus, **`coder`** / **`code-review`** / **`verifier`** → Sonnet when available). Use **Haiku / Sonnet / Opus / Composer** or other tiers the product exposes; if paid tier is exhausted, use **Composer** or a **free** model **adequate** for the step (**`AGENTS.md`**).
+- **Pauses:** After **`coder`** (optional) — default wait before **`code-review`**. After **`code-review`** — **stop** (no verifier / merge in the same turn); continue with a new message when ready.
+- **Large tasks / milestones:** **feature branch** from **`development`** in the **same** working copy; see **`orchestrate.md`** — Git model.
+- **Delegation:** **Task `coder`** → **Task `code-review`** → **ask approval** → commit/push → **ask approval** → **merge feature → `development`** when **READY** and **after** Pause C **and** approvals. No **`glab`/`gh` MR`** — local **`git`** per **`orchestrate.md`**.
+- **Optional (after interview):** **`code-explorer`** (“how X works” / deep trace), **`code-architect`** (design / trade-offs), or the **`codebase-explore`** skill (broad read-only map) when relevant — **one** recon path by default; see **`orchestrate.md`**.
 
-**Recommend orchestrator** when task would clearly save tokens (multi-domain, multi-step). Ask first; don't auto-delegate.
+Add optional skills under **`.cursor/skills/`** when you need them (debugger, deploy).
+
+Suggest **`/orchestrate`** for large tasks; ask first if unclear.

@@ -24,6 +24,12 @@ export interface StorageSettings {
   highAccuracyGPS: boolean
   autoCalibrateCompass: boolean
   enableDeviceOrientation: boolean
+  /** Prefer TLE/SGP4 for live position when cached TLE exists (AR + pass card) */
+  arPreferTle: boolean
+  /** Degrees added to compass heading for AR/compare (mount / declination tweak) */
+  arAzimuthOffsetDeg: number
+  /** Degrees subtracted from elevation error display (boom / sensor tweak) */
+  arElevationBiasDeg: number
 }
 
 export interface TransmitterFilters {

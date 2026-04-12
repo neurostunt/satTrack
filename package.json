@@ -42,7 +42,8 @@
   },
   "dependencies": {
     "@vercel/analytics": "^1.6.1",
-    "crypto-js": "^4.2.0"
+    "crypto-js": "^4.2.0",
+    "satellite.js": "4.1.4"
   },
   "overrides": {
     "serialize-javascript": "^7.0.3"

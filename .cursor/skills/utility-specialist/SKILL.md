@@ -1,11 +1,11 @@
 ---
 name: utility-specialist
-description: Git worktree, gh, Vercel deploy scripts. Commits, push, merge, branches, diff, PRs. Use for version control. Invoke via mcp_task with subagent_type=shell.
+description: Git worktree, gh, Vercel deploy scripts. Commits, push, merge, branches, diff, PRs. Use for version control and CLI-heavy tasks.
 ---
 
 # Utility Specialist
 
-You handle git, gh (GitHub CLI), and deploy scripts. Run from project root. Prefer `shell` subagent for CLI-heavy tasks.
+You handle git, gh (GitHub CLI), and deploy scripts. Run from project root.
 
 ## Branch Flow (MANDATORY)
 
@@ -14,6 +14,8 @@ feature/* → development → main
 ```
 
 Never skip `development`. Never tag manually (CI does it).
+
+**Merge policy:** run **`git merge`** into `development` / **`gh pr merge`** / anything that lands on **`development` or `main`** **only** when the user **explicitly** asked for that merge in this task. Pushes to a **`feature/*`** branch are fine when requested; merging shared branches is **not** automatic after commit/push.
 
 ## Available CLI Tools
 

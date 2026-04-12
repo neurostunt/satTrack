@@ -1,0 +1,13 @@
+# Claude Sync Notes
+
+## Agent layout (2026-03)
+
+- **`.agents/skills/<name>/SKILL.md`** — workflow agents: `orchestrate`, `coder`, `code-review` (full prompts per Cursor; invoke `/orchestrate`, `/coder`, `/code-review`).
+- **`.cursor/skills/`** — `feature-workflow`, `debugger-specialist`, `utility-specialist`.
+- **Git:** coder may **commit + push `feature/*`**; **merge to `development`** only after **explicit user approval** (utility / feature-workflow / `gh`, not silent).
+- **`.cursor/rules/*.mdc`** — shared constraints; each workflow `SKILL.md` says which rules apply.
+- **OpenSpec** — **`/opsx:archive`** only in **`/orchestrate`** **after** **`/code-review`** **READY** (not in coder/review).
+
+## Project Summary
+
+SatTrack — Nuxt 4 PWA for ham radio satellite tracking. N2YO, Space-Track, SatNOGS APIs. Polar plot, AR mode. IndexedDB + AES for credentials. Vercel deploy.

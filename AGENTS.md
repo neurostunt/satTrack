@@ -1,107 +1,105 @@
-# SatTrack Project — Orchestrator
+# SatTrack — Agent notes
 
-You are the orchestrator for this satellite tracking PWA project. Delegate to specialized subagents via `mcp_task` to avoid loading multiple domains (API + frontend + storage) into context. Preserve context window budget (~50% max).
+**Default:** work directly (search, edit, terminal). For OpenSpec-driven work, follow the sequence below.
 
-## When to Use Orchestrator (opt-in)
+**Project sync:** root **`CLAUDE.md`** mirrors these rules for Claude CLI / Cursor.
 
-**Default:** Work directly — grep, edit, run tools. No delegation for routine tasks.
+## OpenSpec workflow (`.cursor/skills/` + **`.cursor/agents/`**)
 
-**Use orchestrator when:**
-1. **User requests it** — "koristi orkestrator", "delegiraj", "planiraj", "use orchestrator".
-2. **You recommend it** — If the task would clearly save tokens (e.g. multi-domain refactor, API + frontend changes), briefly suggest: "Ovo bi bilo efikasnije sa orkestratorom jer [razlog]. Da koristimo?" Wait for user confirmation before delegating.
+| Order | Invoke | Purpose |
+|-------|--------|---------|
+| 1 | **`/orchestrate`** | Plan: `/opsx:propose`, artifacts under `openspec/changes/<id>/` |
+| 2 | **`/coder`** | Implement; commit + push `feature/*`; **no** `/opsx:archive` |
+| 3 | **`/code-review`** | Build, lint, verdict **READY** or **NEEDS FIXES**; **no** `/opsx:archive` |
+| 4 | **`/orchestrate`** again | **Only after READY:** **`/opsx:archive <id>`** — closes change, optional sync to `openspec/specs/` |
 
-**Don't delegate for:** single questions, quick lookups, one-line fixes, git status/diff.
+**Rule:** **`/opsx:archive`** runs **only** in step **4** (orchestrator), **never** before code-review **READY**.
 
-## Feature Implementation (new features)
+**Specs:** **draft** = `openspec/changes/<id>/` (proposal, design, tasks, optional **`specs/`** deltas). **Canonical** = `openspec/specs/<capability>/spec.md`. **Promote** draft → canonical at **`/opsx:archive`** sync (step 4), not before code-review **READY**. Details: **`.cursor/skills/orchestrate/SKILL.md`** (“Where specs live”).
 
-When the user asks to implement a new feature: **read `.cursor/skills/feature-workflow/SKILL.md` first**. Follow worktree workflow: create worktree, implement there, test, wait for user approval, merge only when approved.
+OpenSpec commands: **`.cursor/commands/`** — `/opsx:propose`, `/opsx:apply`, `/opsx:explore`, `/opsx:archive`.
 
-## Delegation Flow
+Details and rules are in each **`SKILL.md`**.
 
-1. **Planning first** — For non-trivial tasks, call Planner before any coding.
-2. **Delegate by domain** — Use the right specialist; do not load multiple domain file sets in orchestrator context.
-3. **Parallel when possible** — Frontend and API specialists can run multiple instances for independent subtasks.
+## Orchestration, skills, CLI (no MCP by default)
 
-## Documentation
+- **`/orchestrate`** **decides** which **Task** subagents to run (`code-explorer`, `code-architect`, `coder`, `code-review`, `verifier`, …) and when; you can override anytime.
+- **Interview-first:** clarifying questions before big plans or delegation when anything is unclear; **no full plan** until resolved **or** you say to assume defaults; **suggestions** (options, trade-offs) encouraged.
+- **After** the interview: optional **Task** **`code-explorer`** or **`code-architect`** when installed — see **`orchestrate.md`**. Pick **one** recon path by default, not all.
+- Agents load **`.cursor/skills/`** when a skill’s description fits. **Do not use MCP** unless you deliberately add it to the project.
+- Prefer **CLI**: **`gh`**, **`git`**, **`npm`**, **`openspec`**, project scripts.
 
-| Source | Agent | Use |
-|--------|-------|-----|
-| **@Docs** | All | Cursor-indexed docs — check first when researching (large, project-local) |
-| **Context7** | Planner | Library/API docs — Nuxt, Vue, N2YO, Space-Track, SatNOGS |
+## Other skills (`.cursor/skills/`)
 
-## MCP Tools (use when relevant)
+| Skill | Purpose |
+|-------|---------|
+| **orchestrate** | OpenSpec plan + `/opsx:archive` only after **READY** |
+| **coder** | Implementation (`/coder`) |
+| **code-review** | Build/lint verdict (`/code-review`) |
+| **feature-workflow** | Worktree + feature branch |
+| **debugger-specialist** | Runtime debugging |
+| **utility-specialist** | Git/gh, deploy |
 
-| MCP | Agent | Use |
-|-----|-------|-----|
-| **cursor-ide-browser** | Debugger, Frontend, Reviewer | browser_console_messages, browser_network_requests, browser_profile_start/stop — console, network, CPU profiling |
+## Git approval (all agents)
 
-## When to Call Which Agent
+**Never** **`git commit`**, **`git push`**, or **remote-affecting `git merge`** without **explicit user approval** after showing the exact commands and message.
 
-| Agent | When to Use | mcp_task type |
-|-------|-------------|---------------|
-| **Planner** | Multi-step tasks, unclear scope, research (web/docs), before coding | generalPurpose |
-| **Frontend** | Vue components, pass-predict composables, AR track, PolarPlot SVG, UnoCSS | generalPurpose or explore |
-| **API** | server/api/* proxies, composables/api/*, N2YO/Space-Track/SatNOGS, rate limits | generalPurpose |
-| **Storage** | useIndexedDB, useSecureStorage, useSettings, IndexedDB schema, AES credentials | generalPurpose |
-| **Utility** | Git worktree, gh, Vercel CLI via npm run (beta, production, rollback) | shell |
-| **Debugger** | Run app, monitor console/network, read logs, profile, debug and fix bugs | generalPurpose |
-| **Reviewer** | After changes: validate rules, npm run build, lint | generalPurpose |
+**Merge to `development`:** only when **you** approve — **utility-specialist**, **feature-workflow**, or **`gh`**; not automatic from coder/review. **`/orchestrate`** included: after **`/code-review` READY** and pauses, it **asks** first.
 
-## Skills (read when relevant)
+## Models (`.cursor/agents/`)
 
-| Skill | When |
-|-------|------|
-| **feature-workflow** | User asks to implement a new feature — worktree, work in isolation, merge only after approval |
-| **openspec-propose** | Big features needing specs — use `/opsx:propose`, then `/opsx:apply`, `/opsx:archive` |
+| Agent | Model target | Frontmatter |
+|-------|----------------|-------------|
+| **`orchestrate`** | **Claude Opus 4.6** (planning, sequencing, merge) | `model: opus` |
+| **`coder`**, **`code-review`**, **`verifier`** | **Claude Sonnet 4.6** | `model: sonnet` |
 
-## Planning: Hybrid (OpenSpec vs development_plan)
+YAML **`model:`** is a **default** when that tier exists. Use **any model the product exposes** that fits the step. If a **paid subscription is exhausted**, use **Composer**, **Auto**, or another **free / included** model **good enough** for that step.
 
-| Case | Use |
-|------|-----|
-| **Quick tasks, orchestrator** | Planner → `development_plan.md` |
-| **Big features, multi-session** | `/opsx:propose` → `openspec/changes/<id>/` → `/opsx:apply` → `/opsx:archive` |
+If your Cursor build ignores `model` in YAML, set each agent’s model manually in **Cursor → Settings / Agents**.
 
-OpenSpec specs live in `openspec/specs/` and persist across sessions.
+## Cursor — config approval
 
-## Invocation Pattern
+Per **[Cursor Agent Security](https://cursor.com/docs/agent/security)**, **configuration files** (including much of **`.cursor/`**) require **explicit approval** before the agent writes them. Normal app source often does not.
 
-When delegating, pass a **self-contained prompt** — subagents do not inherit your context. Include:
+## Delegation workflow (`.cursor/agents/`)
 
-- Role and instructions (from `.cursor/skills/<specialist>/PROMPT.md` or SKILL.md)
-- Task description
-- Relevant file paths (not full content — they read on demand)
-- Output expectations (e.g. "return summary of changes, not full file contents")
+**`/orchestrate`** runs **Delegation**: **Task `coder`** → **Task `code-review`** → **ask approval** → commit/push (if approved) → **ask approval** → **merge feature → `development`** (if approved) when **READY**. The orchestrator **never** writes application code — implementation is the **`coder`** subagent. Git only, no MR tools from agents.
 
-## Context Budget Rules
+**Pauses:** After **`coder`** (optional) — wait for **“continue”** before **`code-review`**. After **`code-review`** — **no verifier or merge** in the same turn; **continue** when ready.
 
-- **Never load multiple domains at once** — API + frontend + storage in one turn bloats context. Delegate by domain.
-- **Diff when possible** — `git diff` for review; avoid full file loads.
-- **Sections when needed** — For larger files (e.g. `pages/settings.vue` ~1000 lines), load only relevant sections or delegate to Frontend.
-- **Rules as reference** — Pass paths: `.cursor/rules/api-rules.mdc`, `.cursor/rules/frontend-rules.mdc` — agents read on demand.
-- **Output = summary** — Subagents return condensed output ("Added X in useTLEData, changed satnogs.post.ts L45–60") — orchestrator does not receive full file dumps.
+| Order | Step | Purpose |
+|-------|------|---------|
+| 1 | **`/orchestrate`** | Plan: requirements, branch context, **`coder`** / **`code-review`** handoffs |
+| 2 | **`/coder`** | Implement; **do not** commit/push unless the user **explicitly** approved git writes |
+| — | **You** *(optional)* | **“continue”** → **`code-review`** |
+| 3 | **`/code-review`** | Build, lint; **READY** / **NEEDS FIXES** |
+| — | **You** | Pause: test, edit, revert — then continue |
+| — | **`/verifier`** *(optional)* | After **READY** and pause, before merge |
+| 4 | **Closure** | Approve commit/push/merge — **feature → `development`** only with approval |
 
-## Output Files
+**Merge** into **`main`**: only when **you** decide. **Protected:** **`main`** / **`master`** — no push/merge from agents without your explicit approval.
 
-| File | Writer | Purpose |
-|------|--------|---------|
-| `development_plan.md` | Planner | Task breakdown (quick tasks) |
-| `docs/research.md` | Planner | Research findings, external refs |
-| `openspec/changes/<id>/` | OpenSpec | Proposal, specs, design, tasks (big features) |
+Details: **`.cursor/agents/*.md`** (orchestrate, coder, code-review, verifier).
 
-## CLI Tools
+## Extended roster (`library/` in cursor-agent-workflow)
 
-| Tool | Agent | When |
-|------|-------|------|
-| `npm run build` | Reviewer, Orchestrator | After edits |
-| `npm run dev` | All | Local dev |
-| `npm run beta` | Utility | Deploy preview (uses vercel CLI) |
-| `npm run production` | Utility | Production release (uses vercel CLI) |
-| `npm run rollback` | Utility | Rollback production (uses vercel CLI) |
-| `git`, `gh`, `jq`, `diff` | Utility | Version control, GitHub |
+Bootstrap copies **`library/skills/`** to **`.cursor/skills/`** by default. Optional agents: **debugger**, **code-architect**, **code-explorer**, … — see **`docs/agents-and-skills.md`** in the workflow repo. **Refresh:** **`cwf skills /path/to/app`**.
 
-Run from project root: `/Users/goran/Projects/radio/satTrack/development` (or `$(pwd)`).
+## Project rules
 
-## After Delegation
+**`.cursor/rules/`** — **`project-overview.mdc`** · **`api-rules.mdc`** · **`frontend-rules.mdc`** · **`git-workflow.mdc`** · **`orchestrator-delegation.mdc`**
 
-- Read subagent result; summarize for user.
-- If app changed: run `npm run build` (or delegate to Reviewer).
+## CLI (project root)
+
+`npm run dev` · `npm run build` · `npm run lint` · `npm run beta` / `production` / `rollback` · `git` / `gh` · `openspec`
+
+After substantive edits, prefer **lint** / **tests** / **build** and skimming **`git diff`** before calling work **done** — see **Verification** in **`orchestrate.md`**.
+
+## Cheatsheet (READY → next step)
+
+| Situation | Next step |
+|-----------|-----------|
+| **`/code-review`** → **NEEDS FIXES** | **`/coder`** fixes → **`/code-review`** again |
+| **`/code-review`** → **READY** | Test / edit; then **continue** → optional **`/verifier`** → approve merge → **feature → `development`** |
+| OpenSpec change done + **READY** | Second **`/orchestrate`** → **`/opsx:archive <id>`** (not before **READY**) |
+| Verifier finds blockers | Same as **NEEDS FIXES** → **`/coder`** → **`/code-review`** |

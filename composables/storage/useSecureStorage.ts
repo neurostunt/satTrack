@@ -23,7 +23,6 @@ export const useSecureStorage = () => {
   const indexedDB = useIndexedDB()
 
   // Storage keys
-  const storageKey = 'sattrack-secure'
   const tleCacheKey = 'sattrack-tle-cache'
   const settingsKey = 'sattrack-settings'
 

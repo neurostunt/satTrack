@@ -1,0 +1,38 @@
+# SatTrack — Agent notes
+
+**Default:** work directly (search, edit, terminal). For OpenSpec-driven work, follow the sequence below.
+
+## Workflow (`.agents/skills/`)
+
+| Order | Invoke | Purpose |
+|-------|--------|---------|
+| 1 | **`/orchestrate`** | Plan: `/opsx:propose`, artifacts under `openspec/changes/<id>/` |
+| 2 | **`/coder`** | Implement; commit + push `feature/*`; **no** `/opsx:archive` |
+| 3 | **`/code-review`** | Build, lint, verdict **READY** or **NEEDS FIXES**; **no** `/opsx:archive` |
+| 4 | **`/orchestrate`** again | **Only after READY:** **`/opsx:archive <id>`** — closes change, optional sync to `openspec/specs/` |
+
+**Rule:** **`/opsx:archive`** runs **only** in step **4** (orchestrator), **never** before code-review **READY**.
+
+**Merge to `development`:** only when **you** approve — **utility-specialist**, **feature-workflow**, or `gh`; not automatic from coder/review.
+
+Details and rules are in each **`SKILL.md`**.
+
+OpenSpec commands: `.cursor/commands/` — `/opsx:propose`, `/opsx:apply`, `/opsx:explore`, `/opsx:archive`.
+
+**Specs:** **draft** = `openspec/changes/<id>/` (proposal, design, tasks, optional **`specs/`** deltas). **Canonical** = `openspec/specs/<capability>/spec.md`. **Promote** draft → canonical at **`/opsx:archive`** sync (step 4 orchestrator), not before code-review **READY**. Details: **`.agents/skills/orchestrate/SKILL.md`** (“Where specs live”).
+
+## Other skills (`.cursor/skills/`)
+
+| Skill | Purpose |
+|-------|---------|
+| **feature-workflow** | Worktree + feature branch |
+| **debugger-specialist** | Runtime debugging |
+| **utility-specialist** | Git/gh, deploy |
+
+## Project rules
+
+`.cursor/rules/project-overview.mdc` · `api-rules.mdc` · `frontend-rules.mdc` · `git-workflow.mdc`
+
+## CLI (project root)
+
+`npm run dev` · `npm run build` · `npm run lint` · `npm run beta` / `production` / `rollback` · `git` / `gh`
